@@ -133,11 +133,13 @@ export default function App() {
   const [showBmiGraph, setShowBmiGraph] = useState(false);
   const [cameraOrientation, setCameraOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [capturedPreviewDataUrl, setCapturedPreviewDataUrl] = useState<string | null>(null);
+  const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
+  const resultScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -151,6 +153,18 @@ export default function App() {
     setOnboardingCompleted(state.onboardingCompleted);
     setShowOnboarding(!state.onboardingCompleted);
   }, [clientId]);
+
+  useEffect(() => {
+    if (showResult && resultScrollRef.current) {
+      resultScrollRef.current.scrollTop = 0;
+    }
+  }, [showResult, currentHistoryId]);
+
+  useEffect(() => {
+    if (!showOnboardingCompleteModal) return;
+    const t = setTimeout(() => setShowOnboardingCompleteModal(false), 2200);
+    return () => clearTimeout(t);
+  }, [showOnboardingCompleteModal]);
 
   useEffect(() => {
     const mode = profile.appearanceMode || 'system';
@@ -605,7 +619,7 @@ export default function App() {
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
-                  <input type="date" id="obBirth" value={obBirth} onChange={(e) => setObBirth(e.target.value)} />
+                  <input type="date" id="obBirth" value={obBirth} min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => setObBirth(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label>성별</label>
@@ -737,6 +751,7 @@ export default function App() {
                       saveProfile(clientId, { ...profile, onboardingLocked: true });
                       setOnboardingCompleted(true);
                       setShowOnboarding(false);
+                      setShowOnboardingCompleteModal(true);
                       refreshHistory();
                     }}
                   >
@@ -749,8 +764,15 @@ export default function App() {
         </div>
       )}
 
+      {showOnboardingCompleteModal && (
+        <div className="onboarding-complete-toast" role="status" aria-live="polite">
+          <span className="onboarding-complete-icon" aria-hidden>✓</span>
+          <span className="onboarding-complete-text">반영 완료</span>
+        </div>
+      )}
+
       <div id="app">
-        <header className="header">
+        <header className={`header ${showSettings || showInfoIngredient || showInfoCriteria || showInfoPhoto || showAddMeasurement || showMeasurementHistory || showBmiGraph ? 'header-hidden' : ''}`}>
           <h1 className="header-title">FoodPolice</h1>
           <button type="button" id="settingsBtn" title="설정" aria-label="설정" onClick={openSettings}>
             ⚙️
@@ -865,7 +887,7 @@ export default function App() {
               ×
             </button>
           </div>
-          <div className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
+          <div ref={resultScrollRef} className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
             {editingName !== null && (
               <div className="card" id="productNameCardEdit">
                 <div className="form-group">
@@ -1047,6 +1069,8 @@ export default function App() {
                     <input
                       type="date"
                       id="profileBirth"
+                      min="1900-01-01"
+                      max={new Date().toISOString().slice(0, 10)}
                       value={profileBirth}
                       onChange={(e) => {
                         const v = e.target.value || undefined;
@@ -1333,7 +1357,7 @@ function AddBodyMeasurementSheet({
         </div>
         <div className="form-group">
           <label>날짜</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <input type="date" value={date} min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="form-group">
           <label>키 (cm)</label>
