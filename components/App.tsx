@@ -772,15 +772,25 @@ export default function App() {
       )}
 
       <div id="app">
-        <header className={`header ${showSettings || showInfoIngredient || showInfoCriteria || showInfoPhoto || showAddMeasurement || showMeasurementHistory || showBmiGraph ? 'header-hidden' : ''}`}>
-          <h1 className="header-title">FoodPolice</h1>
-          <button type="button" id="settingsBtn" title="설정" aria-label="설정" onClick={openSettings}>
-            ⚙️
-          </button>
-        </header>
-
         <div id="homeView" className={showHome ? '' : 'hidden'}>
           <div className="home-scroll" id="homeScroll">
+            {showHome &&
+              !showResult &&
+              !showCamera &&
+              !capturedPreviewDataUrl &&
+              !showSettings &&
+              !showInfoIngredient &&
+              !showInfoCriteria &&
+              !showInfoPhoto &&
+              !showAddMeasurement &&
+              !showMeasurementHistory &&
+              !showBmiGraph && (
+                <div className="home-top-bar">
+                  <button type="button" className="btn-settings-home" title="설정" aria-label="설정" onClick={openSettings}>
+                    ⚙️
+                  </button>
+                </div>
+              )}
             <div className="hero-section" aria-label="소개">
               <span className="hero-icon" aria-hidden>🌿</span>
               <h2 className="hero-title">
