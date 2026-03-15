@@ -53,12 +53,25 @@ export function loadState(clientId: string): AppState {
   try {
     const parsed = JSON.parse(json);
     const profile = parsed.profile || {};
-    if (
-      Array.isArray(profile.bodyMeasurements) === false &&
+    const hasHw =
       profile.heightCm != null &&
       profile.weightKg != null &&
       profile.heightCm > 0 &&
-      profile.weightKg > 0
+      profile.weightKg > 0;
+    if (Array.isArray(profile.bodyMeasurements) === false && hasHw) {
+      profile.bodyMeasurements = [
+        {
+          date: new Date().toISOString(),
+          heightCm: profile.heightCm,
+          weightKg: profile.weightKg,
+        },
+      ];
+    }
+    /* 하나만 있어도 기록 표시: 키·몸무게만 있고 기록 배열이 비어 있으면 한 건 채움 */
+    if (
+      Array.isArray(profile.bodyMeasurements) &&
+      profile.bodyMeasurements.length === 0 &&
+      hasHw
     ) {
       profile.bodyMeasurements = [
         {
