@@ -548,7 +548,7 @@
     .advice-warning { background: rgba(179,56,46,0.1); color: var(--risk); }
     .disclaimer { font-size: 0.875rem; color: var(--text3); text-align: center; margin-top: 16px; line-height: 1.55; padding-bottom: 8px; }
     .edit-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
-    .edit-row input { flex: 1; min-width: 0; max-width: 280px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--card-stroke); font-size: 1.15rem; min-height: 48px; }
+    .edit-row input { flex: 1; min-width: 0; max-width: 280px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--card-stroke); font-size: 1.15rem; min-height: 48px; background: var(--glass-bg); color: var(--text); }
     .edit-row button { min-height: 48px; padding: 0 20px; font-size: 1.1rem; border-radius: 14px; border: none; cursor: pointer; background: transparent; color: var(--text2); }
     .edit-row button.save { color: var(--primary); font-weight: 600; }
     .result-scroll.editing-name #resultContent #productNameCard { display: none; }
@@ -716,6 +716,23 @@
     html:not([data-theme="light"]) .settings-modal input, html:not([data-theme="light"]) .settings-modal select { background: rgba(45,45,48,0.95); color: var(--text); }
     [data-theme="dark"] .btn-ghost,
     html:not([data-theme="light"]) .btn-ghost { background: rgba(55,55,58,0.9); color: var(--text) !important; border-color: var(--card-stroke); }
+
+    [data-theme="dark"] .nova-2,
+    html:not([data-theme="light"]) .nova-2 { color: #e6c04a; }
+    [data-theme="dark"] .nova-3,
+    html:not([data-theme="light"]) .nova-3 { color: #f0a050; }
+    [data-theme="dark"] .concern-item,
+    html:not([data-theme="light"]) .concern-item { background: rgba(255,255,255,0.06); }
+    [data-theme="dark"] .advice-box,
+    html:not([data-theme="light"]) .advice-box { background: rgba(76,175,80,0.15); }
+    [data-theme="dark"] .edit-row input,
+    html:not([data-theme="light"]) .edit-row input { background: rgba(45,45,48,0.95); border-color: var(--card-stroke); color: var(--text); }
+    [data-theme="dark"] #settingsBtn:active,
+    html:not([data-theme="light"]) #settingsBtn:active { background: rgba(255,255,255,0.15); }
+    [data-theme="dark"] .mode-option.selected,
+    html:not([data-theme="light"]) .mode-option.selected { background: rgba(76,175,80,0.2); }
+    [data-theme="dark"] .error-msg,
+    html:not([data-theme="light"]) .error-msg { background: rgba(239,83,80,0.15); border-color: rgba(239,83,80,0.35); }
 
     .btn-text-accent { color: var(--accent) !important; background: transparent !important; border: none; }
     [data-theme="dark"] .settings-modal .btn-text-accent,
