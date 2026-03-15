@@ -1,4 +1,4 @@
-/** 이미지 입력 지원 Gemma 12B (Generative Language API) */
+/** 이미지 입력 지원을 위해 gemini-3.1-flash-lite-preview 모델 사용 */
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
 export function getKoreanNovaCriteria(): string {
