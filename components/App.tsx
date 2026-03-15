@@ -115,7 +115,10 @@ export default function App() {
   const [profileHeight, setProfileHeight] = useState('');
   const [profileWeight, setProfileWeight] = useState('');
   const [obStep, setObStep] = useState(0);
-  const [obBirth, setObBirth] = useState('');
+  const [obBirth, setObBirth] = useState(() => {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  });
   const [obGender, setObGender] = useState('male');
   const [obHeight, setObHeight] = useState('');
   const [obWeight, setObWeight] = useState('');
@@ -626,7 +629,7 @@ export default function App() {
                   <h2>키와 몸무게를 알려주세요</h2>
                   <p className="ob-lead">BMI·비만 여부 판단에 쓸게요. 나중에 설정에서 수정할 수 있어요</p>
                 </div>
-                <div className="form-group">
+                <div className="form-group form-group-wide">
                   <label>키 (cm)</label>
                   <input
                     type="number"
