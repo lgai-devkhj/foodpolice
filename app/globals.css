@@ -716,6 +716,12 @@
     html:not([data-theme="light"]) .settings-modal input, html:not([data-theme="light"]) .settings-modal select { background: rgba(45,45,48,0.95); color: var(--text); }
     [data-theme="dark"] .btn-ghost,
     html:not([data-theme="light"]) .btn-ghost { background: rgba(55,55,58,0.9); color: var(--text) !important; border-color: var(--card-stroke); }
+    [data-theme="dark"] #onboardingView .ob-step-actions .btn-ghost,
+    [data-theme="dark"] #onboardingView .ob-confirm-actions .btn-ghost,
+    html:not([data-theme="light"]) #onboardingView .ob-step-actions .btn-ghost,
+    html:not([data-theme="light"]) #onboardingView .ob-confirm-actions .btn-ghost { background: rgba(70,72,75,0.95) !important; color: #f2f2f2 !important; border-color: rgba(255,255,255,0.18); }
+    [data-theme="dark"] #onboardingView .onboarding-inner .form-group,
+    html:not([data-theme="light"]) #onboardingView .onboarding-inner .form-group { background: rgba(52,54,56,0.6) !important; border-color: rgba(255,255,255,0.14); }
 
     [data-theme="dark"] .nova-2,
     html:not([data-theme="light"]) .nova-2 { color: #e6c04a; }
@@ -906,10 +912,15 @@
       appearance: none;
     }
     .onboarding-inner .form-group input::placeholder { color: var(--text3); opacity: 1; }
+    [data-theme="light"] #onboardingView .onboarding-inner .form-group,
+    [data-theme="light"] #onboardingView .onboarding-inner .form-group input,
+    [data-theme="light"] #onboardingView .onboarding-inner .form-group select { background: #fff !important; color: #1f231f !important; border-color: rgba(0,0,0,0.12) !important; }
+    [data-theme="light"] #onboardingView .ob-step-actions .btn-ghost,
+    [data-theme="light"] #onboardingView .ob-confirm-actions .btn-ghost { background: #f0f2f1 !important; color: #1f231f !important; border-color: rgba(0,0,0,0.12) !important; }
     [data-theme="dark"] .onboarding-inner .form-group input,
     [data-theme="dark"] .onboarding-inner .form-group select,
     html:not([data-theme="light"]) .onboarding-inner .form-group input,
-    html:not([data-theme="light"]) .onboarding-inner .form-group select { background: rgba(50,50,50,0.9); border-color: var(--card-stroke); color: var(--text); }
+    html:not([data-theme="light"]) .onboarding-inner .form-group select { background: rgba(58,58,62,0.95); border-color: var(--card-stroke); color: var(--text); }
     .onboarding-inner .btn { width: 100%; min-width: 0; max-width: 100%; min-height: 52px; font-size: 1.05rem; font-weight: 600; margin-top: auto; padding: 16px 20px; border-radius: 16px; box-sizing: border-box; flex-shrink: 0; }
     .onboarding-inner .btn-full { max-width: 100%; margin-left: 0; margin-right: 0; }
     .onboarding-inner .meta { font-size: 1rem; color: var(--text3); margin-top: 20px; line-height: 1.6; }
