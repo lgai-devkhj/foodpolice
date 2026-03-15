@@ -20,6 +20,21 @@ import {
 } from '@/lib/store';
 import { NOVA_NAMES, NOVA_IMG, NOVA_SHORT_REASON, PHOTO_GUIDE_EXAMPLE_URL } from '@/lib/constants';
 
+/** bodyMeasurements 중 날짜 기준 가장 최신 기록의 키·몸무게, 없으면 profile 값 */
+function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
+  const list = profile.bodyMeasurements || [];
+  if (list.length === 0) return { heightCm: profile.heightCm, weightKg: profile.weightKg };
+  const sorted = [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const latest = sorted[0];
+  return { heightCm: latest.heightCm, weightKg: latest.weightKg };
+}
+
+/** 표시·BMI용: 최신 기록 반영한 프로필 */
+function getProfileWithLatestMeasurement(profile: Profile): Profile {
+  const { heightCm, weightKg } = getLatestHeightWeight(profile);
+  return { ...profile, heightCm, weightKg };
+}
+
 /** 연령 무관: 저체중 <18.5, 정상 18.5~22.9, 과체중 23~24.9, 비만 25 이상 */
 function getBMICategory(p: Profile): { bmi: number; category: string } | null {
   const bmi = computeBmi(p.heightCm ?? 0, p.weightKg ?? 0);
@@ -258,7 +273,7 @@ export default function App() {
       const concerns = result.concernIngredients || [];
       const advice = result.consumptionAdvice || '';
       const isUltra = nova === 4;
-      const isObese = isObeseByProfile(profile);
+      const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
       const ultraMsg = isObese
         ? '초가공 식품입니다. 비만 위험을 높일 수 있으므로 섭취를 줄이는 것이 좋습니다.'
         : '초가공 식품입니다. 섭취 빈도를 줄이는 것이 좋습니다.';
@@ -1012,6 +1027,21 @@ export default function App() {
                     setOnboardingCompleted(false);
                     setShowOnboarding(true);
                     setShowSettings(false);
+                    setShowHome(true);
+                    setShowResult(false);
+                    setShowDeleteArea(false);
+                    setCurrentHistoryId(null);
+                    setCurrentResult(null);
+                    const today = new Date();
+                    setObStep(0);
+                    setObBirth(today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0'));
+                    setObGender('male');
+                    setObHeight('');
+                    setObWeight('');
+                    setObSummaryBirth('—');
+                    setObSummaryGender('—');
+                    setObSummaryHeight('—');
+                    setObSummaryWeight('—');
                   }}
                 >
                   <span className="row-icon" aria-hidden>🗑</span>
@@ -1135,12 +1165,7 @@ export default function App() {
                   </div>
                   <div style={{ color: 'var(--text2)', fontSize: '1rem', marginBottom: 12 }}>
                     {(() => {
-                      const list = profile.bodyMeasurements || [];
-                      const latest = list.length
-                        ? [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-                        : null;
-                      const h = latest?.heightCm ?? profile.heightCm;
-                      const w = latest?.weightKg ?? profile.weightKg;
+                      const { heightCm: h, weightKg: w } = getLatestHeightWeight(profile);
                       return h != null && h > 0 && w != null && w > 0
                         ? `키 ${Math.round(h)} cm · 몸무게 ${w.toFixed(1)} kg`
                         : '기록 없음';
@@ -1156,14 +1181,15 @@ export default function App() {
                   </button>
                 </div>
                 {(() => {
-                  const bmiInfo = getBMICategory(profile);
+                  const effectiveProfile = getProfileWithLatestMeasurement(profile);
+                  const bmiInfo = getBMICategory(effectiveProfile);
                   if (!bmiInfo) return null;
                   return (
                     <div className="bmi-display" style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--card)', border: '1px solid var(--card-stroke)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                       <div>
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>BMI (현재)</span>
                         <span style={{ marginLeft: 8, color: 'var(--text2)' }}>{bmiInfo.bmi.toFixed(1)} · {bmiInfo.category}</span>
-                        {isObeseByProfile(profile) && <span style={{ marginLeft: 6, fontSize: '0.9rem', color: 'var(--risk)' }}>(비만)</span>}
+                        {isObeseByProfile(effectiveProfile) && <span style={{ marginLeft: 6, fontSize: '0.9rem', color: 'var(--risk)' }}>(비만)</span>}
                       </div>
                       <button
                         type="button"
