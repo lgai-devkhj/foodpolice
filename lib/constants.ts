@@ -5,11 +5,12 @@ export const NOVA_NAMES: Record<number, string> = {
   4: 'Group IV (초가공 식품)',
 };
 
+/** 프로젝트 내 업로드 이미지 (public/images/) — 드라이브 미사용 */
 export const NOVA_IMG: Record<number, string> = {
-  1: 'https://drive.google.com/thumbnail?id=1kYigdZ18mS9Ur-u9iAmsh84xNV3hf8qq&sz=w200',
-  2: 'https://drive.google.com/thumbnail?id=1gHrK5i24WP5PsXh1BBkP7p26hc01Mboo&sz=w200',
-  3: 'https://drive.google.com/thumbnail?id=1abmO6CqtLs2CjxElRUfRy-OZ5K0OgmVh&sz=w200',
-  4: 'https://drive.google.com/thumbnail?id=17MzId0L7Z9pueWzRliElzbVoesom5rE4&sz=w200',
+  1: '/images/nova-1.svg',
+  2: '/images/nova-2.svg',
+  3: '/images/nova-3.svg',
+  4: '/images/nova-4.svg',
 };
 
 export const NOVA_SHORT_REASON: Record<number, string> = {
@@ -19,7 +20,6 @@ export const NOVA_SHORT_REASON: Record<number, string> = {
   4: '원재료 구조 상실, 산업적 첨가물 다수 포함 등',
 };
 
-export const PHOTO_GUIDE_EXAMPLE_URL =
-  'https://drive.google.com/thumbnail?id=1BUkm23RKslsTIYsU--AfCmUZttLOnf0i&sz=w800';
+export const PHOTO_GUIDE_EXAMPLE_URL = '/images/photo-guide-example.jpg';
 
 export const STORE_PREFIX = 'fp_state_v1_';
