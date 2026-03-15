@@ -1,5 +1,5 @@
 /** 이미지 입력 지원 Gemma 12B (Generative Language API) */
-export const GEMINI_MODEL = 'Gemma-3-12b-it';
+export const GEMINI_MODEL = 'google/gemma-3-12b-it';
 
 export function getKoreanNovaCriteria(): string {
   return (
