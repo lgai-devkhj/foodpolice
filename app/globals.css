@@ -80,6 +80,7 @@
       min-height: 48px;
       background: transparent;
     }
+    .header.header-hidden { display: none; }
     .header-title { display: none; }
     #settingsBtn {
       width: 44px;
@@ -171,7 +172,8 @@
     }
     .card-title { font-size: 1rem; font-weight: 600; color: var(--text); margin: 0 0 8px; }
     #resultView .card-title,
-    #resultContent .card-title { font-size: 1.15rem; }
+    #resultContent .card-title { font-size: 1.25rem; }
+    #resultContent #productNameDisplay { font-size: 1.35rem; }
     .meta { font-size: 0.875rem; color: var(--text3); }
 
     .btn {
@@ -860,6 +862,46 @@
       box-sizing: border-box;
     }
     #onboardingView.hidden { display: none; }
+    .onboarding-complete-toast {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 32px;
+      background: var(--card);
+      border: 1px solid var(--card-stroke);
+      border-radius: 20px;
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      animation: onboarding-toast-in 0.3s ease;
+    }
+    .onboarding-complete-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+    .onboarding-complete-text {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    @keyframes onboarding-toast-in {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+      to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
     .onboarding-inner {
       flex: 1 1 0%;
       min-height: 0;
