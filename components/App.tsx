@@ -157,15 +157,30 @@ export default function App() {
     if (mode === 'light' || mode === 'dark') {
       document.documentElement.setAttribute('data-theme', mode);
     } else {
-      document.documentElement.removeAttribute('data-theme');
+      const dark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     }
+  }, [profile.appearanceMode]);
+
+  useEffect(() => {
+    const mode = profile.appearanceMode || 'system';
+    if (mode !== 'system' && mode !== undefined) return;
+    const mq = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    if (!mq) return;
+    const apply = () => {
+      document.documentElement.setAttribute('data-theme', mq.matches ? 'dark' : 'light');
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
   }, [profile.appearanceMode]);
 
   const applyAppearance = useCallback((mode: string) => {
     if (mode === 'light' || mode === 'dark') {
       document.documentElement.setAttribute('data-theme', mode);
     } else {
-      document.documentElement.removeAttribute('data-theme');
+      const dark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     }
   }, []);
 
@@ -503,7 +518,7 @@ export default function App() {
           />
           <div className="camera-ui">
             <div className="camera-top-bar">
-              <button type="button" className="camera-x" aria-label="닫기" onClick={stopCamera}>×</button>
+              <span style={{ width: 44, height: 44 }} aria-hidden />
               <button type="button" className="camera-x" aria-label="닫기" onClick={stopCamera}>×</button>
             </div>
             <div className="camera-guide-wrap">
@@ -629,24 +644,25 @@ export default function App() {
                   <h2>키와 몸무게를 알려주세요</h2>
                   <p className="ob-lead">BMI·비만 여부 판단에 쓸게요. 나중에 설정에서 수정할 수 있어요</p>
                 </div>
+                {/* 키·몸무게 입력란 너비 동일하게 (form-group-wide → CSS min-width) */}
                 <div className="form-group form-group-wide">
                   <label>키 (cm)</label>
                   <input
                     type="number"
                     id="obHeight"
-                    placeholder="예: 170"
+                    placeholder="예: 170.5"
                     min={1}
                     max={250}
                     value={obHeight}
                     onChange={(e) => setObHeight(e.target.value)}
                   />
                 </div>
-                <div className="form-group">
+                <div className="form-group form-group-wide">
                   <label>몸무게 (kg)</label>
                   <input
                     type="number"
                     id="obWeight"
-                    placeholder="예: 65"
+                    placeholder="예: 61.7"
                     min={1}
                     max={300}
                     step={0.1}
@@ -769,10 +785,12 @@ export default function App() {
               </button>
             </div>
             {loading && (
-              <div className="card" id="loadingCard">
-                <div className="loading">
-                  <span className="loading-spinner" aria-hidden>⏳</span>
-                  <span id="loadingText">{loadingText}</span>
+              <div className="loading-callout-wrap">
+                <div className="card" id="loadingCard">
+                  <div className="loading">
+                    <span className="loading-spinner" aria-hidden>⏳</span>
+                    <span id="loadingText">{loadingText}</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -1030,22 +1048,44 @@ export default function App() {
                       type="date"
                       id="profileBirth"
                       value={profileBirth}
-                      onChange={(e) => setProfileBirth(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value || undefined;
+                        setProfileBirth(e.target.value);
+                        if (clientId) {
+                          const p = { ...profile, birthDate: v };
+                          setProfileState(p);
+                          saveProfile(clientId, p);
+                        }
+                      }}
                     />
                   </div>
                 )}
-                <div className="form-group">
-                  <label>성별</label>
-                  <select
-                    id="profileGender"
-                    value={profileGender}
-                    onChange={(e) => setProfileGender(e.target.value)}
-                    disabled={!!profile.onboardingLocked}
-                  >
-                    <option value="male">남성</option>
-                    <option value="female">여성</option>
-                  </select>
-                </div>
+                {profile.onboardingLocked ? (
+                  <div className="form-group settings-readonly-row">
+                    <span className="label">성별</span>
+                    <span className="value">{profile.gender === 'female' ? '여성' : '남성'}</span>
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label>성별</label>
+                    <select
+                      id="profileGender"
+                      value={profileGender}
+                      onChange={(e) => {
+                        const v = e.target.value as 'male' | 'female';
+                        setProfileGender(v);
+                        if (clientId) {
+                          const p = { ...profile, gender: v };
+                          setProfileState(p);
+                          saveProfile(clientId, p);
+                        }
+                      }}
+                    >
+                      <option value="male">남성</option>
+                      <option value="female">여성</option>
+                    </select>
+                  </div>
+                )}
                 <div className="form-group" style={{ padding: '16px 20px', background: 'var(--card)', border: '1px solid var(--card-stroke)', borderRadius: 14, marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <span style={{ fontWeight: 600, color: 'var(--text)' }}>키·몸무게</span>
@@ -1060,9 +1100,17 @@ export default function App() {
                     </button>
                   </div>
                   <div style={{ color: 'var(--text2)', fontSize: '1rem', marginBottom: 12 }}>
-                    {profile.heightCm != null && profile.heightCm > 0 && profile.weightKg != null && profile.weightKg > 0
-                      ? `키 ${Math.round(profile.heightCm)} cm · 몸무게 ${profile.weightKg.toFixed(1)} kg`
-                      : '기록 없음'}
+                    {(() => {
+                      const list = profile.bodyMeasurements || [];
+                      const latest = list.length
+                        ? [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+                        : null;
+                      const h = latest?.heightCm ?? profile.heightCm;
+                      const w = latest?.weightKg ?? profile.weightKg;
+                      return h != null && h > 0 && w != null && w > 0
+                        ? `키 ${Math.round(h)} cm · 몸무게 ${w.toFixed(1)} kg`
+                        : '기록 없음';
+                    })()}
                   </div>
                   <button
                     type="button"
@@ -1095,23 +1143,6 @@ export default function App() {
                     </div>
                   );
                 })()}
-                <button
-                  type="button"
-                  className="btn btn-primary btn-full"
-                  onClick={() => {
-                    const p: Profile = {
-                      ...profile,
-                      birthDate: profileBirth || profile.birthDate || undefined,
-                      gender: profileGender || profile.gender,
-                    };
-                    if (p.birthDate && p.gender) p.onboardingLocked = true;
-                    setProfileState(p);
-                    saveProfile(clientId, p);
-                    setShowSettings(false);
-                  }}
-                >
-                  저장
-                </button>
               </div>
             )}
           </div>
