@@ -71,18 +71,13 @@
       overflow-x: hidden;
     }
 
-    .header {
-      flex-shrink: 0;
+    .home-top-bar {
       display: flex;
-      align-items: center;
       justify-content: flex-end;
-      padding: calc(8px + var(--safe-top)) 14px 8px;
-      min-height: 48px;
-      background: transparent;
+      align-items: center;
+      padding: calc(8px + var(--safe-top)) 0 4px;
     }
-    .header.header-hidden { display: none; }
-    .header-title { display: none; }
-    #settingsBtn {
+    .btn-settings-home {
       width: 44px;
       height: 44px;
       min-width: 44px;
@@ -98,7 +93,7 @@
       justify-content: center;
       border-radius: 50%;
     }
-    #settingsBtn:active { background: rgba(255,255,255,0.7); }
+    .btn-settings-home:active { background: rgba(255,255,255,0.7); }
 
     #homeView {
       flex: 1;
@@ -278,8 +273,7 @@
     .history-item .meta { flex-shrink: 0; }
 
     .loading-callout-wrap {
-      position: relative;
-      z-index: 20;
+      margin-top: 24px;
       margin-bottom: 14px;
     }
     .loading { display: flex; align-items: center; gap: 14px; padding: 16px 18px; font-size: 1rem; }
@@ -741,8 +735,8 @@
     html:not([data-theme="light"]) .advice-box { background: rgba(76,175,80,0.15); }
     [data-theme="dark"] .edit-row input,
     html:not([data-theme="light"]) .edit-row input { background: rgba(45,45,48,0.95); border-color: var(--card-stroke); color: var(--text); }
-    [data-theme="dark"] #settingsBtn:active,
-    html:not([data-theme="light"]) #settingsBtn:active { background: rgba(255,255,255,0.15); }
+    [data-theme="dark"] .btn-settings-home:active,
+    html:not([data-theme="light"]) .btn-settings-home:active { background: rgba(255,255,255,0.15); }
     [data-theme="dark"] .mode-option.selected,
     html:not([data-theme="light"]) .mode-option.selected { background: rgba(76,175,80,0.2); }
     [data-theme="dark"] .error-msg,
