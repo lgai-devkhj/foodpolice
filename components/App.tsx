@@ -82,52 +82,6 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
-function escapeAttr(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/** 대체 식품 썸네일 로딩 전 자리(이모지 일러스트) */
-const ALT_PRODUCT_IMG_PLACEHOLDER =
-  'data:image/svg+xml,' +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 112"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8f5e9"/><stop offset="100%" stop-color="#c8e6c9"/></linearGradient></defs><rect fill="url(#g)" width="112" height="112" rx="18"/><g fill="none" stroke="#2e7d32" stroke-width="2.2" stroke-linecap="round" opacity="0.35"><circle cx="56" cy="56" r="28"/><circle cx="56" cy="56" r="18"/></g><circle cx="56" cy="56" r="6" fill="#2e7d32" opacity="0.5"/></svg>'
-  );
-
-/** Open Food Facts 검색으로 소비자 사진(있을 때만) — 실패 시 플레이스홀더 유지 */
-async function hydrateAltProductImages(container: HTMLElement): Promise<void> {
-  const items = container.querySelectorAll('.alt-item[data-off-query]');
-  for (let i = 0; i < items.length; i++) {
-    const el = items[i] as HTMLElement;
-    const q = el.getAttribute('data-off-query');
-    if (!q) continue;
-    const img = el.querySelector('img.alt-product-img') as HTMLImageElement | null;
-    if (!img) continue;
-    try {
-      const url =
-        'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' +
-        encodeURIComponent(q) +
-        '&search_simple=1&action=process&json=1&page_size=1';
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = (await res.json()) as {
-        products?: Array<{ image_front_small_url?: string; image_url?: string }>;
-      };
-      const p = data.products?.[0];
-      const src = p?.image_front_small_url || p?.image_url;
-      if (src) {
-        img.src = src;
-        img.classList.add('alt-product-img--loaded');
-      }
-    } catch {
-      /* CORS·빈 검색 등 */
-    }
-  }
-}
-
 function nutritionPctBarClass(pct: number): string {
   if (pct >= 40) return 'nutrition-pct-fill high';
   if (pct >= 20) return 'nutrition-pct-fill warn';
@@ -262,17 +216,9 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     .map((it) => {
       const kicker = it.label ? escapeHtml(it.label) : '';
       const reason = it.reason ? escapeHtml(it.reason) : '';
-      const qAttr = escapeAttr(it.product);
       return (
-        '<div class="alt-item" data-off-query="' +
-        qAttr +
-        '">' +
+        '<div class="alt-item">' +
         '<div class="alt-item-row">' +
-        '<div class="alt-thumb-wrap">' +
-        '<img class="alt-product-img" alt="" width="112" height="112" decoding="async" src="' +
-        ALT_PRODUCT_IMG_PLACEHOLDER +
-        '" />' +
-        '</div>' +
         '<div class="alt-item-main">' +
         (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
         `<div class="alt-product">${escapeHtml(it.product)}</div>` +
@@ -750,7 +696,6 @@ export default function App() {
     const container = document.getElementById('resultContent');
     if (!container) return;
     container.innerHTML = resultContentHtml;
-    void hydrateAltProductImages(container);
     const editBtn = container.querySelector('#editNameBtn');
     if (editBtn && currentHistoryId) {
       const historyItem = history.find((i) => i.id === currentHistoryId) || null;

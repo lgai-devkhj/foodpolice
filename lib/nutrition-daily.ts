@@ -129,15 +129,9 @@ function firstMlInString(servingText: string): number | null {
 
 function beverageIntakeParagraph(
   drinkUnit: string,
-  extras: PersonalizedIntakeNoteExtras | null | undefined,
-  bmiPart: string
+  target: number
 ): string {
-  const sg = extras?.sugarG;
-  const sugarLine =
-    sg != null && Number.isFinite(sg) && sg > 0
-      ? ` 표에 나온 **당류(${Number(sg)}g)**·**나트륨**·(해당 시) **카페인**을 꼭 함께 보세요.`
-      : ' 표의 **당류·나트륨**·(해당 시) **카페인**을 꼭 함께 보세요.';
-  return `일일 권장 섭취량(참고): 탄산·가당 음료는 **열량만**으로 나누면 수 리터까지 나올 수 있어, **당·나트륨·카페인**을 표에서 꼭 확인하세요.${sugarLine} 참고로 **하루 2${drinkUnit} 이내**·물과 번갈아 마시는 정도만 생각해 보세요. ${bmiPart} 개인 건강·전체 식단에 따라 달라질 수 있어요.`;
+  return `일일 권장 섭취량: 하루 2${drinkUnit} 이내(${target}kcal 기준)`;
 }
 
 /** 라벨 문구에서 소비 단위(병·봉지 등) 추출 */
@@ -217,24 +211,14 @@ export function buildPersonalizedIntakeNote(
           : firstMl)
       : firstMl;
 
-  const bmiPart =
-    bmi != null && bmiCategory
-      ? `현재 BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})이라서, 참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`
-      : `참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`;
-
   if (caloriesKcal == null || !Number.isFinite(caloriesKcal)) {
-    if (normalizedServingSizeText) {
-      return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal)을 읽지 못해서 계산을 생략했어요. ${normalizedServingSizeText} 기준으로 다시 열량이 보이게 촬영해 주세요.`;
-    }
-    return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal) 판독이 어려워 계산을 생략했어요. 열량이 보이게 다시 찍어주세요.`;
+    return '일일 권장 섭취량: 열량 판독이 어려워 계산을 생략했어요';
   }
 
   // 0kcal·저열량(제로 음료 등): 열량은 유효하게 “0”으로 읽힌 경우. 나눗셈(목표kcal/열량)은 쓰지 않음.
   if (caloriesKcal >= 0 && caloriesKcal < 0.5) {
-    const bevExtra = beverage
-      ? ` 참고로 **하루 2${defaultDrinkUnit(normalizedServingSizeText)} 이내**·물과 번갈아 마시는 정도만 생각해 보세요. **열량이 거의 없어도** 카페인·나트륨·감미료 등은 과하면 부담이 될 수 있어요.`
-      : '';
-    return `일일 권장 섭취량(참고): 표에 나온 이 분량은 **0kcal**(또는 거의 0kcal)로 읽혔어요. 하루 참고 열량(${target}kcal 가정) 기준으로는 **열량 부담이 거의 없는 편**이에요.${bevExtra} 나트륨·당류 등은 같은 표의 다른 수치를 함께 보세요. ${bmiPart} 개인 활동량·전체 식단에 따라 달라질 수 있어요.`;
+    if (beverage) return beverageIntakeParagraph(defaultDrinkUnit(normalizedServingSizeText), target);
+    return `일일 권장 섭취량: 열량 부담이 낮아요(${target}kcal 기준)`;
   }
 
   // 음료·100ml당 저열량 액체표: 목표kcal÷(100ml당 kcal)×100ml → 수 리터까지 나와 비현실적
@@ -252,7 +236,7 @@ export function buildPersonalizedIntakeNote(
 
   if (beverage || likelySweetDrinkPer100ml) {
     const du = defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeParagraph(du, extras, bmiPart);
+    return beverageIntakeParagraph(du, target);
   }
 
   const servings = target / caloriesKcal; // “표의 기준 1개(또는 100ml 등)”를 하루에 몇 번 먹을 수 있는지(참고)
@@ -262,7 +246,7 @@ export function buildPersonalizedIntakeNote(
   const capLiquidSugarDrink = beverage || sodaLikeHint;
   if (isLiquidRetailUnit(unitLabel) && servingsRoundedDown >= 3 && capLiquidSugarDrink) {
     const du = unitLabel || defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeParagraph(du, extras, bmiPart);
+    return beverageIntakeParagraph(du, target);
   }
 
   // 100g/ml당 표기: ml 리터로 쓰지 않고, 포장 1개 분량으로 환산해 **N병·N봉지** 형태
@@ -285,9 +269,9 @@ export function buildPersonalizedIntakeNote(
             ? defaultDrinkUnit(normalizedServingSizeText)
             : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
         if (isLiquidRetailUnit(u) && n >= 3 && capLiquidSugarDrink) {
-          return beverageIntakeParagraph(u, extras, bmiPart);
+          return beverageIntakeParagraph(u, target);
         }
-        return `일일 권장 섭취량(참고): 참고용 하루 열량(${target}kcal 가정)으로 보면 **약 ${n}${u} 이내** 수준을 참고할 수 있어요. ${bmiPart} 전체 식단·개인차가 크므로 절대적인 기준은 아니에요.`;
+        return `일일 권장 섭취량: 하루 ${n}${u} 이내(${target}kcal 기준)`;
       }
     }
     const u =
@@ -295,15 +279,15 @@ export function buildPersonalizedIntakeNote(
       (basisIsPerServing === false && scaleMlForKcal == null
         ? '회'
         : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
-    return `일일 권장 섭취량(참고): 참고용 하루 열량(${target}kcal 가정)으로 보면 **약 ${servingsRoundedDown}${u} 이내**를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${u} 이내(${target}kcal 기준)`;
   }
 
   if (unitLabel) {
-    return `일일 권장 섭취량(참고): **약 ${servingsRoundedDown}${unitLabel} 이내**를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${unitLabel} 이내(${target}kcal 기준)`;
   }
 
   const fallbackU = defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText);
-  return `일일 권장 섭취량(참고): **약 ${servingsRoundedDown}${fallbackU} 이내**(표기 1단위 기준)를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+  return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${fallbackU} 이내(${target}kcal 기준)`;
 }
 
 export function computeBmiServer(heightCm: number, weightKg: number): number | null {
