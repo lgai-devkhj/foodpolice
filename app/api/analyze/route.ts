@@ -14,7 +14,6 @@ import {
   type NutritionFactsInput,
 } from '@/lib/nutrition-daily';
 import {
-  DEFAULT_ALTERNATIVES_GROUNDING_MODEL,
 } from '@/lib/gemini-alternative-search';
 
 /** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
@@ -117,59 +116,6 @@ function isNutritionLabelLike(name: string): boolean {
   return /(?:나트륨|당류|열량|칼로리|kcal|탄수화물|단백질|지방|포화지방|트랜스지방|콜레스테롤|식이섬유|탄수|당|protein|fat|carb|sodium|calorie)/i.test(
     n
   );
-}
-
-function syncAlternativeCurrentFoodLine(
-  alternativeFoodText: string | null,
-  productName: string
-): string | null {
-  if (!alternativeFoodText) return null;
-  const normalizedProductName = (productName || '').trim();
-  if (!normalizedProductName) return alternativeFoodText;
-
-  const unknownFoodPattern =
-    /^\s*(?:\(라벨에서 읽지 못함\)|알 수 없음|모름|미상|unknown|없음)\s*$/i;
-  const lines = alternativeFoodText.split(/\r?\n/);
-  const idx = lines.findIndex((line) => /^현재 식품\s*:/.test(line));
-
-  if (idx < 0) return alternativeFoodText;
-
-  const currentValue = lines[idx].replace(/^현재 식품\s*:\s*/, '').trim();
-  if (currentValue === normalizedProductName) return alternativeFoodText;
-  if (currentValue === '' || unknownFoodPattern.test(currentValue)) {
-    lines[idx] = `현재 식품: ${normalizedProductName}`;
-    return lines.join('\n');
-  }
-
-  return alternativeFoodText;
-}
-
-function hasConcreteAlternativeItems(text: string | null): boolean {
-  if (!text) return false;
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    const m = line.match(/^\s*[123]\.\s*(?:조금 개선|더 나은 선택|최적 선택)\s*:\s*(.*)\s*$/);
-    if (!m) continue;
-    const product = (m[1] || '').trim();
-    if (product) return true;
-  }
-  return false;
-}
-
-function isLikelyReliableProductName(name: string): boolean {
-  const n = (name || '').trim();
-  if (!n) return false;
-  if (n.length < 2 || n.length > 40) return false;
-  // OCR로 원재료 문장이 섞인 경우를 차단
-  if (/[,\(\)\[\]\/]/.test(n)) return false;
-  if (
-    /(?:원재료|영양|성분|나트륨|탄수화물|당류|단백질|지방|포화지방|트랜스지방|함량|총내용량|1회\s*제공량)/i.test(
-      n
-    )
-  ) {
-    return false;
-  }
-  return true;
 }
 
 export async function POST(request: NextRequest) {
@@ -308,22 +254,9 @@ export async function POST(request: NextRequest) {
       : null;
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
-    let alternativeFoodText =
-      parsed.alternativeFoodText != null && String(parsed.alternativeFoodText).trim()
-        ? String(parsed.alternativeFoodText).trim()
-        : null;
-
-    // 속도 최적화: 분석 응답 시간을 줄이기 위해 추가 웹검색 호출을 생략합니다.
-    const shouldPreferWebSearchForAlternatives = false;
-    const groundingModel =
-      (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
-      DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
-
+    // 대체 식품은 별도 /api/alternatives에서 비동기로 처리
+    let alternativeFoodText: string | null = null;
     let alternativeFoodFromWebSearch = false;
-    if (shouldPreferWebSearchForAlternatives) {
-      // reserved: 필요 시 환경변수 기반으로 재활성화
-    }
-    alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
 
     const result = {
       product,

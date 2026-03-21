@@ -860,6 +860,10 @@ export default function App() {
           html += `<div class="result-details-body">${altHtml}</div>`;
           html += '</details>';
         }
+      } else if (isUltra) {
+        html += '<details class="result-details" open><summary>대체 식품</summary>';
+        html += '<div class="result-details-body"><div class="meta">분석 중...</div></div>';
+        html += '</details>';
       }
 
       html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
@@ -1244,7 +1248,7 @@ export default function App() {
                 aria-hidden
               >
                 <span className="camera-guide-label">
-                  {captureStep === 1 ? '원재료명이 보이게 찍어주세요' : '영양성분표가 보이게 찍어주세요'}
+                  {captureStep === 1 ? '원재료명이 보이게 찍어주세요' : '영양정보 표가 보이게 찍어주세요'}
                 </span>
               </div>
             </div>
@@ -1253,7 +1257,7 @@ export default function App() {
               <span className="step-sep">/</span>
               <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
               <span className="step-text">
-                {captureStep === 1 ? '1단계 · 원재료 촬영' : '2단계 · 영양성분표 촬영'}
+                {captureStep === 1 ? '1단계 · 원재료 촬영' : '2단계 · 영양정보 표 촬영'}
               </span>
             </div>
             <div className="camera-bottom-row">
@@ -1291,14 +1295,14 @@ export default function App() {
               <button
                 type="button"
                 className="camera-no-nutrition-btn"
-                aria-label="영양성분표 없음"
+                aria-label="영양정보 표 없음"
                 onClick={analyzeWithoutNutrition}
               >
-                영양성분표 없음
+                영양정보 표 없음
               </button>
             )}
             <p className="camera-hint">
-              {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양성분표 촬영'}
+              {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양정보 표 촬영'}
             </p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
           </div>
@@ -1309,14 +1313,14 @@ export default function App() {
         <div className="capture-preview-view" aria-label="촬영 미리보기">
           <img src={capturedPreviewDataUrl} alt="촬영한 사진" className="capture-preview-img" />
           <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
-            {captureStep === 1 ? '1/2 · 원재료' : '2/2 · 영양성분표'}
+            {captureStep === 1 ? '1/2 · 원재료' : '2/2 · 영양정보 표'}
           </p>
           <div className="capture-preview-actions">
             <button type="button" className="capture-preview-btn retake" onClick={retakePhoto}>
               다시 촬영
             </button>
             <button type="button" className="capture-preview-btn confirm" onClick={confirmCapturedImage}>
-              {captureStep === 1 ? '다음(영양성분표)' : '분석하기'}
+              {captureStep === 1 ? '다음(영양정보 표)' : '분석하기'}
             </button>
           </div>
         </div>
@@ -1673,8 +1677,8 @@ export default function App() {
                     ? '1/2 · 원재료(앨범 선택)'
                     : '1/2 · 원재료(촬영)'
                   : uploadSource === 'gallery'
-                    ? '2/2 · 영양성분표(앨범 선택)'
-                    : '2/2 · 영양성분표(촬영)'}
+                    ? '2/2 · 영양정보 표(앨범 선택)'
+                    : '2/2 · 영양정보 표(촬영)'}
               </span>
             </div>
           </div>
@@ -2116,7 +2120,7 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">3</span>
-              <span className="txt">다음 단계에서 <strong>영양성분표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
+              <span className="txt">다음 단계에서 <strong>영양정보 표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
             </div>
             <div className="guide-step">
               <span className="num">4</span>
@@ -2126,13 +2130,18 @@ export default function App() {
             </div>
             <div className="photo-guide-example-wrap">
               <div className="photo-guide-example-title">촬영 예시</div>
-              <img
-                className="photo-guide-example-img"
-                src={PHOTO_GUIDE_EXAMPLE_URL}
-                alt="촬영 예시"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
+              <div className="photo-guide-example-grid">
+                {[PHOTO_GUIDE_EXAMPLE_URL, '/images/nutrient.jpg', '/images/ingredient.jpg'].map((src, idx) => (
+                  <img
+                    key={src}
+                    className="photo-guide-example-img"
+                    src={src}
+                    alt={`촬영 예시 ${idx + 1}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>

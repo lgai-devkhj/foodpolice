@@ -1386,6 +1386,7 @@
     .guide-step .txt { flex: 1; color: var(--text); font-size: 1.1rem; }
     .photo-guide-example-wrap { margin: 24px 0; }
     .photo-guide-example-title { font-size: 1.2rem; font-weight: 500; color: var(--text2); margin-bottom: 14px; }
+    .photo-guide-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .photo-guide-example-img { width: 100%; max-width: 100%; height: auto; aspect-ratio: 3/4; object-fit: contain; border-radius: 20px; border: 1px solid var(--card-stroke); background: var(--card); display: block; }
     .photo-guide-example-img[src=""] { display: none; }
     .info-sheet .modal-panel p { font-size: 1.15rem !important; line-height: 1.65; margin: 0 0 20px !important; color: var(--text2); }
