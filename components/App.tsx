@@ -342,7 +342,6 @@ export default function App() {
   const [resultContentHtml, setResultContentHtml] = useState('');
   const [showDeleteArea, setShowDeleteArea] = useState(false);
   const todayDate = new Date().toISOString().slice(0, 10);
-  const [profileBirth, setProfileBirth] = useState('');
   const [profileGender, setProfileGender] = useState('male');
   const [profileHeight, setProfileHeight] = useState('');
   const [profileWeight, setProfileWeight] = useState('');
@@ -916,7 +915,6 @@ export default function App() {
   );
 
   const openSettings = useCallback(() => {
-    setProfileBirth(profile.birthDate || '');
     setProfileGender(profile.gender || 'male');
     setProfileHeight(profile.heightCm != null ? String(profile.heightCm) : '');
     setProfileWeight(profile.weightKg != null ? String(profile.weightKg) : '');
@@ -1636,34 +1634,10 @@ export default function App() {
                   </button>
                 </div>
                 <h2>개인 맞춤화</h2>
-                {profile.onboardingLocked ? (
-                  <div className="form-group settings-readonly-row">
-                    <span className="label">출생연도</span>
-                    <span className="value">{birthDisplay(profile.birthDate || '')}</span>
-                  </div>
-                ) : (
-                  <div className="form-group">
-                    <label>생년월일</label>
-                    <input
-                      type="date"
-                      id="profileBirth"
-                      min="1900-01-01"
-                      max={todayDate}
-                      value={profileBirth}
-                      onFocus={(e) => openNativeDatePicker(e.currentTarget)}
-                      onClick={(e) => openNativeDatePicker(e.currentTarget)}
-                      onChange={(e) => {
-                        const v = e.target.value || undefined;
-                        setProfileBirth(e.target.value);
-                        if (clientId) {
-                          const p = { ...profile, birthDate: v };
-                          setProfileState(p);
-                          saveProfile(clientId, p);
-                        }
-                      }}
-                    />
-                  </div>
-                )}
+                <div className="form-group settings-readonly-row">
+                  <span className="label">생년월일</span>
+                  <span className="value">{birthDisplay(profile.birthDate || '')}</span>
+                </div>
                 {profile.onboardingLocked ? (
                   <div className="form-group settings-readonly-row">
                     <span className="label">성별</span>
