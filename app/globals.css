@@ -518,7 +518,8 @@
     }
     .camera-ui .camera-x,
     .camera-ui .camera-orient-btn,
-    .camera-ui .camera-shutter { pointer-events: auto; }
+    .camera-ui .camera-shutter,
+    .camera-ui .camera-album-btn { pointer-events: auto; }
     .camera-top-bar {
       display: flex;
       align-items: center;

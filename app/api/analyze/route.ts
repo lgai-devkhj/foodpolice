@@ -158,6 +158,22 @@ function hasConcreteAlternativeItems(text: string | null): boolean {
   return false;
 }
 
+function isLikelyReliableProductName(name: string): boolean {
+  const n = (name || '').trim();
+  if (!n) return false;
+  if (n.length < 2 || n.length > 40) return false;
+  // OCR로 원재료 문장이 섞인 경우를 차단
+  if (/[,\(\)\[\]\/]/.test(n)) return false;
+  if (
+    /(?:원재료|영양|성분|나트륨|탄수화물|당류|단백질|지방|포화지방|트랜스지방|함량|총내용량|1회\s*제공량)/i.test(
+      n
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: AnalyzeBody = await request.json();
@@ -312,9 +328,10 @@ export async function POST(request: NextRequest) {
         parsed.briefDescription != null && String(parsed.briefDescription).trim()
           ? String(parsed.briefDescription).trim()
           : null;
-
-      const promptContexts = [
-        {
+      const canRunGroundedSearch = isLikelyReliableProductName(product.productName);
+      if (canRunGroundedSearch) {
+        // 응답 지연을 줄이기 위해 검색은 1회만 수행
+        const searchPrompt = buildAlternativeFoodWebSearchPrompt({
           productName: product.productName,
           companyName: product.companyName,
           foodCategory,
@@ -322,52 +339,26 @@ export async function POST(request: NextRequest) {
           novaSubgroup,
           briefDescription,
           rawMaterials: product.rawMaterials,
-        },
-        {
-          productName: product.productName || briefDescription || '',
-          companyName: '',
-          foodCategory,
-          novaGroup,
-          novaSubgroup,
-          briefDescription,
-          rawMaterials: product.rawMaterials,
-        },
-        {
-          productName: product.productName || '',
-          companyName: product.companyName,
-          foodCategory,
-          novaGroup,
-          novaSubgroup,
-          briefDescription: null,
-          rawMaterials: '',
-        },
-      ];
-
-      let bestSearchText: string | null = null;
-      for (const ctx of promptContexts) {
-        const searchPrompt = buildAlternativeFoodWebSearchPrompt(ctx);
+        });
         const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
-        if (!fromWeb) continue;
-        if (!bestSearchText) bestSearchText = fromWeb;
-        if (hasConcreteAlternativeItems(fromWeb)) {
-          bestSearchText = fromWeb;
-          break;
+        if (fromWeb && hasConcreteAlternativeItems(fromWeb)) {
+          alternativeFoodText = fromWeb;
+          alternativeFoodFromWebSearch = true;
+        } else if (!(alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText))) {
+          alternativeFoodText =
+            '현재 식품: ' +
+            (product.productName || '(라벨에서 읽지 못함)') +
+            '\n가공 단계: Group IV' +
+            (novaSubgroup ? ` · ${novaSubgroup}` : '') +
+            '\n👉 더 나은 선택:\n(실제 유통 상품 위주로 찾기 위해 검색했지만, 확정 가능한 후보를 찾지 못했습니다. 같은 식품군에서 한 단계 낮은 가공 제품 라벨을 비교해 보세요.)';
         }
-      }
-
-      if (bestSearchText) {
-        alternativeFoodText = bestSearchText;
-        alternativeFoodFromWebSearch = true;
-      } else if (alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText)) {
-        // 검색이 완전히 실패한 경우에만, 1차 모델 결과를 마지막 안전망으로 사용
-        alternativeFoodFromWebSearch = false;
-      } else {
+      } else if (!(alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText))) {
         alternativeFoodText =
           '현재 식품: ' +
           (product.productName || '(라벨에서 읽지 못함)') +
           '\n가공 단계: Group IV' +
           (novaSubgroup ? ` · ${novaSubgroup}` : '') +
-          '\n👉 더 나은 선택:\n(웹 검색을 여러 번 시도했지만, 국내 유통이 확실한 구체 제품명을 찾기 어려웠습니다. 같은 식품군에서 한 단계 낮은 가공 제품 라벨을 비교해 보세요.)';
+          '\n👉 더 나은 선택:\n(제품명 인식이 불확실해 검색 정확도가 낮을 수 있어, 이번에는 구체 제품 추천을 보류했습니다. 제품명이 잘 보이게 다시 촬영하면 더 정확히 추천할 수 있어요.)';
       }
     }
     alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
