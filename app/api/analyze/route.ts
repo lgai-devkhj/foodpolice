@@ -18,7 +18,6 @@ import {
   DEFAULT_ALTERNATIVES_GROUNDING_MODEL,
   fetchAlternativesWithGoogleSearch,
 } from '@/lib/gemini-alternative-search';
-import { tryFetchNaverEmartMarketHome } from '@/lib/naver-emart-crawl';
 
 /** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
 export const runtime = 'nodejs';
@@ -259,11 +258,6 @@ export async function POST(request: NextRequest) {
 
     let alternativeFoodFromWebSearch = false;
     if (shouldRunAltSearch) {
-      let naverEmartHomePlainText: string | null = null;
-      if (process.env.NAVER_EMART_CRAWL !== '0') {
-        const crawl = await tryFetchNaverEmartMarketHome();
-        naverEmartHomePlainText = crawl.plainText;
-      }
       const searchPrompt = buildAlternativeFoodWebSearchPrompt({
         productName: product.productName,
         companyName: product.companyName,
@@ -275,7 +269,6 @@ export async function POST(request: NextRequest) {
             ? String(parsed.briefDescription).trim()
             : null,
         rawMaterials: product.rawMaterials,
-        naverEmartHomePlainText,
       });
       const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
       if (fromWeb) {

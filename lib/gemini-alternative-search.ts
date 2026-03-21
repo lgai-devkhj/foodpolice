@@ -13,8 +13,6 @@ export interface AlternativeSearchContext {
   novaSubgroup: string | null;
   briefDescription: string | null;
   rawMaterials: string;
-  /** `tryFetchNaverEmartMarketHome` 성공 시에만 — 이마트 마켓 홈 HTML에서 뽑은 평문 일부 */
-  naverEmartHomePlainText?: string | null;
 }
 
 const OUTPUT_FORMAT =
@@ -37,18 +35,10 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const stage = `Group ${ctx.novaGroup}${ctx.novaGroup === 4 ? sub : ''}`;
   const cat = ctx.foodCategory || '미분류';
   const desc = (ctx.briefDescription || '').slice(0, 300);
-  const emart =
-    ctx.naverEmartHomePlainText && ctx.naverEmartHomePlainText.trim().length > 0
-      ? '\n[네이버 쇼핑 이마트 마켓 홈 — 서버에서 GET으로 수집한 텍스트 일부]\n' +
-        '출처: https://shopping.naver.com/market/emart/home\n' +
-        '아래에 보이는 **상품명·브랜드·카테고리**를 우선 참고하세요. 없거나 부족하면 Google Search로 보강하세요.\n' +
-        '---\n' +
-        ctx.naverEmartHomePlainText.trim().slice(0, 5500) +
-        '\n---\n\n'
-      : '';
+
 
   return (
-    '당신은 **아래 수집 텍스트(있을 때)**와 **Google Search(웹 검색) 도구**로 얻은 정보를 근거로, 한국에서 살 수 있는 **실제 유통 제품**을 제안합니다.\n\n' +
+    '당신은 **Google Search(웹 검색) 도구**로 얻은 정보**만** 근거로, 한국에서 살 수 있는 **실제 유통 제품**을 제안합니다.\n\n' +
     '[현재 식품 — 이미지 분석 결과]\n' +
     `제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}\n` +
     `제조사: ${ctx.companyName || '(없음)'}\n` +
@@ -56,14 +46,13 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     `NOVA(한국형): ${stage}\n` +
     (desc ? `한 줄 설명: ${desc}\n` : '') +
     (raw ? `원재료 일부: ${raw}\n` : '') +
-    emart +
     '\n[한국 온라인 마트 — 검색 시 우선 활용]\n' +
     '웹 검색 쿼리를 잡을 때 **국내 실판매 페이지가 나오도록** 하세요.\n' +
     '- **네이버 쇼핑**(shopping.naver.com, search.shopping.naver.com)에 올라온 상품명·브랜드가 검색 스니펫에 보일 때까지 검색을 조정해도 됩니다.\n' +
     '- 대형마트 채널 예: 네이버 쇼핑 내 **이마트** 마켓 홈 `https://shopping.naver.com/market/emart/home` — 식료품 유통 맥락의 기준으로 삼으세요. 실제 후보 품목은 **검색으로** `네이버쇼핑 이마트`, `site:shopping.naver.com`, 제품명+브랜드+`구매` 등 한국어 조합을 활용해 확인하세요.\n' +
     '- 홈플러스·롯데마트·GS더프레시 등 **다른** 네이버 쇼핑 마켓/슈퍼 채널 결과가 나와도 무방합니다. **검색 결과에 품명이 명시된 경우에만** 추천 칸에 적으세요.\n\n' +
     '[규칙 — 반드시 준수]\n' +
-    '1. **수집 텍스트 또는 웹 검색으로 확인된** 브랜드+공식 판매명만 1~3번에 적습니다. 둘 다에 없는 조합·플레버는 **지어내지 마세요**.\n' +
+    '1. **웹 검색으로 확인된** 브랜드+공식 판매명만 1~3번에 적습니다. 검색 결과에 없는 조합·플레버는 **지어내지 마세요**.\n' +
     '2. 같은 식품군(위 foodCategory)·비슷한 소비 상황을 유지하세요. 탄산 제로 콜라류면 다른 브랜드 **동종 제로 콜라** 등, 완전 다른 계열(생수·무가당 차만)로 바꾸지 마세요.\n' +
     '3. 가공 단계는 **한 단계만** 낮추는 방향(4C→4B, 4B→4A, 4A→III 등). 검색으로 그런 대안이 없으면 칸을 비우세요.\n' +
     '4. 한국어로 검색해 한국 내 유통·수입 제품을 우선하세요.\n' +
