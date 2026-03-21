@@ -3,7 +3,7 @@
  * @see https://ai.google.dev/gemini-api/docs/google-search
  */
 
-export const DEFAULT_ALTERNATIVES_GROUNDING_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_ALTERNATIVES_GROUNDING_MODEL = 'gemini-3.1-flash-lite-preview';
 
 export interface AlternativeSearchContext {
   productName: string;
@@ -57,6 +57,10 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     '3. 가공 단계는 **한 단계만** 낮추는 방향(4C→4B, 4B→4A, 4A→III 등). 검색으로 그런 대안이 없으면 칸을 비우세요.\n' +
     '4. 한국어로 검색해 한국 내 유통·수입 제품을 우선하세요.\n' +
     '5. 확실하지 않으면 **차라리 비우기**. 범주명만 쓰기 금지.\n\n' +
+    '[말투 규칙 — 토스 스타일]\n' +
+    '- 짧고 분명하게 쓴다. 군더더기 설명은 줄인다.\n' +
+    '- 이유 문장은 쉬운 생활어로 1문장만 쓴다.\n' +
+    '- 과장·단정·공포 표현 없이 차분하고 친절하게 쓴다.\n\n' +
     OUTPUT_FORMAT
   );
 }
