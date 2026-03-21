@@ -310,12 +310,134 @@ function birthDisplay(birthDateStr: string): string {
   return year + '년생 (만 ' + age + '세)';
 }
 
-function openNativeDatePicker(input: HTMLInputElement): void {
-  try {
-    (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-  } catch {
-    // showPicker 미지원 브라우저는 기본 date 입력 사용
-  }
+function daysInMonth(year: number, month: number): number {
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return 31;
+  return new Date(year, month, 0).getDate();
+}
+
+function parseIsoDate(value: string): { year: number; month: number; day: number } | null {
+  const m = (value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return { year, month, day };
+}
+
+function toIsoDate(year: number, month: number, day: number): string {
+  const maxDay = daysInMonth(year, month);
+  const safeDay = Math.min(Math.max(1, day), maxDay);
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+}
+
+function clampIsoDate(value: string, min: string, max: string): string {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function WheelColumn({
+  values,
+  selected,
+  suffix,
+  onSelect,
+}: {
+  values: number[];
+  selected: number;
+  suffix: string;
+  onSelect: (v: number) => void;
+}) {
+  const rowH = 40;
+  const ref = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const idx = Math.max(0, values.indexOf(selected));
+    if (ref.current) ref.current.scrollTop = idx * rowH;
+  }, [selected, values]);
+
+  return (
+    <div
+      className="ymd-wheel-col"
+      ref={ref}
+      onScroll={(e) => {
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(() => {
+          const top = (e.currentTarget as HTMLDivElement).scrollTop;
+          const idx = Math.round(top / rowH);
+          const v = values[Math.min(values.length - 1, Math.max(0, idx))];
+          if (v != null) onSelect(v);
+        }, 60);
+      }}
+    >
+      {values.map((v) => (
+        <button
+          type="button"
+          key={v}
+          className={`ymd-wheel-item ${v === selected ? 'active' : ''}`}
+          onClick={() => onSelect(v)}
+        >
+          {v}
+          {suffix}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function YmdWheelPicker({
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  min: string;
+  max: string;
+}) {
+  const minParts = parseIsoDate(min);
+  const maxParts = parseIsoDate(max);
+  const parsed = parseIsoDate(value) || maxParts || { year: 2000, month: 1, day: 1 };
+  const minYear = minParts?.year ?? 1900;
+  const maxYear = maxParts?.year ?? new Date().getFullYear();
+  const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
+  const months = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) => {
+    if (parsed.year === minYear && minParts && m < minParts.month) return false;
+    if (parsed.year === maxYear && maxParts && m > maxParts.month) return false;
+    return true;
+  });
+  const maxDay = daysInMonth(parsed.year, parsed.month);
+  const days = Array.from({ length: maxDay }, (_, i) => i + 1).filter((d) => {
+    if (minParts && parsed.year === minParts.year && parsed.month === minParts.month && d < minParts.day) return false;
+    if (maxParts && parsed.year === maxParts.year && parsed.month === maxParts.month && d > maxParts.day) return false;
+    return true;
+  });
+
+  return (
+    <div className="ymd-wheel-wrap">
+      <div className="ymd-wheel-highlight" aria-hidden />
+      <WheelColumn
+        values={years}
+        selected={parsed.year}
+        suffix="년"
+        onSelect={(y) => onChange(clampIsoDate(toIsoDate(y, parsed.month, parsed.day), min, max))}
+      />
+      <WheelColumn
+        values={months}
+        selected={parsed.month}
+        suffix="월"
+        onSelect={(m) => onChange(clampIsoDate(toIsoDate(parsed.year, m, parsed.day), min, max))}
+      />
+      <WheelColumn
+        values={days}
+        selected={Math.min(parsed.day, maxDay)}
+        suffix="일"
+        onSelect={(d) => onChange(clampIsoDate(toIsoDate(parsed.year, parsed.month, d), min, max))}
+      />
+    </div>
+  );
 }
 
 export default function App() {
@@ -1088,16 +1210,7 @@ export default function App() {
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
-                  <input
-                    type="date"
-                    id="obBirth"
-                    value={obBirth}
-                    min="1900-01-01"
-                    max={todayDate}
-                    onFocus={(e) => openNativeDatePicker(e.currentTarget)}
-                    onClick={(e) => openNativeDatePicker(e.currentTarget)}
-                    onChange={(e) => setObBirth(e.target.value)}
-                  />
+                  <YmdWheelPicker value={obBirth} min="1900-01-01" max={todayDate} onChange={setObBirth} />
                 </div>
                 <div className="form-group">
                   <label>성별</label>

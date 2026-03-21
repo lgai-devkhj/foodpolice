@@ -1800,6 +1800,54 @@
       appearance: none;
     }
     .onboarding-inner .form-group input::placeholder { color: var(--text3); opacity: 1; }
+    .ymd-wheel-wrap {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      height: 200px;
+      border-radius: 14px;
+      border: 1px solid rgba(46,125,50,0.3);
+      background: #fff;
+      padding: 8px;
+      overflow: hidden;
+    }
+    .ymd-wheel-highlight {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 80px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(46,125,50,0.35);
+      background: rgba(46,125,50,0.08);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .ymd-wheel-col {
+      height: 184px;
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      z-index: 2;
+    }
+    .ymd-wheel-col::-webkit-scrollbar { display: none; }
+    .ymd-wheel-item {
+      width: 100%;
+      height: 40px;
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      font-size: 1rem;
+      font-weight: 500;
+      scroll-snap-align: start;
+      cursor: pointer;
+    }
+    .ymd-wheel-item.active {
+      color: var(--text);
+      font-weight: 700;
+    }
     /* 온보딩 키/몸무게 입력란 너비: form-group-wide 클래스 사용 시 최소 180px */
     .onboarding-inner .form-group.form-group-wide input { min-width: 180px; }
     [data-theme="light"] #onboardingView .onboarding-inner .form-group,
