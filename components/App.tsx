@@ -1011,6 +1011,7 @@ export default function App() {
             setError('원재료 사진을 먼저 선택해 주세요');
             return;
           }
+          stopCamera();
           setNutritionImageBase64(base64 || '');
           setNutritionImageMimeType(normalizedMime);
           runAnalyzeTwoImages(rawImageBase64Ref.current, rawImageMimeType, base64 || '', normalizedMime);
@@ -1024,6 +1025,7 @@ export default function App() {
       rawImageBase64,
       rawImageMimeType,
       runAnalyzeTwoImages,
+      stopCamera,
       startCamera,
     ]
   );

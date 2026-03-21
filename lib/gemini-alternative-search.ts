@@ -27,7 +27,7 @@ const OUTPUT_FORMAT =
   '3. 최적 선택: {실제 제품명 또는 공백}\n' +
   '- 이유: {공백 가능}\n\n' +
   '검색으로도 구체 품명을 확인할 수 없으면 1~3번 제품명은 모두 비우고, "👉 더 나은 선택:" 바로 아래에 한 줄로만:\n' +
-  '(웹 검색으로도 동일 식품군·한 단계 낮은 가공의 구체 제품명을 확정하기 어렵습니다. 마트에서 라벨을 비교해 보세요.)\n';
+  '(마트에서 라벨을 비교해 보세요.)\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = (ctx.rawMaterials || '').slice(0, 900);

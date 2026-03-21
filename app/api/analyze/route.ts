@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
             (product.productName || '(라벨에서 읽지 못함)') +
             '\n가공 단계: Group IV' +
             (novaSubgroup ? ` · ${novaSubgroup}` : '') +
-            '\n👉 더 나은 선택:\n(실제 유통 상품 위주로 찾기 위해 검색했지만, 확정 가능한 후보를 찾지 못했습니다. 같은 식품군에서 한 단계 낮은 가공 제품 라벨을 비교해 보세요.)';
+            '\n👉 더 나은 선택:\n(마트에서 라벨을 비교해 보세요.)';
         }
       } else if (!(alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText))) {
         alternativeFoodText =
@@ -358,7 +358,7 @@ export async function POST(request: NextRequest) {
           (product.productName || '(라벨에서 읽지 못함)') +
           '\n가공 단계: Group IV' +
           (novaSubgroup ? ` · ${novaSubgroup}` : '') +
-          '\n👉 더 나은 선택:\n(제품명 인식이 불확실해 검색 정확도가 낮을 수 있어, 이번에는 구체 제품 추천을 보류했습니다. 제품명이 잘 보이게 다시 촬영하면 더 정확히 추천할 수 있어요.)';
+          '\n👉 더 나은 선택:\n(마트에서 라벨을 비교해 보세요.)';
       }
     }
     alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
