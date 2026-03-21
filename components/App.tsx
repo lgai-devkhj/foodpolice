@@ -1663,12 +1663,12 @@ export default function App() {
                 <h2>개인 맞춤화</h2>
                 {profile.onboardingLocked ? (
                   <div className="form-group settings-readonly-row">
-                    <span className="label">출생연도(만 n세)</span>
+                    <span className="label">출생연도</span>
                     <span className="value">{birthDisplay(profile.birthDate || '')}</span>
                   </div>
                 ) : (
                   <div className="form-group">
-                    <label>출생연도(만 n세)</label>
+                    <label>출생연도</label>
                     <input
                       type="date"
                       id="profileBirth"
