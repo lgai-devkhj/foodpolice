@@ -310,6 +310,14 @@ function birthDisplay(birthDateStr: string): string {
   return year + '년생 (만 ' + age + '세)';
 }
 
+function openNativeDatePicker(input: HTMLInputElement): void {
+  try {
+    (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+  } catch {
+    // showPicker 미지원 브라우저는 기본 date 입력 사용
+  }
+}
+
 export default function App() {
   const [clientId, setClientId] = useState('');
   const [profile, setProfileState] = useState<Profile>({});
@@ -333,6 +341,7 @@ export default function App() {
   const [lastAnalysisForId, setLastAnalysisForId] = useState<string | null>(null);
   const [resultContentHtml, setResultContentHtml] = useState('');
   const [showDeleteArea, setShowDeleteArea] = useState(false);
+  const todayDate = new Date().toISOString().slice(0, 10);
   const [profileBirth, setProfileBirth] = useState('');
   const [profileGender, setProfileGender] = useState('male');
   const [profileHeight, setProfileHeight] = useState('');
@@ -995,6 +1004,18 @@ export default function App() {
                 세로
               </button>
             </div>
+            <button
+              type="button"
+              className="camera-album-btn"
+              aria-label="앨범에서 선택"
+              onClick={() => {
+                setUploadSource('gallery');
+                galleryInputRef.current?.click();
+              }}
+            >
+              <IconImage size={20} />
+              앨범
+            </button>
             <p className="camera-hint">
               {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양성분표 촬영'}
             </p>
@@ -1069,7 +1090,16 @@ export default function App() {
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
-                  <input type="date" id="obBirth" value={obBirth} min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => setObBirth(e.target.value)} />
+                  <input
+                    type="date"
+                    id="obBirth"
+                    value={obBirth}
+                    min="1900-01-01"
+                    max={todayDate}
+                    onFocus={(e) => openNativeDatePicker(e.currentTarget)}
+                    onClick={(e) => openNativeDatePicker(e.currentTarget)}
+                    onChange={(e) => setObBirth(e.target.value)}
+                  />
                 </div>
                 <div className="form-group">
                   <label>성별</label>
@@ -1613,13 +1643,15 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="form-group">
-                    <label>출생연도</label>
+                    <label>생년월일</label>
                     <input
                       type="date"
                       id="profileBirth"
                       min="1900-01-01"
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={todayDate}
                       value={profileBirth}
+                      onFocus={(e) => openNativeDatePicker(e.currentTarget)}
+                      onClick={(e) => openNativeDatePicker(e.currentTarget)}
                       onChange={(e) => {
                         const v = e.target.value || undefined;
                         setProfileBirth(e.target.value);

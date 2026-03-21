@@ -113,6 +113,39 @@ function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
   return null;
 }
 
+function isNutritionLabelLike(name: string): boolean {
+  const n = (name || '').trim().toLowerCase();
+  if (!n) return true;
+  return /(?:나트륨|당류|열량|칼로리|kcal|탄수화물|단백질|지방|포화지방|트랜스지방|콜레스테롤|식이섬유|탄수|당|protein|fat|carb|sodium|calorie)/i.test(
+    n
+  );
+}
+
+function syncAlternativeCurrentFoodLine(
+  alternativeFoodText: string | null,
+  productName: string
+): string | null {
+  if (!alternativeFoodText) return null;
+  const normalizedProductName = (productName || '').trim();
+  if (!normalizedProductName) return alternativeFoodText;
+
+  const unknownFoodPattern =
+    /^\s*(?:\(라벨에서 읽지 못함\)|알 수 없음|모름|미상|unknown|없음)\s*$/i;
+  const lines = alternativeFoodText.split(/\r?\n/);
+  const idx = lines.findIndex((line) => /^현재 식품\s*:/.test(line));
+
+  if (idx < 0) return alternativeFoodText;
+
+  const currentValue = lines[idx].replace(/^현재 식품\s*:\s*/, '').trim();
+  if (currentValue === normalizedProductName) return alternativeFoodText;
+  if (currentValue === '' || unknownFoodPattern.test(currentValue)) {
+    lines[idx] = `현재 식품: ${normalizedProductName}`;
+    return lines.join('\n');
+  }
+
+  return alternativeFoodText;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: AnalyzeBody = await request.json();
@@ -212,8 +245,9 @@ export async function POST(request: NextRequest) {
     const novaGroup = Math.min(4, Math.max(1, parseInt(String(parsed.novaGroup), 10) || 4));
     const concernIngredients = Array.isArray(parsed.concernIngredients)
       ? (parsed.concernIngredients as Array<{ name?: string; explanation?: string }>)
+          .map((c) => ({ name: (c.name || '').trim(), explanation: (c.explanation || '').trim() }))
+          .filter((c) => c.name.length > 0 && !isNutritionLabelLike(c.name))
           .slice(0, 3)
-          .map((c) => ({ name: c.name || '', explanation: c.explanation || '' }))
       : [];
 
     const nutritionParsed = parseNutrition(parsed.nutrition);
@@ -280,6 +314,7 @@ export async function POST(request: NextRequest) {
         alternativeFoodFromWebSearch = true;
       }
     }
+    alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
 
     const result = {
       product,

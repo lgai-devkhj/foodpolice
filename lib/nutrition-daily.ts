@@ -74,6 +74,12 @@ function roughDailyKcalTarget(bmi: number | null, category: string | null): numb
   return DAILY_REFERENCE.caloriesKcal;
 }
 
+/** 하루 총열량 중 이 식품에 배정할 참고 열량(다른 식사/간식도 먹는 현실 반영) */
+function dailyKcalBudgetForThisFood(target: number): number {
+  const quarter = Math.round((target * 0.25) / 50) * 50;
+  return Math.max(300, quarter);
+}
+
 /** 맞춤 안내에만 사용. API에서 넘길 때 선택. */
 export interface PersonalizedIntakeNoteExtras {
   foodCategory?: string | null;
@@ -129,9 +135,10 @@ function firstMlInString(servingText: string): number | null {
 
 function beverageIntakeParagraph(
   drinkUnit: string,
-  target: number
+  target: number,
+  budgetKcal: number
 ): string {
-  return `일일 권장 섭취량: 하루 2${drinkUnit} 이내(${target}kcal 기준)`;
+  return `일일 권장 섭취량: 하루 2${drinkUnit} 이내(${target}kcal 기준, 전체 식단 고려 ${budgetKcal}kcal 배정)`;
 }
 
 /** 라벨 문구에서 소비 단위(병·봉지 등) 추출 */
@@ -191,6 +198,7 @@ export function buildPersonalizedIntakeNote(
 ): string | null {
   const target = roughDailyKcalTarget(bmi, bmiCategory);
   if (target <= 0) return null;
+  const budgetKcal = dailyKcalBudgetForThisFood(target);
 
   const normalizedServingSizeText = servingSizeText ? String(servingSizeText).trim() : '';
   const hintBlob = `${normalizedServingSizeText} ${extras?.productName ?? ''}`.trim();
@@ -217,8 +225,8 @@ export function buildPersonalizedIntakeNote(
 
   // 0kcal·저열량(제로 음료 등): 열량은 유효하게 “0”으로 읽힌 경우. 나눗셈(목표kcal/열량)은 쓰지 않음.
   if (caloriesKcal >= 0 && caloriesKcal < 0.5) {
-    if (beverage) return beverageIntakeParagraph(defaultDrinkUnit(normalizedServingSizeText), target);
-    return `일일 권장 섭취량: 열량 부담이 낮아요(${target}kcal 기준)`;
+    if (beverage) return beverageIntakeParagraph(defaultDrinkUnit(normalizedServingSizeText), target, budgetKcal);
+    return `일일 권장 섭취량: 열량 부담이 낮아요(${target}kcal 기준, 전체 식단 고려)`;
   }
 
   // 음료·100ml당 저열량 액체표: 목표kcal÷(100ml당 kcal)×100ml → 수 리터까지 나와 비현실적
@@ -236,17 +244,17 @@ export function buildPersonalizedIntakeNote(
 
   if (beverage || likelySweetDrinkPer100ml) {
     const du = defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeParagraph(du, target);
+    return beverageIntakeParagraph(du, target, budgetKcal);
   }
 
-  const servings = target / caloriesKcal; // “표의 기준 1개(또는 100ml 등)”를 하루에 몇 번 먹을 수 있는지(참고)
+  const servings = budgetKcal / caloriesKcal; // 하루 총열량이 아니라 "이 식품 몫"으로 계산
   const servingsRoundedDown = Math.max(1, Math.floor(servings));
   const unitLabel = retailUnitFromServing(normalizedServingSizeText);
 
   const capLiquidSugarDrink = beverage || sodaLikeHint;
   if (isLiquidRetailUnit(unitLabel) && servingsRoundedDown >= 3 && capLiquidSugarDrink) {
     const du = unitLabel || defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeParagraph(du, target);
+    return beverageIntakeParagraph(du, target, budgetKcal);
   }
 
   // 100g/ml당 표기: ml 리터로 쓰지 않고, 포장 1개 분량으로 환산해 **N병·N봉지** 형태
@@ -261,7 +269,7 @@ export function buildPersonalizedIntakeNote(
             : scaleMlForKcal;
       const kcalPerPack = caloriesKcal * (refMl / scaleMlForKcal);
       if (Number.isFinite(kcalPerPack) && kcalPerPack > 0) {
-        const nRaw = Math.floor(target / kcalPerPack);
+        const nRaw = Math.floor(budgetKcal / kcalPerPack);
         const n = Math.min(30, Math.max(1, nRaw));
         const u =
           unitLabel ??
@@ -269,9 +277,9 @@ export function buildPersonalizedIntakeNote(
             ? defaultDrinkUnit(normalizedServingSizeText)
             : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
         if (isLiquidRetailUnit(u) && n >= 3 && capLiquidSugarDrink) {
-          return beverageIntakeParagraph(u, target);
+          return beverageIntakeParagraph(u, target, budgetKcal);
         }
-        return `일일 권장 섭취량: 하루 ${n}${u} 이내(${target}kcal 기준)`;
+        return `일일 권장 섭취량: 하루 ${n}${u} 이내(${target}kcal 기준, 전체 식단 고려 ${budgetKcal}kcal 배정)`;
       }
     }
     const u =
@@ -279,15 +287,15 @@ export function buildPersonalizedIntakeNote(
       (basisIsPerServing === false && scaleMlForKcal == null
         ? '회'
         : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
-    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${u} 이내(${target}kcal 기준)`;
+    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${u} 이내(${target}kcal 기준, 전체 식단 고려 ${budgetKcal}kcal 배정)`;
   }
 
   if (unitLabel) {
-    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${unitLabel} 이내(${target}kcal 기준)`;
+    return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${unitLabel} 이내(${target}kcal 기준, 전체 식단 고려 ${budgetKcal}kcal 배정)`;
   }
 
   const fallbackU = defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText);
-  return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${fallbackU} 이내(${target}kcal 기준)`;
+  return `일일 권장 섭취량: 하루 ${servingsRoundedDown}${fallbackU} 이내(${target}kcal 기준, 전체 식단 고려 ${budgetKcal}kcal 배정)`;
 }
 
 export function computeBmiServer(heightCm: number, weightKg: number): number | null {
