@@ -1059,6 +1059,28 @@ export default function App() {
             textAlign: 'center',
           }}
         >
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: '50%',
+              margin: '0 auto 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(46,125,50,0.12)',
+              color: 'var(--primary)',
+            }}
+            aria-hidden
+          >
+            <IconLeaf size={36} />
+          </div>
+          <h1 style={{ margin: '0 0 4px', color: 'var(--text)', fontSize: '1.5rem', letterSpacing: '-0.01em' }}>
+            FoodPolice
+          </h1>
+          <p style={{ margin: '0 0 18px', color: 'var(--text2)', fontSize: '0.98rem' }}>
+            모바일 카메라로 포장을 촬영해 분석해요
+          </p>
           <img
             src="/images/qrcode.png"
             alt="스마트폰 접속용 QR 코드"
