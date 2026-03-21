@@ -625,7 +625,7 @@
     .camera-album-btn {
       position: absolute;
       right: 16px;
-      bottom: 96px;
+      top: 72px;
       z-index: 2;
       display: inline-flex;
       align-items: center;

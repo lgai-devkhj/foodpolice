@@ -404,6 +404,7 @@ function YmdDateSelect({
 
 export default function App() {
   const [clientId, setClientId] = useState('');
+  const [showDesktopQrGate, setShowDesktopQrGate] = useState(false);
   const [profile, setProfileState] = useState<Profile>({});
   const [history, setHistoryList] = useState<HistoryItem[]>([]);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -466,6 +467,19 @@ export default function App() {
 
   useEffect(() => {
     setClientId(getClientId());
+  }, []);
+
+  useEffect(() => {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent || '' : '';
+    const isMobileUa =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const hasTouch =
+      typeof navigator !== 'undefined' && typeof navigator.maxTouchPoints === 'number'
+        ? navigator.maxTouchPoints > 0
+        : false;
+    const narrowViewport = typeof window !== 'undefined' ? window.innerWidth <= 1024 : false;
+    const isLikelyMobile = isMobileUa || (hasTouch && narrowViewport);
+    setShowDesktopQrGate(!isLikelyMobile);
   }, []);
 
   useEffect(() => {
@@ -1022,6 +1036,49 @@ export default function App() {
     return '설정되지 않음';
   })();
 
+  if (showDesktopQrGate) {
+    return (
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          background: 'var(--bg-bottom)',
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            background: 'var(--card)',
+            border: '1px solid var(--card-stroke)',
+            borderRadius: 24,
+            padding: 24,
+            textAlign: 'center',
+          }}
+        >
+          <img
+            src="/images/qrcode.png"
+            alt="스마트폰 접속용 QR 코드"
+            style={{
+              width: '100%',
+              maxWidth: 280,
+              height: 'auto',
+              display: 'block',
+              margin: '0 auto 16px',
+              borderRadius: 16,
+            }}
+          />
+          <p style={{ margin: 0, color: 'var(--text)', fontSize: '1.15rem', fontWeight: 700 }}>
+            스마트폰에서 계속하세요
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!clientId) return null;
 
   return (
@@ -1466,26 +1523,6 @@ export default function App() {
                     <IconCamera size={34} />
                   </button>
                   <span className="fab-label">촬영</span>
-                </div>
-                <div className="fab-col">
-                  <button
-                    type="button"
-                    className="fab-secondary"
-                    id="fabGallery"
-                    aria-label="앨범에서 사진 선택"
-                    onClick={() => {
-                      setCapturedPreviewDataUrl(null);
-                      setError('');
-                      setUploadSource('gallery');
-                      setCaptureStep(1);
-                      setRawImageBase64(null);
-                      setNutritionImageBase64(null);
-                      galleryInputRef.current?.click();
-                    }}
-                  >
-                    <IconImage size={26} />
-                  </button>
-                  <span className="fab-secondary-label">앨범</span>
                 </div>
               </div>
               <span className="fab-label" style={{ marginTop: 4 }}>

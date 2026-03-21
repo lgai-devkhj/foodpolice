@@ -146,6 +146,18 @@ function syncAlternativeCurrentFoodLine(
   return alternativeFoodText;
 }
 
+function hasConcreteAlternativeItems(text: string | null): boolean {
+  if (!text) return false;
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^\s*[123]\.\s*(?:조금 개선|더 나은 선택|최적 선택)\s*:\s*(.*)\s*$/);
+    if (!m) continue;
+    const product = (m[1] || '').trim();
+    if (product) return true;
+  }
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: AnalyzeBody = await request.json();
@@ -287,31 +299,75 @@ export async function POST(request: NextRequest) {
         ? String(parsed.alternativeFoodText).trim()
         : null;
 
-    // 성능 최적화: 기본은 1차 이미지 분석 응답에 포함된 alternativeFoodText만 사용.
-    // 필요 시(비어 있을 때만) fallback 검색 호출을 켤 수 있습니다.
-    const useAltFallbackSearch = process.env.GEMINI_ALTERNATIVES_FALLBACK_SEARCH === '1';
+    // 대체식품 신뢰도 강화:
+    // Group IV(초가공)는 웹검색 근거를 우선 사용해 "없는 제품명" 추천을 최대한 차단합니다.
+    const shouldPreferWebSearchForAlternatives = novaGroup === 4;
     const groundingModel =
       (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
       DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
 
     let alternativeFoodFromWebSearch = false;
-    if (useAltFallbackSearch && !alternativeFoodText) {
-      const searchPrompt = buildAlternativeFoodWebSearchPrompt({
-        productName: product.productName,
-        companyName: product.companyName,
-        foodCategory,
-        novaGroup,
-        novaSubgroup,
-        briefDescription:
-          parsed.briefDescription != null && String(parsed.briefDescription).trim()
-            ? String(parsed.briefDescription).trim()
-            : null,
-        rawMaterials: product.rawMaterials,
-      });
-      const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
-      if (fromWeb) {
-        alternativeFoodText = fromWeb;
+    if (shouldPreferWebSearchForAlternatives) {
+      const briefDescription =
+        parsed.briefDescription != null && String(parsed.briefDescription).trim()
+          ? String(parsed.briefDescription).trim()
+          : null;
+
+      const promptContexts = [
+        {
+          productName: product.productName,
+          companyName: product.companyName,
+          foodCategory,
+          novaGroup,
+          novaSubgroup,
+          briefDescription,
+          rawMaterials: product.rawMaterials,
+        },
+        {
+          productName: product.productName || briefDescription || '',
+          companyName: '',
+          foodCategory,
+          novaGroup,
+          novaSubgroup,
+          briefDescription,
+          rawMaterials: product.rawMaterials,
+        },
+        {
+          productName: product.productName || '',
+          companyName: product.companyName,
+          foodCategory,
+          novaGroup,
+          novaSubgroup,
+          briefDescription: null,
+          rawMaterials: '',
+        },
+      ];
+
+      let bestSearchText: string | null = null;
+      for (const ctx of promptContexts) {
+        const searchPrompt = buildAlternativeFoodWebSearchPrompt(ctx);
+        const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
+        if (!fromWeb) continue;
+        if (!bestSearchText) bestSearchText = fromWeb;
+        if (hasConcreteAlternativeItems(fromWeb)) {
+          bestSearchText = fromWeb;
+          break;
+        }
+      }
+
+      if (bestSearchText) {
+        alternativeFoodText = bestSearchText;
         alternativeFoodFromWebSearch = true;
+      } else if (alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText)) {
+        // 검색이 완전히 실패한 경우에만, 1차 모델 결과를 마지막 안전망으로 사용
+        alternativeFoodFromWebSearch = false;
+      } else {
+        alternativeFoodText =
+          '현재 식품: ' +
+          (product.productName || '(라벨에서 읽지 못함)') +
+          '\n가공 단계: Group IV' +
+          (novaSubgroup ? ` · ${novaSubgroup}` : '') +
+          '\n👉 더 나은 선택:\n(웹 검색을 여러 번 시도했지만, 국내 유통이 확실한 구체 제품명을 찾기 어려웠습니다. 같은 식품군에서 한 단계 낮은 가공 제품 라벨을 비교해 보세요.)';
       }
     }
     alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
