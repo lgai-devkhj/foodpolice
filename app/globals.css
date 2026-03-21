@@ -102,7 +102,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 12px;
+      border-radius: 50%;
       transition: background 0.2s var(--btn-ease), color 0.15s ease, transform 0.15s var(--btn-ease);
     }
     .btn-settings-home:active {
@@ -137,7 +137,7 @@
       .hero-icon-core svg { width: 64px; height: 64px; }
       .hero-section .hero-title { font-size: 2.25rem; }
       .info-cards-wrap .info-card { padding: 26px 22px; font-size: 1.25rem; }
-      .fab { width: 130px; height: 130px; border-radius: 32px; }
+      .fab { width: 130px; height: 130px; border-radius: 50%; }
       .fab svg { width: 52px; height: 52px; }
       .fab-label { font-size: 1.35rem; }
     }
@@ -145,10 +145,6 @@
 
     @keyframes ui-spin {
       to { transform: rotate(360deg); }
-    }
-    @keyframes ui-pulse-ring {
-      0% { transform: scale(0.72); opacity: 0.5; }
-      55%, 100% { transform: scale(1.55); opacity: 0; }
     }
     @keyframes ui-pulse-ring-fab {
       0% { transform: scale(0.88); opacity: 0.55; }
@@ -160,33 +156,15 @@
       padding: 16px 0 12px;
     }
     .hero-icon-cluster {
-      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 104px;
       height: 104px;
       margin: 0 auto 14px;
     }
-    .hero-ring {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 76px;
-      height: 76px;
-      margin: -38px 0 0 -38px;
-      border-radius: 50%;
-      border: 2px solid var(--primary);
-      opacity: 0;
-      animation: ui-pulse-ring 3.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      pointer-events: none;
-    }
-    .hero-ring--b { animation-delay: 1.05s; }
-    .hero-ring--c { animation-delay: 2.1s; }
     .hero-icon-core {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
       color: var(--primary);
-      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -314,7 +292,7 @@
     .fab {
       width: 80px;
       height: 80px;
-      border-radius: 22px;
+      border-radius: 50%;
       background: var(--primary);
       color: #fff;
       border: none;
@@ -335,7 +313,7 @@
     .fab-pulse {
       position: absolute;
       inset: -6px;
-      border-radius: inherit;
+      border-radius: 50%;
       border: 2px solid rgba(255, 255, 255, 0.5);
       pointer-events: none;
       animation: ui-pulse-ring-fab 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
@@ -371,7 +349,7 @@
     .fab-secondary {
       width: 56px;
       height: 56px;
-      border-radius: 16px;
+      border-radius: 50%;
       background: rgba(255, 255, 255, 0.65);
       color: var(--text);
       border: 1px solid rgba(0, 0, 0, 0.07);
@@ -388,15 +366,6 @@
       position: relative;
       overflow: visible;
     }
-    .fab-secondary-pulse {
-      position: absolute;
-      inset: -4px;
-      border-radius: inherit;
-      border: 1.5px solid rgba(46, 125, 50, 0.35);
-      pointer-events: none;
-      animation: ui-pulse-ring-fab 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-    }
-    .fab-secondary-pulse--2 { animation-delay: 0.95s; }
     .fab-secondary svg {
       position: relative;
       z-index: 1;
@@ -494,33 +463,15 @@
     .error-msg .error-icon svg { width: 28px; height: 28px; }
 
     .empty-state-icon-wrap {
-      position: relative;
-      width: 80px;
-      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin: 0 auto 16px;
       color: var(--primary);
       opacity: 0.75;
+      min-height: 48px;
     }
-    .empty-state-ring {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 64px;
-      height: 64px;
-      margin: -32px 0 0 -32px;
-      border-radius: 50%;
-      border: 2px solid currentColor;
-      opacity: 0;
-      animation: ui-pulse-ring 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      pointer-events: none;
-    }
-    .empty-state-ring--2 { animation-delay: 0.95s; }
     .empty-state-icon {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -719,7 +670,7 @@
     .capture-preview-btn {
       flex: 1;
       padding: 14px 20px;
-      border-radius: 14px;
+      border-radius: 9999px;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
@@ -1334,23 +1285,7 @@
       align-items: center;
       justify-content: center;
     }
-    .sheet-icon-wrap .sheet-ring {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 72px;
-      height: 72px;
-      margin: -36px 0 0 -36px;
-      border-radius: 50%;
-      border: 2px solid var(--primary);
-      opacity: 0;
-      animation: ui-pulse-ring 3s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      pointer-events: none;
-    }
-    .sheet-icon-wrap .sheet-ring--2 { animation-delay: 1s; }
     .sheet-icon-wrap .sheet-icon {
-      position: relative;
-      z-index: 1;
       color: var(--primary);
       display: flex;
       align-items: center;
@@ -1796,34 +1731,19 @@
     .ob-safety-ico { flex-shrink: 0; color: var(--text3); margin-top: 1px; }
     .ob-safety-ico svg { width: 16px; height: 16px; display: block; }
     .ob-welcome-visual {
-      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 88px;
       height: 88px;
       margin: 0 auto 12px;
       flex-shrink: 0;
     }
-    .ob-welcome-visual .ob-ring {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 64px;
-      height: 64px;
-      margin: -32px 0 0 -32px;
-      border-radius: 50%;
-      border: 2px solid var(--primary);
-      opacity: 0;
-      animation: ui-pulse-ring 3s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      pointer-events: none;
-    }
-    .ob-welcome-visual .ob-ring--2 { animation-delay: 1s; }
     .ob-welcome-visual .ob-welcome-core {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
       color: var(--primary);
-      z-index: 1;
       display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .ob-welcome-visual .ob-welcome-core svg { width: 44px; height: 44px; }
     .ob-welcome-title { flex-shrink: 0; font-size: 1.6rem; font-weight: 700; text-align: center; margin: 0 0 12px; color: var(--text); letter-spacing: -0.02em; }

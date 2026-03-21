@@ -1081,8 +1081,6 @@ export default function App() {
             {obStep === 0 && (
               <div id="onboardingStep0">
                 <div className="ob-welcome-visual" aria-hidden>
-                  <span className="ob-ring" />
-                  <span className="ob-ring ob-ring--2" />
                   <span className="ob-welcome-core">
                     <IconLeaf size={44} />
                   </span>
@@ -1317,9 +1315,6 @@ export default function App() {
               )}
             <div className="hero-section" aria-label="소개">
               <div className="hero-icon-cluster" aria-hidden>
-                <span className="hero-ring" />
-                <span className="hero-ring hero-ring--b" />
-                <span className="hero-ring hero-ring--c" />
                 <div className="hero-icon-core">
                   <IconLeaf size={52} />
                 </div>
@@ -1440,8 +1435,6 @@ export default function App() {
                       galleryInputRef.current?.click();
                     }}
                   >
-                    <span className="fab-secondary-pulse" aria-hidden />
-                    <span className="fab-secondary-pulse fab-secondary-pulse--2" aria-hidden />
                     <IconImage size={26} />
                   </button>
                   <span className="fab-secondary-label">앨범</span>
@@ -1797,8 +1790,6 @@ export default function App() {
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoIngredient(false)}>×</button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
-              <span className="sheet-ring" />
-              <span className="sheet-ring sheet-ring--2" />
               <div className="sheet-icon">
                 <IconFlask size={48} />
               </div>
@@ -1856,8 +1847,6 @@ export default function App() {
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoCriteria(false)}>×</button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
-              <span className="sheet-ring" />
-              <span className="sheet-ring sheet-ring--2" />
               <div className="sheet-icon">
                 <IconHeart size={48} />
               </div>
@@ -1904,8 +1893,6 @@ export default function App() {
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoPhoto(false)}>×</button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
-              <span className="sheet-ring" />
-              <span className="sheet-ring sheet-ring--2" />
               <div className="sheet-icon">
                 <IconCamera size={48} />
               </div>
@@ -2056,8 +2043,6 @@ function BodyMeasurementHistorySheet({
         {measurements.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
             <div className="empty-state-icon-wrap" aria-hidden>
-              <span className="empty-state-ring" />
-              <span className="empty-state-ring empty-state-ring--2" />
               <span className="empty-state-icon">
                 <IconClipboard size={40} />
               </span>
@@ -2125,8 +2110,6 @@ function BMIGraphSheet({ measurements, onClose }: { measurements: BodyMeasuremen
           </div>
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
             <div className="empty-state-icon-wrap" aria-hidden>
-              <span className="empty-state-ring" />
-              <span className="empty-state-ring empty-state-ring--2" />
               <span className="empty-state-icon">
                 <IconChart size={40} />
               </span>
