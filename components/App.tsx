@@ -421,7 +421,9 @@ export default function App() {
         ? '<div style="font-size:1.05rem; color:var(--text2);">' + escapeHtml(raw) + '</div>'
         : '<div class="meta">원재료 정보가 없어요</div>';
       html += '</div>';
-      html += '<div class="card"><div class="card-title">한국형 NOVA 분류</div>';
+      html += '<div class="card card-nova card-nova-' + nova + '">';
+      html += '<div class="nova-result-slab">';
+      html += '<div class="card-title nova-result-title">한국형 NOVA 분류</div>';
       html +=
         '<span class="nova-badge nova-' +
         nova +
@@ -435,16 +437,17 @@ export default function App() {
       html += '</span>';
       if (subKey && NOVA_SUBGROUP_HINTS[subKey]) {
         html +=
-          '<div style="font-size:0.95rem;color:var(--text3);margin-top:6px;">' +
-          escapeHtml(NOVA_SUBGROUP_HINTS[subKey]) +
-          '</div>';
+          '<div class="nova-result-hint">' + escapeHtml(NOVA_SUBGROUP_HINTS[subKey]) + '</div>';
       }
       if (reason) {
-        html += '<div style="font-size:1.05rem; color:var(--text2); margin-top:8px;">' + escapeHtml(reason) + '</div>';
+        html += '<div class="nova-result-reason">' + escapeHtml(reason) + '</div>';
       } else {
-        html += '<div style="font-size:1.05rem; color:var(--text2); margin-top:8px;">' + escapeHtml(NOVA_SHORT_REASON[nova] || NOVA_SHORT_REASON[4]) + '</div>';
+        html +=
+          '<div class="nova-result-reason">' +
+          escapeHtml(NOVA_SHORT_REASON[nova] || NOVA_SHORT_REASON[4]) +
+          '</div>';
       }
-      html += '</div>';
+      html += '</div></div>';
       html += buildNutritionResultHtml(
         result.nutrition ?? undefined,
         result.nutritionDailyPercent ?? undefined,
@@ -1424,7 +1427,7 @@ export default function App() {
               한국형 NOVA 분류를 기준으로, 원재료와 가공 정도를 보고 그룹을 판정해요.
             </p>
             {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="info-category">
+              <div key={n} className={`info-category info-category-nova info-category-nova-${n}`}>
                 <h4>
                   <img src={NOVA_IMG[n]} alt="" className="nova-sheet-icon" referrerPolicy="no-referrer" />
                   {NOVA_NAMES[n]}

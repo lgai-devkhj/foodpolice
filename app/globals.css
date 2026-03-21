@@ -574,23 +574,143 @@
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
     }
-    .nova-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; font-weight: 600; font-size: 1.1rem; margin-bottom: 8px; }
-    .nova-badge .nova-icon { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; }
-    .nova-1 { background: rgba(46,125,50,0.2); color: var(--primary); }
-    .nova-2 { background: rgba(230,168,0,0.25); color: #8b6914; }
-    .nova-3 { background: rgba(232,108,0,0.2); color: #c55a00; }
-    .nova-4 { background: rgba(179,56,46,0.2); color: var(--risk); }
+    .nova-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 14px; font-weight: 700; font-size: 1.15rem; margin-bottom: 8px; }
+    .nova-badge .nova-icon { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+    .nova-1 { background: rgba(46,125,50,0.22); color: #1b5e20; }
+    .nova-2 { background: rgba(230,168,0,0.32); color: #6d4c00; }
+    .nova-3 { background: rgba(232,108,0,0.28); color: #bf360c; }
+    .nova-4 { background: rgba(179,56,46,0.28); color: #8c1d18; }
     .nova-subtag {
       display: inline-block;
-      margin-left: 8px;
-      padding: 2px 8px;
-      border-radius: 8px;
-      font-size: 0.85em;
-      font-weight: 700;
+      margin-left: 6px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 0.82em;
+      font-weight: 800;
       vertical-align: middle;
-      background: rgba(179,56,46,0.15);
-      color: var(--risk);
+      background: rgba(255,255,255,0.65);
+      border: 1px solid rgba(0,0,0,0.08);
+      color: #8c1d18;
     }
+
+    /* 분석 결과: NOVA 구역 — 넓은 색면으로 한눈에 들어오게 */
+    .card-nova {
+      padding: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    .nova-result-slab {
+      border-radius: 22px;
+      padding: 22px 20px 22px;
+      border-width: 3px;
+      border-style: solid;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.12);
+    }
+    .nova-result-title {
+      font-size: 1.35rem !important;
+      font-weight: 800 !important;
+      margin-bottom: 14px !important;
+      letter-spacing: -0.02em;
+    }
+    .card-nova-1 .nova-result-slab {
+      background: linear-gradient(155deg, #7cb342 0%, #aed581 38%, #dcedc8 100%);
+      border-color: #33691e;
+    }
+    .card-nova-1 .nova-result-title { color: #1b5e20 !important; }
+    .card-nova-2 .nova-result-slab {
+      background: linear-gradient(155deg, #ffb300 0%, #ffca28 40%, #fff176 100%);
+      border-color: #f57f17;
+    }
+    .card-nova-2 .nova-result-title { color: #5d4037 !important; }
+    .card-nova-3 .nova-result-slab {
+      background: linear-gradient(155deg, #fb8c00 0%, #ffb74d 42%, #ffe0b2 100%);
+      border-color: #e65100;
+    }
+    .card-nova-3 .nova-result-title { color: #bf360c !important; }
+    .card-nova-4 .nova-result-slab {
+      background: linear-gradient(155deg, #e53935 0%, #ff8a80 38%, #ffcdd2 100%);
+      border-color: #b71c1c;
+    }
+    .card-nova-4 .nova-result-title { color: #4a1414 !important; }
+    .card-nova .nova-badge {
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      padding: 16px 18px;
+      font-size: 1.22rem;
+      margin-bottom: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.72);
+      border: 2px solid rgba(255,255,255,0.95);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .card-nova .nova-badge .nova-icon { width: 48px; height: 48px; }
+    .card-nova-4 .nova-subtag {
+      background: rgba(255,255,255,0.88);
+      color: #b71c1c;
+      border-color: rgba(183,28,28,0.25);
+    }
+    .nova-result-hint {
+      font-size: 1rem;
+      line-height: 1.55;
+      color: rgba(0,0,0,0.62);
+      margin-top: 4px;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    .card-nova-4 .nova-result-hint { color: rgba(74,20,20,0.78); }
+    .nova-result-reason {
+      font-size: 1.08rem;
+      line-height: 1.6;
+      color: rgba(0,0,0,0.78);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+    .card-nova-4 .nova-result-reason { color: rgba(40,20,20,0.9); }
+
+    /* 안내 시트: NOVA 기준 카드 — 결과와 같은 색 코딩, 큼직한 면적 */
+    .info-category-nova {
+      padding: 22px 22px 24px;
+      margin-bottom: 20px;
+      border-radius: 22px;
+      border-width: 3px;
+      border-style: solid;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+    }
+    .info-category-nova .nova-sheet-icon { width: 52px; height: 52px; }
+    .info-category-nova h4 {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 1.42rem;
+      font-weight: 800;
+      margin: 0 0 12px !important;
+    }
+    .info-category-nova ul { font-size: 1.12rem; line-height: 1.65; }
+    .info-category-nova-1 {
+      background: linear-gradient(160deg, #8bc34a 0%, #c5e1a5 50%, #e8f5e9 100%);
+      border-color: #2e7d32;
+    }
+    .info-category-nova-1 h4 { color: #1b5e20; }
+    .info-category-nova-2 {
+      background: linear-gradient(160deg, #ffc107 0%, #ffe082 50%, #fff9c4 100%);
+      border-color: #f57c00;
+    }
+    .info-category-nova-2 h4 { color: #5d4037; }
+    .info-category-nova-3 {
+      background: linear-gradient(160deg, #ff9800 0%, #ffcc80 50%, #ffe0b2 100%);
+      border-color: #e65100;
+    }
+    .info-category-nova-3 h4 { color: #bf360c; }
+    .info-category-nova-4 {
+      background: linear-gradient(160deg, #ef5350 0%, #ffab91 48%, #ffcdd2 100%);
+      border-color: #c62828;
+    }
+    .info-category-nova-4 h4 { color: #4a1414; }
     .nutrition-pct-bar {
       height: 8px;
       border-radius: 6px;
@@ -727,11 +847,13 @@
     .info-sheet .sheet-title { font-size: 2rem; font-weight: 700; margin: 0 0 32px; color: var(--text); }
     .info-sheet .sheet-header .sheet-title { margin-bottom: 0; }
     .info-sheet .sheet-icon { font-size: 4rem; margin-bottom: 24px; }
-    .info-category { margin-bottom: 24px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-stroke); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
-    .info-category h4 { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: 1.25rem; font-weight: 600; color: var(--text); }
+    .info-category:not(.info-category-nova) { margin-bottom: 24px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-stroke); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+    .info-category:not(.info-category-nova) h4 { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; font-size: 1.25rem; font-weight: 600; color: var(--text); }
     .info-category h4 .ico { color: var(--primary); }
     .info-category .nova-sheet-icon { width: 40px; height: 40px; object-fit: contain; vertical-align: middle; margin-right: 10px; flex-shrink: 0; }
     .info-category ul { margin: 0; padding-left: 1.5rem; color: var(--text2); font-size: 1.1rem; line-height: 1.65; }
+    .info-category-nova ul { color: rgba(0,0,0,0.72); }
+    .info-category-nova-4 ul { color: rgba(40,20,20,0.82); }
     .guide-step { display: flex; align-items: center; gap: 20px; padding: 24px; margin-bottom: 18px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-stroke); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
     .guide-step .num { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.25rem; flex-shrink: 0; }
     .guide-step .txt { flex: 1; color: var(--text); font-size: 1.1rem; }
@@ -807,6 +929,85 @@
     html:not([data-theme="light"]) .nova-2 { color: #e6c04a; }
     [data-theme="dark"] .nova-3,
     html:not([data-theme="light"]) .nova-3 { color: #f0a050; }
+
+    /* 다크 모드: NOVA 색면은 유지하되 글자·배지 대비 보강 */
+    [data-theme="dark"] .card-nova-1 .nova-result-slab,
+    html:not([data-theme="light"]) .card-nova-1 .nova-result-slab {
+      background: linear-gradient(155deg, rgba(46,125,50,0.85) 0%, rgba(27,94,32,0.55) 100%);
+      border-color: #81c784;
+    }
+    [data-theme="dark"] .card-nova-1 .nova-result-title,
+    html:not([data-theme="light"]) .card-nova-1 .nova-result-title { color: #e8f5e9 !important; }
+    [data-theme="dark"] .card-nova-2 .nova-result-slab,
+    html:not([data-theme="light"]) .card-nova-2 .nova-result-slab {
+      background: linear-gradient(155deg, rgba(245,127,23,0.82) 0%, rgba(100,55,0,0.62) 100%);
+      border-color: #ffb74d;
+    }
+    [data-theme="dark"] .card-nova-2 .nova-result-title,
+    html:not([data-theme="light"]) .card-nova-2 .nova-result-title { color: #fff8e1 !important; }
+    [data-theme="dark"] .card-nova-3 .nova-result-slab,
+    html:not([data-theme="light"]) .card-nova-3 .nova-result-slab {
+      background: linear-gradient(155deg, rgba(230,81,0,0.72) 0%, rgba(191,54,12,0.45) 100%);
+      border-color: #ffab40;
+    }
+    [data-theme="dark"] .card-nova-3 .nova-result-title,
+    html:not([data-theme="light"]) .card-nova-3 .nova-result-title { color: #ffe0b2 !important; }
+    [data-theme="dark"] .card-nova-4 .nova-result-slab,
+    html:not([data-theme="light"]) .card-nova-4 .nova-result-slab {
+      background: linear-gradient(155deg, rgba(198,40,40,0.82) 0%, rgba(74,20,20,0.65) 100%);
+      border-color: #ff8a80;
+    }
+    [data-theme="dark"] .card-nova-4 .nova-result-title,
+    html:not([data-theme="light"]) .card-nova-4 .nova-result-title { color: #ffebee !important; }
+    [data-theme="dark"] .card-nova .nova-badge,
+    html:not([data-theme="light"]) .card-nova .nova-badge {
+      background: rgba(0,0,0,0.35);
+      border-color: rgba(255,255,255,0.2);
+    }
+    [data-theme="dark"] .nova-result-hint,
+    html:not([data-theme="light"]) .nova-result-hint { color: rgba(255,255,255,0.78); }
+    [data-theme="dark"] .card-nova-4 .nova-result-hint,
+    html:not([data-theme="light"]) .card-nova-4 .nova-result-hint { color: rgba(255,255,255,0.85); }
+    [data-theme="dark"] .nova-result-reason,
+    html:not([data-theme="light"]) .nova-result-reason { color: rgba(255,255,255,0.92); }
+    [data-theme="dark"] .card-nova-4 .nova-subtag,
+    html:not([data-theme="light"]) .card-nova-4 .nova-subtag {
+      background: rgba(0,0,0,0.4);
+      color: #ffccbc;
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    [data-theme="dark"] .info-category-nova-1,
+    html:not([data-theme="light"]) .info-category-nova-1 {
+      background: linear-gradient(160deg, rgba(46,125,50,0.75) 0%, rgba(27,94,32,0.5) 100%);
+      border-color: #66bb6a;
+    }
+    [data-theme="dark"] .info-category-nova-1 h4,
+    html:not([data-theme="light"]) .info-category-nova-1 h4 { color: #e8f5e9; }
+    [data-theme="dark"] .info-category-nova-2,
+    html:not([data-theme="light"]) .info-category-nova-2 {
+      background: linear-gradient(160deg, rgba(245,124,0,0.65) 0%, rgba(100,50,0,0.5) 100%);
+      border-color: #ffca28;
+    }
+    [data-theme="dark"] .info-category-nova-2 h4,
+    html:not([data-theme="light"]) .info-category-nova-2 h4 { color: #fff8e1; }
+    [data-theme="dark"] .info-category-nova-3,
+    html:not([data-theme="light"]) .info-category-nova-3 {
+      background: linear-gradient(160deg, rgba(230,81,0,0.68) 0%, rgba(191,54,12,0.45) 100%);
+      border-color: #ffab40;
+    }
+    [data-theme="dark"] .info-category-nova-3 h4,
+    html:not([data-theme="light"]) .info-category-nova-3 h4 { color: #ffe0b2; }
+    [data-theme="dark"] .info-category-nova-4,
+    html:not([data-theme="light"]) .info-category-nova-4 {
+      background: linear-gradient(160deg, rgba(198,40,40,0.78) 0%, rgba(74,20,20,0.6) 100%);
+      border-color: #ff8a80;
+    }
+    [data-theme="dark"] .info-category-nova-4 h4,
+    html:not([data-theme="light"]) .info-category-nova-4 h4 { color: #ffebee; }
+    [data-theme="dark"] .info-category-nova ul,
+    html:not([data-theme="light"]) .info-category-nova ul { color: rgba(255,255,255,0.82); }
+
     [data-theme="dark"] .concern-item,
     html:not([data-theme="light"]) .concern-item { background: rgba(255,255,255,0.06); }
     [data-theme="dark"] .advice-box,
