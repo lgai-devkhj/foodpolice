@@ -1865,14 +1865,18 @@ export default function App() {
                     {n === 1 && '자연 그대로에 가깝고, 원재료 구조를 유지해요.'}
                     {n === 2 && '조리용 소금, 설탕, 기름처럼 요리에 쓰는 재료예요.'}
                     {n === 3 && '원재료 특성을 많이 유지한 가공 식품이에요.'}
-                    {n === 4 && '원재료 구조가 사라지고, 산업적 첨가물이 많이 들어간 식품이에요.'}
+                    {n === 4 && (
+                      <>
+                        원재료 구조가 사라지고, 산업적 첨가물이 많이 들어간 식품이에요.{" "}
+                        초가공(Group IV)은 분석 시 <strong>4A</strong>(경계형 초가공),{' '}
+                        <strong>4B</strong>(명확한 초가공), <strong>4C</strong>(고도 초가공)로
+                        더 나누어 볼 수 있어요.
+                      </>
+                    )}
                   </li>
                 </ul>
               </div>
             ))}
-            <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              초가공(Group IV)은 분석 시 <strong>4A</strong>(경계형 초가공), <strong>4B</strong>(명확한 초가공), <strong>4C</strong>(고도 초가공)로 더 나누어 볼 수 있어요.
-            </p>
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
               나이·성별·키·몸무게로 BMI와 비만 판정을 참고해, 영양 표가 있으면 일일 기준 대비 비율·맞춤 안내를 드려요.
             </p>
@@ -1899,7 +1903,7 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">1</span>
-              <span className="txt">1/2) 포장 뒷면의 원재료명이 보이게 해 주세요.</span>
+              <span className="txt">포장 뒷면의 원재료명이 보이게 해 주세요.</span>
             </div>
             <div className="guide-step">
               <span className="num">2</span>
@@ -1907,7 +1911,7 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">3</span>
-              <span className="txt">3) 다음 단계에서(2/2) <strong>영양성분표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
+              <span className="txt">다음 단계에서 <strong>영양성분표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
             </div>
             <div className="guide-step">
               <span className="num">4</span>
