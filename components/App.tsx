@@ -861,8 +861,8 @@ export default function App() {
           html += '</details>';
         }
       } else if (isUltra) {
-        html += '<details class="result-details" open><summary>대체 식품</summary>';
-        html += '<div class="result-details-body"><div class="meta">분석 중...</div></div>';
+        html += '<details class="result-details"><summary>대체 식품</summary>';
+        html += '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">분석 중...</div></div></div>';
         html += '</details>';
       }
 
