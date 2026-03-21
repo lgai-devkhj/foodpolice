@@ -560,7 +560,7 @@ export default function App() {
       if (!clientId) return;
       const startedAt = performance.now();
       setLoading(true);
-      setLoadingText('분석하는 중');
+      setLoadingText('분석하고 있어요');
       setError('');
       try {
         const p = getProfileWithLatestMeasurement(profile);
@@ -579,7 +579,7 @@ export default function App() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '분석 중 오류가 났어요.');
+        if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
         const result = data as AnalysisResult;
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
@@ -620,8 +620,20 @@ export default function App() {
               });
               refreshHistory();
               if (currentHistoryIdRef.current === id) {
+                const resultContainer = document.getElementById('resultContent');
+                const altDetails = resultContainer
+                  ? Array.from(resultContainer.querySelectorAll('details.result-details')).find((el) => {
+                      const summary = el.querySelector('summary');
+                      return (summary?.textContent || '').trim() === '대체 식품';
+                    })
+                  : null;
+                const keepAltOpen = !!altDetails && (altDetails as HTMLDetailsElement).open;
                 setCurrentResult(merged);
-                renderResult(merged, null, { analysisSeconds: sec, historyId: id });
+                renderResult(merged, null, {
+                  analysisSeconds: sec,
+                  historyId: id,
+                  keepAltOpen,
+                });
               }
             })
             .catch(() => {});
@@ -634,7 +646,7 @@ export default function App() {
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '분석 중 오류가 났어요.');
+        setError(err instanceof Error ? err.message : '문제가 생겼어요. 다시 시도해 주세요.');
       } finally {
         setLoading(false);
       }
@@ -652,7 +664,7 @@ export default function App() {
       if (!clientId) return;
       const startedAt = performance.now();
       setLoading(true);
-      setLoadingText('분석하는 중');
+      setLoadingText('분석하고 있어요');
       setError('');
       try {
         const p = getProfileWithLatestMeasurement(profile);
@@ -673,7 +685,7 @@ export default function App() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '분석 중 오류가 났어요.');
+        if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
         const result = data as AnalysisResult;
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
@@ -714,8 +726,20 @@ export default function App() {
               });
               refreshHistory();
               if (currentHistoryIdRef.current === id) {
+                const resultContainer = document.getElementById('resultContent');
+                const altDetails = resultContainer
+                  ? Array.from(resultContainer.querySelectorAll('details.result-details')).find((el) => {
+                      const summary = el.querySelector('summary');
+                      return (summary?.textContent || '').trim() === '대체 식품';
+                    })
+                  : null;
+                const keepAltOpen = !!altDetails && (altDetails as HTMLDetailsElement).open;
                 setCurrentResult(merged);
-                renderResult(merged, null, { analysisSeconds: sec, historyId: id });
+                renderResult(merged, null, {
+                  analysisSeconds: sec,
+                  historyId: id,
+                  keepAltOpen,
+                });
               }
             })
             .catch(() => {});
@@ -728,7 +752,7 @@ export default function App() {
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '분석 중 오류가 났어요.');
+        setError(err instanceof Error ? err.message : '문제가 생겼어요. 다시 시도해 주세요.');
       } finally {
         setLoading(false);
       }
@@ -740,7 +764,7 @@ export default function App() {
     (
       result: AnalysisResult,
       historyItem: HistoryItem | null,
-      opts?: { analysisSeconds: number; historyId: string }
+      opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
     ) => {
       const product = result.product || {};
       const name = historyItem
@@ -856,13 +880,13 @@ export default function App() {
       if (altText) {
         const altHtml = buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true);
         if (altHtml) {
-          html += '<details class="result-details"><summary>대체 식품</summary>';
+          html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
           html += `<div class="result-details-body">${altHtml}</div>`;
           html += '</details>';
         }
       } else if (isUltra) {
         html += '<details class="result-details"><summary>대체 식품</summary>';
-        html += '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">분석 중...</div></div></div>';
+        html += '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">분석 중... 20초 정도 소요될 수 있어요.</div></div></div>';
         html += '</details>';
       }
 
@@ -1621,7 +1645,7 @@ export default function App() {
             )}
             {history.length > 0 && (
               <div id="historyList" className="history-list-wrap">
-                <h2 className="history-list-title">스캔한 기록</h2>
+                <h2 className="history-list-title">최근 분석 기록</h2>
                 {history.slice(0, 5).map((item) => (
                     <div
                       key={item.id}
