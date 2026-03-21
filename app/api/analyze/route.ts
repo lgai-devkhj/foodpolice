@@ -247,17 +247,15 @@ export async function POST(request: NextRequest) {
         ? String(parsed.alternativeFoodText).trim()
         : null;
 
-    /* 대체 식품: 선택 시 Google Search 그라운딩(추가 API·검색 과금). 기본은 NOVA 4만. */
-    const altSearchOff = process.env.GEMINI_ALTERNATIVES_USE_SEARCH === '0';
-    const altSearchNova4Only = process.env.GEMINI_ALTERNATIVES_SEARCH_ALL_GROUPS !== '1';
+    // 성능 최적화: 기본은 1차 이미지 분석 응답에 포함된 alternativeFoodText만 사용.
+    // 필요 시(비어 있을 때만) fallback 검색 호출을 켤 수 있습니다.
+    const useAltFallbackSearch = process.env.GEMINI_ALTERNATIVES_FALLBACK_SEARCH === '1';
     const groundingModel =
       (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
       DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
-    const shouldRunAltSearch =
-      !altSearchOff && (!altSearchNova4Only || novaGroup === 4);
 
     let alternativeFoodFromWebSearch = false;
-    if (shouldRunAltSearch) {
+    if (useAltFallbackSearch && !alternativeFoodText) {
       const searchPrompt = buildAlternativeFoodWebSearchPrompt({
         productName: product.productName,
         companyName: product.companyName,
