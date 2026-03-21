@@ -784,6 +784,24 @@
     .result-details-body pre { margin: 0; }
 
     .alt-block { padding: 2px 0 6px; }
+    .alt-fallback {
+      color: var(--text2);
+      font-size: 1.02rem;
+      line-height: 1.55;
+      margin: 8px 0 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px dashed var(--card-stroke);
+      background: rgba(0,0,0,0.02);
+    }
+    [data-theme="dark"] .alt-fallback,
+    html:not([data-theme="light"]) .alt-fallback { background: rgba(255,255,255,0.04); }
+    .alt-disclaimer {
+      margin: 10px 0 0;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: var(--text3);
+    }
     .alt-meta {
       color: var(--text2);
       font-size: 0.95rem;

@@ -42,6 +42,11 @@ function getAlternativeFoodInstructions(): string {
   return (
     '[대체 식품 추천 — alternativeFoodText]\n' +
     '당신은 식품을 분석하여 사용자에게 "더 나은 선택"을 추천하는 전문가입니다.\n\n' +
+    '[최우선 — 실존·확실성]\n' +
+    '- **없는 제품명을 지어내지 마세요.** 브랜드+품목+플레버 조합을 추측으로 만들면 안 됩니다.\n' +
+    '- 적을 수 있는 것은 **본인이 확실히 알고 있는** 한국 내(또는 국내 정식 수입) **실제 판매 이력이 있는** 상품명뿐입니다.\n' +
+    '- 특정 플레버(라임·레몬·체리 등)·시즌 한정·해외 전용 라인은 **국내 매장에서 본인이 본 적이 있거나 확실히 유통된다는 근거가 있을 때만** 적으세요. 조금이라도 불확실하면 **그 칸은 공백**.\n' +
+    '- 확실한 구체 명칭이 없으면 1~3번 칸을 **전부 비우고**, 대신 "👉 더 나은 선택:" 아래에 한 줄만: "(구체 제품명 확신이 없어 추천을 생략합니다. 같은 식품군·한 단계 낮은 가공을 마트에서 비교해 보세요.)" 처럼 **원칙 안내만** 해도 됩니다.\n\n' +
     '[목표]\n' +
     '- 현재 식품과 동일한 소비 상황에서\n' +
     '- 가공 정도가 더 낮은 대체 식품을 추천\n' +
@@ -50,16 +55,14 @@ function getAlternativeFoodInstructions(): string {
     '1. 반드시 동일 foodCategory에서 추천\n' +
     '2. 가공 단계는 **정확히 한 단계만** 낮출 것(가능하면 더 크게 내리지 않기).\n' +
     '   예: 4C→4B, 4B→4A, 4A→Group III(가능하면). 이 “딱 한 단계” 대체가 현실적으로 어려우면 **해당 칸을 비우기**.\n' +
-    '3. 같은 식품군 유지가 최우선: 같은 라인/용도/맛(예: 콜라 계열이면 콜라 계열)에서 **브랜드만 변경**하는 대체를 우선 제안하세요.\n' +
-    '   - 원제품명이 “콜라/코카콜라/펩시/제로/다이어트/무설탕/라임(또는 플레버)/레몬”을 포함하면, 대체도 **핵심 키워드(그중 2개 이상)**를 같이 유지하세요. 예: 콜라 제로 + 라임 → 다른 브랜드의 “제로 콜라(라임 플레버)” 우선.\n' +
-    '   - 특히 원제품명이 콜라 제로/다이어트/무설탕 계열이면, 대체는 **반드시 콜라 제로/다이어트/무설탕/라임(플레버) 라인**이어야 합니다. “탄산수(트레비 포함)/클럽소다/생수/차/주스”처럼 완전히 다른 계열은 **절대 추천하지 마세요**.\n' +
-    '   - 코카콜라 제로 계열이라면 예시로 “펩시 제로 콜라 라임”, “코카콜라 제로 라임(플레버)”, “펩시 제로 콜라(라임)” 같은 **구체적인 브랜드+상품명**을 우선 고려하세요.\n' +
-    '4. 대체 옵션의 제품명은 반드시 “브랜드 + 상품명(제품명/플레버 포함)”을 **한 줄 전체로** 적으세요. (예: 펩시 제로 콜라 라임)\n' +
-    '   - “탄산수”, “콜라”, “제로 음료”처럼 범주명만 쓰지 마세요.\n' +
-    '   - 브랜드가 불명확하면 제품명을 비우고 억지로 채우지 마세요.\n' +
-    '5. 현실적으로 대체 가능한 식품만(한국 마트에서 보통 유통되는 라인업을 우선) 제안\n' +
+    '3. 같은 식품군 유지가 최우선: 같은 라인/용도(예: 탄산 콜라 제로면 다른 브랜드의 **동종 ‘제로 콜라’ 류**만)에서 대체를 고려하세요.\n' +
+    '   - 원제품이 콜라·사이다 등 탄산음료 제로/무설탕 계열이면, 대체는 **완전 다른 계열**(탄산수 단독, 생수, 무가당 차 등)이 아니라 **같은 음료 카테고리 내**에서만.\n' +
+    '   - 구체 품명은 **오래 판매되어 온 대표 라인**(예: 국내에서 널리 아는 브랜드의 제로 콜라 등)처럼 확신이 있을 때만 적으세요. 세부 플레버명은 위 [실존·확실성]을 따릅니다.\n' +
+    '4. 대체 옵션에 제품명을 적을 때: **실제로 존재하는** “브랜드 + 공식 판매명” 한 줄. 없으면 **공백**.\n' +
+    '   - 범주만 적기(“저당 과자”, “제로 음료”)는 금지이나, **구체 명이 불확실하면 차라리 비우기**가 범주만 억지로 쓰는 것보다 낫습니다.\n' +
+    '5. 한국 마트·편의점에서 흔히 보는 유통을 우선하되, **확실하지 않으면 적지 않기**.\n' +
     '6. 최대 3개까지만 (조금 개선 / 더 나은 선택 / 최적 선택)\n' +
-    '7. 동일 카테고리에서 더 낮은 가공이 없거나, “같은 식품군(키워드 2개 이상 유지)” 대체가 현실적으로 어려우면 **해당 칸과 이유를 비우고** 억지 추천 금지\n\n' +
+    '7. 동일 카테고리에서 더 낮은 가공이 없거나 확실한 대체 명칭이 없으면 **해당 칸·이유를 비우기**. 억지 추천·가상 SKU 금지\n\n' +
     '[출력 형식 — alternativeFoodText 문자열로 그대로 넣기, 줄바꿈 포함]\n' +
     '현재 식품: (반드시 JSON의 productName과 동일하게 적으세요)\n' +
     '가공 단계: (반드시 JSON의 novaGroup/novaSubgroup을 반영해 4A/4B/4C처럼 적으세요)\n\n' +
@@ -86,6 +89,7 @@ export function getTwoImagePackagePrompt(): string {
     '- rawMaterials를 기준으로 한국형 NOVA 분류(novaGroup)를 판단합니다. Group IV이면 novaSubgroup(4A/4B/4C)도 판단합니다.\n\n' +
     '[이미지 B: 영양성분표]\n' +
     '- 영양성분 표가 보이면 nutrition에 숫자를 채웁니다. 없거나 판독 불가면 nutrition은 null로 둡니다.\n' +
+    '- 표에 **0kcal·제로칼로리·열량 0** 등으로 나오면 caloriesKcal는 **반드시 숫자 0**(null·빈 문자열 금지).\n' +
     '- consumptionAdvice는 “일일 권장 섭취량 안내”가 아니라, 라벨에 적힌 일반 조언(예: 음료는 보관/개봉 후 섭취 등)을 한두 문장으로 정리합니다. kcal 판독이 불가하면 과도한 추측을 하지 않습니다.\n\n' +
     getAlternativeFoodInstructions() +
     '\n\n' +
@@ -102,7 +106,7 @@ export function getTwoImagePackagePrompt(): string {
     '- consumptionAdvice: 라벨 기반 섭취/보관 조언. 한두 문장. 없으면 \"\"\n' +
     '- foodCategory: 위 목록 중 하나\n' +
     '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
-    '- alternativeFoodText: 위 [대체 식품 추천] 형식의 **여러 줄 문자열**. JSON 이스케이프 준수.\n\n' +
+    '- alternativeFoodText: 위 [대체 식품 추천] 형식. **실제 유통 제품명만**; 불확실하면 칸 비우기 또는 추천 생략 문구. JSON 이스케이프 준수.\n\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
     '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null,"alternativeFoodText":""}'
   );
@@ -115,7 +119,7 @@ export function getPackageImagePrompt(): string {
     '당신에게 할 일: **이미지는 식품 포장(원재료명, 영양정보 표, 앞면 등)일 수 있습니다. 텍스트를 읽고 전처리한 뒤, 제품 정보·한국형 NOVA·Group IV 세분화·영양표(있을 때)·카테고리·대체 식품 안내를 판단하세요.** 중간 과정은 출력하지 말고, 최종 결과만 아래 JSON 형식으로 한 개만 출력하세요.\n\n' +
     '[영양성분 표]\n' +
     '- 이미지에 영양정보 표가 보이면 숫자를 읽어 nutrition에 넣는다. 없거나 판독 불가면 nutrition은 null.\n' +
-    '- caloriesKcal: 1회 제공량(또는 표기 기준) 기준 **열량(kcal)**. "약", "~"이 있으면 대표값 하나.\n' +
+    '- caloriesKcal: 1회 제공량(또는 표기 기준) 기준 **열량(kcal)**. "약", "~"이 있으면 대표값 하나. **0kcal·제로칼로리·열량 0**이면 **0**을 넣는다(null 금지).\n' +
     '- 나트륨은 mg, 탄수화물·당류·단백질·지방·포화지방·트랜스지방은 g 단위로 숫자만.\n' +
     '- servingSizeText: 가능하면 제품 표기 그대로. 예) "1병(355ml)", "1캔(250ml)", "총 내용량 500ml 중 100ml", "1회 30g".\n' +
     '- basisIsPerServing: 표의 숫자가 **1회 제공량(1회 섭취 참고량)** 기준이면 true, 100g/100ml 기준이면 false.\n\n' +
@@ -136,7 +140,7 @@ export function getPackageImagePrompt(): string {
     '- consumptionAdvice: 섭취 방법 조언. 한두 문장. 없으면 ""\n' +
     '- foodCategory: 위 목록 중 하나\n' +
     '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
-    '- alternativeFoodText: 위 [대체 식품 추천] 형식의 **여러 줄 문자열**. JSON 이스케이프 준수.\n\n' +
+    '- alternativeFoodText: 위 [대체 식품 추천] 형식. **실제 유통 제품명만**; 불확실하면 칸 비우기 또는 추천 생략 문구. JSON 이스케이프 준수.\n\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
     '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null,"alternativeFoodText":""}'
   );

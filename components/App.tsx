@@ -205,10 +205,30 @@ function buildAlternativeFoodHtml(altText: string): string {
     })
     .join('');
 
+  let fallbackNote = '';
+  if (shown.length === 0) {
+    const arrowIdx = lines.findIndex((l) => /👉\s*더 나은 선택/.test(l));
+    const start = arrowIdx >= 0 ? arrowIdx + 1 : 0;
+    const proseParts: string[] = [];
+    for (let i = start; i < lines.length; i++) {
+      const l = lines[i];
+      if (optionRe.test(l) || reasonRe.test(l)) break;
+      if (/^현재 식품\s*:/.test(l) || /^가공 단계\s*:/.test(l)) continue;
+      if (l.length > 0) proseParts.push(l);
+    }
+    const prose = proseParts.join(' ').trim();
+    if (prose) fallbackNote = prose;
+  }
+
+  const disclaimer =
+    '<p class="alt-disclaimer">AI 참고 제안이에요. 실제 매장 품목·명칭·판매 여부와 다를 수 있으니, 구매 전 라벨을 확인해 주세요.</p>';
+
   return (
     '<div class="alt-block">' +
     top.join('') +
-    `<div class="alt-grid">${grid}</div>` +
+    (grid ? `<div class="alt-grid">${grid}</div>` : '') +
+    (fallbackNote ? `<div class="alt-fallback">${escapeHtml(fallbackNote)}</div>` : '') +
+    disclaimer +
     '</div>'
   );
 }
@@ -426,6 +446,10 @@ export default function App() {
         setShowHome(false);
         setShowResult(true);
         setShowDeleteArea(true);
+        setCaptureStep(1);
+        setRawImageBase64(null);
+        setNutritionImageBase64(null);
+        setCapturedPreviewDataUrl(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '분석 중 오류가 났어요.');
       } finally {
@@ -481,6 +505,10 @@ export default function App() {
         setShowHome(false);
         setShowResult(true);
         setShowDeleteArea(true);
+        setCaptureStep(1);
+        setRawImageBase64(null);
+        setNutritionImageBase64(null);
+        setCapturedPreviewDataUrl(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '분석 중 오류가 났어요.');
       } finally {
@@ -656,27 +684,17 @@ export default function App() {
   const triggerUpload = useCallback(() => {
     setCapturedPreviewDataUrl(null);
     setError('');
-    if (captureStep === 1) {
-      // 스캔 시작: 1/2(원재료)부터 다시 진행
-      setCaptureStep(1);
-      setRawImageBase64(null);
-      setNutritionImageBase64(null);
-    } else {
-      // 2/2(영양성분표) 단계에서 카메라 버튼을 눌렀을 때: 원재료가 없으면 진행 불가
-      if (!rawImageBase64) {
-        setError('원재료 사진을 먼저 선택해 주세요');
-        return;
-      }
-      setCaptureStep(2);
-      setNutritionImageBase64(null);
-    }
+    // 홈 FAB(촬영): 항상 새 제품 스캔 — 1/2(원재료)부터. 분석 직후 captureStep=2·이전 원재료가 남아 있어도 여기서 초기화.
+    setCaptureStep(1);
+    setRawImageBase64(null);
+    setNutritionImageBase64(null);
     setUploadSource('camera');
     if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
       startCamera();
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, captureStep, rawImageBase64]);
+  }, [startCamera]);
 
   useEffect(() => {
     if (!showCamera) return;

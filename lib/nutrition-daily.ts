@@ -84,12 +84,20 @@ export function buildPersonalizedIntakeNote(
   const target = roughDailyKcalTarget(bmi, bmiCategory);
   if (target <= 0) return null;
 
-  if (caloriesKcal == null || !Number.isFinite(caloriesKcal) || caloriesKcal <= 0) {
-    // kcal이 없으면 “포장 보관법” 대신 계산 생략 안내를 보여주는 용도.
+  if (caloriesKcal == null || !Number.isFinite(caloriesKcal)) {
     if (servingSizeText && String(servingSizeText).trim()) {
       return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal)을 읽지 못해서 계산을 생략했어요. ${servingSizeText} 기준으로 다시 열량이 보이게 촬영해 주세요.`;
     }
     return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal) 판독이 어려워 계산을 생략했어요. 열량이 보이게 다시 찍어주세요.`;
+  }
+
+  // 0kcal·저열량(제로 음료 등): 열량은 유효하게 “0”으로 읽힌 경우. 나눗셈(목표kcal/열량)은 쓰지 않음.
+  if (caloriesKcal >= 0 && caloriesKcal < 0.5) {
+    const bmiPart0 =
+      bmi != null && bmiCategory
+        ? `현재 BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})이라서, 참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`
+        : `참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`;
+    return `일일 권장 섭취량(참고): 표에 나온 이 분량은 **0kcal**(또는 거의 0kcal)로 읽혔어요. 하루 참고 열량(${target}kcal 가정) 기준으로는 **열량 부담이 거의 없는 편**이에요. 다만 나트륨·당류 등은 같은 표의 다른 수치를 함께 보세요. ${bmiPart0} 개인 활동량·전체 식단에 따라 달라질 수 있어요.`;
   }
 
   const servings = target / caloriesKcal; // “표의 기준 1개(또는 100ml 등)”를 하루에 몇 번 먹을 수 있는지(참고)
