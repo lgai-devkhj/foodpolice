@@ -28,6 +28,27 @@ import {
 } from '@/lib/constants';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
+import {
+  IconLeaf,
+  IconSearch,
+  IconHeart,
+  IconCamera,
+  IconImage,
+  IconAlert,
+  IconSpinner,
+  IconSettings,
+  IconUser,
+  IconTrash,
+  IconSun,
+  IconClipboard,
+  IconChart,
+  IconPlus,
+  IconFlask,
+  IconDroplet,
+  IconPalette,
+  IconLock,
+  IconCheck,
+} from '@/components/ui-icons';
 
 /** bodyMeasurements 중 날짜 기준 가장 최신 기록의 키·몸무게, 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
@@ -73,7 +94,7 @@ function escapeAttr(s: string): string {
 const ALT_PRODUCT_IMG_PLACEHOLDER =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 112"><rect fill="#e8eaf6" width="112" height="112" rx="18"/><text x="56" y="72" text-anchor="middle" font-size="44">🛒</text></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 112"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#e8f5e9"/><stop offset="100%" stop-color="#c8e6c9"/></linearGradient></defs><rect fill="url(#g)" width="112" height="112" rx="18"/><g fill="none" stroke="#2e7d32" stroke-width="2.2" stroke-linecap="round" opacity="0.35"><circle cx="56" cy="56" r="28"/><circle cx="56" cy="56" r="18"/></g><circle cx="56" cy="56" r="6" fill="#2e7d32" opacity="0.5"/></svg>'
   );
 
 /** Open Food Facts 검색으로 소비자 사진(있을 때만) — 실패 시 플레이스홀더 유지 */
@@ -137,12 +158,12 @@ function buildNutritionResultHtml(
 
   if (nutrition?.servingSizeText) {
     html +=
-      '<div style="font-size:0.95rem;color:var(--text2);margin-bottom:10px;">📏 ' +
+      '<div class="nutrition-serving-line"><span class="nutrition-leading" aria-hidden="true"></span><span>' +
       escapeHtml(nutrition.servingSizeText) +
       (nutrition.basisIsPerServing === false
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
-      '</div>';
+      '</span></div>';
   }
 
   if (nutrition?.caloriesKcal != null && Number.isFinite(nutrition.caloriesKcal)) {
@@ -624,7 +645,8 @@ export default function App() {
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
       if (currentHistoryId)
-        html += '<div style="margin-top:8px;"><button type="button" class="edit-row save" id="editNameBtn">✏️ 이름 수정</button></div>';
+        html +=
+          '<div style="margin-top:8px;"><button type="button" class="edit-row save" id="editNameBtn"><span class="edit-name-btn-inner"><span class="edit-leading" aria-hidden="true"></span>이름 수정</span></button></div>';
       html += '</div>';
 
       html += '<div class="card card-nova card-nova-' + nova + '">';
@@ -657,12 +679,23 @@ export default function App() {
 
       html += '<div class="card"><div class="card-title">맞춤 안내</div>';
       if (personalizedIntakeNote) {
-        html += '<div class="advice-box">🎯 ' + escapeHtml(personalizedIntakeNote) + '</div>';
+        html +=
+          '<div class="advice-box advice-box--with-leading"><span class="advice-leading advice-leading--target-mask" aria-hidden="true"></span><span class="advice-text">' +
+          escapeHtml(personalizedIntakeNote) +
+          '</span></div>';
       } else if (advice) {
-        html += '<div class="advice-box">🍴 ' + escapeHtml(advice) + '</div>';
+        html +=
+          '<div class="advice-box advice-box--with-leading"><span class="advice-leading advice-leading--utensil-mask" aria-hidden="true"></span><span class="advice-text">' +
+          escapeHtml(advice) +
+          '</span></div>';
       }
-      if (isUltra) html += '<div class="advice-box advice-warning">⚠️ ' + ultraMsg + '</div>';
-      if (!personalizedIntakeNote && !advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
+      if (isUltra)
+        html +=
+          '<div class="advice-box advice-warning advice-box--with-leading"><span class="advice-leading advice-leading--warn-mask" aria-hidden="true"></span><span class="advice-text">' +
+          escapeHtml(ultraMsg) +
+          '</span></div>';
+      if (!personalizedIntakeNote && !advice && !isUltra)
+        html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
       html += '</div>';
 
       if (concerns.length > 0) {
@@ -671,7 +704,7 @@ export default function App() {
         concerns.forEach((c) => {
           html +=
             '<div class="concern-card">' +
-            '<div class="concern-card-icon" aria-hidden="true">!</div>' +
+            '<div class="concern-card-icon" aria-hidden="true"></div>' +
             '<div class="concern-card-body">' +
             '<div class="concern-card-name">' +
             escapeHtml(c.name) +
@@ -1047,7 +1080,13 @@ export default function App() {
           <div className="onboarding-inner">
             {obStep === 0 && (
               <div id="onboardingStep0">
-                <div className="ob-welcome-icon" aria-hidden>🌿</div>
+                <div className="ob-welcome-visual" aria-hidden>
+                  <span className="ob-ring" />
+                  <span className="ob-ring ob-ring--2" />
+                  <span className="ob-welcome-core">
+                    <IconLeaf size={44} />
+                  </span>
+                </div>
                 <h2 className="ob-welcome-title">FoodPolice</h2>
                 <p className="ob-welcome-desc">
                   포장만 찍으면 원재료와 NOVA 등급을
@@ -1056,13 +1095,22 @@ export default function App() {
                 </p>
                 <div className="ob-welcome-features">
                   <div className="ob-welcome-feature-item">
-                    <span className="ico">📷</span> 원재료·NOVA 한 번에
+                    <span className="ico">
+                      <IconCamera size={22} />
+                    </span>{' '}
+                    원재료·NOVA 한 번에
                   </div>
                   <div className="ob-welcome-feature-item">
-                    <span className="ico">👤</span> 키·몸무게로 BMI·비만 여부
+                    <span className="ico">
+                      <IconUser size={22} />
+                    </span>{' '}
+                    키·몸무게로 BMI·비만 여부
                   </div>
                   <div className="ob-welcome-feature-item">
-                    <span className="ico">⚠️</span> 비만일 땐 초가공 경고 강하게
+                    <span className="ico">
+                      <IconAlert size={22} />
+                    </span>{' '}
+                    비만일 땐 초가공 경고 강하게
                   </div>
                 </div>
                 <button type="button" className="btn btn-primary btn-full" onClick={() => setObStep(1)}>
@@ -1087,7 +1135,12 @@ export default function App() {
                     <option value="female">여성</option>
                   </select>
                 </div>
-                <p className="ob-safety">입력한 정보는 기기에만 안전하게 저장돼요</p>
+                <p className="ob-safety">
+                  <span className="ob-safety-ico" aria-hidden>
+                    <IconLock size={16} />
+                  </span>
+                  입력한 정보는 기기에만 안전하게 저장돼요
+                </p>
                 <div className="ob-step-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(0)}>
                     이전
@@ -1143,7 +1196,12 @@ export default function App() {
                     onChange={(e) => setObWeight(e.target.value)}
                   />
                 </div>
-                <p className="ob-safety">입력한 정보는 기기에만 안전하게 저장돼요</p>
+                <p className="ob-safety">
+                  <span className="ob-safety-ico" aria-hidden>
+                    <IconLock size={16} />
+                  </span>
+                  입력한 정보는 기기에만 안전하게 저장돼요
+                </p>
                 <div className="ob-step-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(1)}>
                     이전
@@ -1197,7 +1255,12 @@ export default function App() {
                 <p className="ob-confirm-note">
                   생년월일·성별은 한 번 설정하면 바꿀 수 없어요. 키·몸무게는 설정에서 수정할 수 있어요
                 </p>
-                <p className="ob-safety">입력한 정보는 기기에만 안전하게 저장돼요</p>
+                <p className="ob-safety">
+                  <span className="ob-safety-ico" aria-hidden>
+                    <IconLock size={16} />
+                  </span>
+                  입력한 정보는 기기에만 안전하게 저장돼요
+                </p>
                 <div className="ob-confirm-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(2)}>
                     수정
@@ -1225,7 +1288,9 @@ export default function App() {
 
       {showOnboardingCompleteModal && (
         <div className="onboarding-complete-toast" role="status" aria-live="polite">
-          <span className="onboarding-complete-icon" aria-hidden>✓</span>
+          <span className="onboarding-complete-icon" aria-hidden>
+            <IconCheck size={26} strokeWidth={2.5} />
+          </span>
           <span className="onboarding-complete-text">반영 완료</span>
         </div>
       )}
@@ -1246,12 +1311,19 @@ export default function App() {
               !showBmiGraph && (
                 <div className="home-top-bar">
                   <button type="button" className="btn-settings-home" title="설정" aria-label="설정" onClick={openSettings}>
-                    ⚙️
+                    <IconSettings size={22} />
                   </button>
                 </div>
               )}
             <div className="hero-section" aria-label="소개">
-              <span className="hero-icon" aria-hidden>🌿</span>
+              <div className="hero-icon-cluster" aria-hidden>
+                <span className="hero-ring" />
+                <span className="hero-ring hero-ring--b" />
+                <span className="hero-ring hero-ring--c" />
+                <div className="hero-icon-core">
+                  <IconLeaf size={52} />
+                </div>
+              </div>
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
@@ -1260,17 +1332,23 @@ export default function App() {
             </div>
             <div className="info-cards-wrap">
               <button type="button" className="info-card" aria-label="이런 성분을 분석해요" onClick={() => setShowInfoIngredient(true)}>
-                <span className="icon-wrap" aria-hidden>🔍</span>
+                <span className="icon-wrap" aria-hidden>
+                  <IconSearch size={32} />
+                </span>
                 <span className="label">이런 성분을 분석해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
               <button type="button" className="info-card" aria-label="내 건강에 맞게 판단해요" onClick={() => setShowInfoCriteria(true)}>
-                <span className="icon-wrap" aria-hidden>❤️</span>
+                <span className="icon-wrap" aria-hidden>
+                  <IconHeart size={32} />
+                </span>
                 <span className="label">내 건강에 맞게 판단해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
               <button type="button" className="info-card" aria-label="이렇게 촬영해요" onClick={() => setShowInfoPhoto(true)}>
-                <span className="icon-wrap" aria-hidden>📷</span>
+                <span className="icon-wrap" aria-hidden>
+                  <IconCamera size={32} />
+                </span>
                 <span className="label">이렇게 촬영해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
@@ -1279,7 +1357,9 @@ export default function App() {
               <div className="loading-callout-wrap">
                 <div className="card" id="loadingCard">
                   <div className="loading">
-                    <span className="loading-spinner" aria-hidden>⏳</span>
+                    <span className="loading-spinner" aria-hidden>
+                      <IconSpinner size={28} />
+                    </span>
                     <span id="loadingText">{loadingText}</span>
                   </div>
                 </div>
@@ -1287,7 +1367,9 @@ export default function App() {
             )}
             {error && (
               <div className="error-msg" id="errorCard">
-                <span className="error-icon" aria-hidden>⚠️</span>
+                <span className="error-icon" aria-hidden>
+                  <IconAlert size={28} />
+                </span>
                 <span className="error-text">{error}</span>
               </div>
             )}
@@ -1335,7 +1417,10 @@ export default function App() {
               <div className="fab-row">
                 <div className="fab-col">
                   <button type="button" className="fab" id="fabUpload" aria-label="카메라로 포장 촬영" onClick={triggerUpload}>
-                    📷
+                    <span className="fab-pulse" aria-hidden />
+                    <span className="fab-pulse fab-pulse--2" aria-hidden />
+                    <span className="fab-pulse fab-pulse--3" aria-hidden />
+                    <IconCamera size={34} />
                   </button>
                   <span className="fab-label">촬영</span>
                 </div>
@@ -1355,7 +1440,9 @@ export default function App() {
                       galleryInputRef.current?.click();
                     }}
                   >
-                    🖼
+                    <span className="fab-secondary-pulse" aria-hidden />
+                    <span className="fab-secondary-pulse fab-secondary-pulse--2" aria-hidden />
+                    <IconImage size={26} />
                   </button>
                   <span className="fab-secondary-label">앨범</span>
                 </div>
@@ -1475,7 +1562,9 @@ export default function App() {
                   </button>
                 </div>
                 <button type="button" className="settings-row" aria-label="화면 설정" onClick={() => setSettingsPage('display')}>
-                  <span className="row-icon" aria-hidden>☀️</span>
+                  <span className="row-icon" aria-hidden>
+                    <IconSun size={26} />
+                  </span>
                   <span className="row-text">
                     <span className="row-title">화면 설정</span>
                     <span className="row-subtitle">{settingsDisplaySubtitle}</span>
@@ -1483,7 +1572,9 @@ export default function App() {
                   <span className="row-chevron" aria-hidden>›</span>
                 </button>
                 <button type="button" className="settings-row" aria-label="개인 맞춤화" onClick={() => setSettingsPage('profile')}>
-                  <span className="row-icon" aria-hidden>👤</span>
+                  <span className="row-icon" aria-hidden>
+                    <IconUser size={26} />
+                  </span>
                   <span className="row-text">
                     <span className="row-title">개인 맞춤화</span>
                     <span className="row-subtitle">{settingsProfileSubtitle}</span>
@@ -1521,7 +1612,9 @@ export default function App() {
                     setObSummaryWeight('—');
                   }}
                 >
-                  <span className="row-icon" aria-hidden>🗑</span>
+                  <span className="row-icon" aria-hidden>
+                    <IconTrash size={26} />
+                  </span>
                   <span className="row-text">
                     <span className="row-title">모든 기록 삭제</span>
                     <span className="row-subtitle">스캔 기록·개인 맞춤화 정보 전체 삭제</span>
@@ -1556,7 +1649,7 @@ export default function App() {
                           {mode === 'system' ? '시스템 설정' : mode === 'light' ? '라이트 모드' : '다크 모드'}
                         </span>
                         <span className="check" aria-hidden style={{ display: (profile.appearanceMode || 'system') === mode ? '' : 'none' }}>
-                          ✓
+                          <IconCheck size={22} strokeWidth={2.5} />
                         </span>
                       </button>
                     ))}
@@ -1637,7 +1730,9 @@ export default function App() {
                       onClick={() => setShowMeasurementHistory(true)}
                       style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--card-stroke)', background: 'var(--card)', color: 'var(--accent)' }}
                     >
-                      <span aria-hidden>📋</span>
+                      <span aria-hidden>
+                        <IconClipboard size={18} />
+                      </span>
                     </button>
                   </div>
                   <div style={{ color: 'var(--text2)', fontSize: '1rem', marginBottom: 12 }}>
@@ -1654,7 +1749,7 @@ export default function App() {
                     onClick={() => setShowAddMeasurement(true)}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 0', color: 'var(--accent)', fontWeight: 500 }}
                   >
-                    <span>➕</span> 키·몸무게 기록 추가
+                    <IconPlus size={18} /> 키·몸무게 기록 추가
                   </button>
                 </div>
                 {(() => {
@@ -1675,7 +1770,9 @@ export default function App() {
                         onClick={() => setShowBmiGraph(true)}
                         style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--card-stroke)', background: 'var(--card)', color: 'var(--accent)' }}
                       >
-                        <span aria-hidden>📈</span>
+                        <span aria-hidden>
+                          <IconChart size={18} />
+                        </span>
                       </button>
                     </div>
                   );
@@ -1699,21 +1796,47 @@ export default function App() {
               <h2 className="sheet-title">이런 성분을 분석해요</h2>
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoIngredient(false)}>×</button>
             </div>
-            <div className="sheet-icon">🧪</div>
+            <div className="sheet-icon-wrap" aria-hidden>
+              <span className="sheet-ring" />
+              <span className="sheet-ring sheet-ring--2" />
+              <div className="sheet-icon">
+                <IconFlask size={48} />
+              </div>
+            </div>
             <div className="info-category">
-              <h4><span className="ico">➕</span> 첨가물</h4>
+              <h4>
+                <span className="ico">
+                  <IconPlus size={26} />
+                </span>{' '}
+                첨가물
+              </h4>
               <ul><li>보존료, 산화방지제, 착향료, 증점제, 유화제 등</li></ul>
             </div>
             <div className="info-category">
-              <h4><span className="ico">🍬</span> 감미료</h4>
+              <h4>
+                <span className="ico">
+                  <IconDroplet size={26} />
+                </span>{' '}
+                감미료
+              </h4>
               <ul><li>아스파탐, 수크랄로스, 아세설팜칼륨, 스테비아 등</li></ul>
             </div>
             <div className="info-category">
-              <h4><span className="ico">🎨</span> 색소</h4>
+              <h4>
+                <span className="ico">
+                  <IconPalette size={26} />
+                </span>{' '}
+                색소
+              </h4>
               <ul><li>타르색소, 카라멜색소, 코치닐 등</li></ul>
             </div>
             <div className="info-category">
-              <h4><span className="ico">⚠️</span> 주의 성분</h4>
+              <h4>
+                <span className="ico">
+                  <IconAlert size={26} />
+                </span>{' '}
+                주의 성분
+              </h4>
               <ul><li>나트륨, 당, 포화지방, 트랜스지방 등 과다 시 주의 문구</li></ul>
             </div>
           </div>
@@ -1732,7 +1855,13 @@ export default function App() {
               <h2 className="sheet-title">내 건강에 맞게 판단해요</h2>
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoCriteria(false)}>×</button>
             </div>
-            <div className="sheet-icon">❤️</div>
+            <div className="sheet-icon-wrap" aria-hidden>
+              <span className="sheet-ring" />
+              <span className="sheet-ring sheet-ring--2" />
+              <div className="sheet-icon">
+                <IconHeart size={48} />
+              </div>
+            </div>
             <p style={{ margin: '0 0 16px', color: 'var(--text2)', fontSize: '1.15rem', lineHeight: 1.6 }}>
               한국형 NOVA 분류를 기준으로, 원재료와 가공 정도를 보고 그룹을 판정해요.
             </p>
@@ -1774,7 +1903,13 @@ export default function App() {
               <h2 className="sheet-title">이렇게 촬영해요</h2>
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoPhoto(false)}>×</button>
             </div>
-            <div className="sheet-icon">📷</div>
+            <div className="sheet-icon-wrap" aria-hidden>
+              <span className="sheet-ring" />
+              <span className="sheet-ring sheet-ring--2" />
+              <div className="sheet-icon">
+                <IconCamera size={48} />
+              </div>
+            </div>
             <div className="guide-step">
               <span className="num">1</span>
               <span className="txt">1/2) 포장 뒷면의 원재료명이 보이게 해 주세요.</span>
@@ -1920,7 +2055,13 @@ function BodyMeasurementHistorySheet({
         </div>
         {measurements.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>📋</div>
+            <div className="empty-state-icon-wrap" aria-hidden>
+              <span className="empty-state-ring" />
+              <span className="empty-state-ring empty-state-ring--2" />
+              <span className="empty-state-icon">
+                <IconClipboard size={40} />
+              </span>
+            </div>
             <div>아직 기록이 없어요</div>
           </div>
         ) : (
@@ -1943,7 +2084,14 @@ function BodyMeasurementHistorySheet({
                     <td style={{ textAlign: 'right', padding: '10px 12px', color: 'var(--text2)' }}>{m.weightKg.toFixed(1)}</td>
                     <td style={{ textAlign: 'right', padding: '10px 12px', color: 'var(--text2)' }}>{bmiFromMeasurement(m).toFixed(1)}</td>
                     <td style={{ padding: 4 }}>
-                      <button type="button" aria-label="삭제" style={{ color: 'var(--risk)', padding: 8 }} onClick={() => onDelete(idx)}>🗑</button>
+                      <button
+                        type="button"
+                        aria-label="삭제"
+                        style={{ color: 'var(--risk)', padding: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => onDelete(idx)}
+                      >
+                        <IconTrash size={20} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1976,7 +2124,13 @@ function BMIGraphSheet({ measurements, onClose }: { measurements: BodyMeasuremen
             <button type="button" className="sheet-close-x" aria-label="닫기" onClick={onClose}>×</button>
           </div>
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>📈</div>
+            <div className="empty-state-icon-wrap" aria-hidden>
+              <span className="empty-state-ring" />
+              <span className="empty-state-ring empty-state-ring--2" />
+              <span className="empty-state-icon">
+                <IconChart size={40} />
+              </span>
+            </div>
             <div>키·몸무게 기록을 2개 이상 추가하면<br />그래프를 볼 수 있어요</div>
           </div>
         </div>
