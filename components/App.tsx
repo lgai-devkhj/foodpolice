@@ -337,56 +337,7 @@ function clampIsoDate(value: string, min: string, max: string): string {
   return value;
 }
 
-function WheelColumn({
-  values,
-  selected,
-  suffix,
-  onSelect,
-}: {
-  values: number[];
-  selected: number;
-  suffix: string;
-  onSelect: (v: number) => void;
-}) {
-  const rowH = 40;
-  const ref = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const idx = Math.max(0, values.indexOf(selected));
-    if (ref.current) ref.current.scrollTop = idx * rowH;
-  }, [selected, values]);
-
-  return (
-    <div
-      className="ymd-wheel-col"
-      ref={ref}
-      onScroll={(e) => {
-        if (timerRef.current) window.clearTimeout(timerRef.current);
-        timerRef.current = window.setTimeout(() => {
-          const top = (e.currentTarget as HTMLDivElement).scrollTop;
-          const idx = Math.round(top / rowH);
-          const v = values[Math.min(values.length - 1, Math.max(0, idx))];
-          if (v != null) onSelect(v);
-        }, 60);
-      }}
-    >
-      {values.map((v) => (
-        <button
-          type="button"
-          key={v}
-          className={`ymd-wheel-item ${v === selected ? 'active' : ''}`}
-          onClick={() => onSelect(v)}
-        >
-          {v}
-          {suffix}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function YmdWheelPicker({
+function YmdDateSelect({
   value,
   onChange,
   min,
@@ -416,26 +367,37 @@ function YmdWheelPicker({
   });
 
   return (
-    <div className="ymd-wheel-wrap">
-      <div className="ymd-wheel-highlight" aria-hidden />
-      <WheelColumn
-        values={years}
-        selected={parsed.year}
-        suffix="년"
-        onSelect={(y) => onChange(clampIsoDate(toIsoDate(y, parsed.month, parsed.day), min, max))}
-      />
-      <WheelColumn
-        values={months}
-        selected={parsed.month}
-        suffix="월"
-        onSelect={(m) => onChange(clampIsoDate(toIsoDate(parsed.year, m, parsed.day), min, max))}
-      />
-      <WheelColumn
-        values={days}
-        selected={Math.min(parsed.day, maxDay)}
-        suffix="일"
-        onSelect={(d) => onChange(clampIsoDate(toIsoDate(parsed.year, parsed.month, d), min, max))}
-      />
+    <div style={{ display: 'flex', gap: 8 }}>
+      <select
+        value={parsed.year}
+        onChange={(e) => onChange(clampIsoDate(toIsoDate(Number(e.target.value), parsed.month, parsed.day), min, max))}
+      >
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}년
+          </option>
+        ))}
+      </select>
+      <select
+        value={parsed.month}
+        onChange={(e) => onChange(clampIsoDate(toIsoDate(parsed.year, Number(e.target.value), parsed.day), min, max))}
+      >
+        {months.map((m) => (
+          <option key={m} value={m}>
+            {m}월
+          </option>
+        ))}
+      </select>
+      <select
+        value={Math.min(parsed.day, maxDay)}
+        onChange={(e) => onChange(clampIsoDate(toIsoDate(parsed.year, parsed.month, Number(e.target.value)), min, max))}
+      >
+        {days.map((d) => (
+          <option key={d} value={d}>
+            {d}일
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -1210,7 +1172,7 @@ export default function App() {
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
-                  <YmdWheelPicker value={obBirth} min="1900-01-01" max={todayDate} onChange={setObBirth} />
+                  <YmdDateSelect value={obBirth} min="1900-01-01" max={todayDate} onChange={setObBirth} />
                 </div>
                 <div className="form-group">
                   <label>성별</label>
