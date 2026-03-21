@@ -583,6 +583,38 @@
       background: #000;
       border-radius: 8px;
     }
+    .camera-step-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 9999px;
+      background: rgba(0,0,0,0.62);
+      color: #fff;
+      position: relative;
+      z-index: 2;
+      margin-top: -6px;
+      margin-bottom: 6px;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+    .camera-step-chip .step-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.18);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .camera-step-chip .step-dot.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .camera-step-chip .step-sep { opacity: 0.75; }
+    .camera-step-chip .step-text { margin-left: 2px; }
     .camera-bottom-row {
       display: flex;
       align-items: center;

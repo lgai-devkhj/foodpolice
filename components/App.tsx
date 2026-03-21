@@ -464,6 +464,8 @@ export default function App() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const captureStepRef = useRef<1 | 2>(1);
+  const rawImageBase64Ref = useRef<string | null>(null);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -502,6 +504,14 @@ export default function App() {
     const t = setTimeout(() => setShowOnboardingCompleteModal(false), 2200);
     return () => clearTimeout(t);
   }, [showOnboardingCompleteModal]);
+
+  useEffect(() => {
+    captureStepRef.current = captureStep;
+  }, [captureStep]);
+
+  useEffect(() => {
+    rawImageBase64Ref.current = rawImageBase64;
+  }, [rawImageBase64]);
 
   useEffect(() => {
     const mode = profile.appearanceMode || 'system';
@@ -939,8 +949,10 @@ export default function App() {
     setCapturedPreviewDataUrl(null);
     if (captureStep === 1) {
       setRawImageBase64(base64 || '');
+      rawImageBase64Ref.current = base64 || '';
       setRawImageMimeType(mime);
       setCaptureStep(2);
+      captureStepRef.current = 2;
       startCamera();
       return;
     }
@@ -974,14 +986,18 @@ export default function App() {
         const base64 = dataUrl.split(',')[1];
         const mime = (file.type || 'image/jpeg').toLowerCase();
         const normalizedMime = mime.startsWith('image/') ? mime : 'image/jpeg';
-        if (captureStep === 1) {
+        const currentStep = captureStepRef.current;
+        if (currentStep === 1) {
           setRawImageBase64(base64 || '');
+          rawImageBase64Ref.current = base64 || '';
           setRawImageMimeType(normalizedMime);
           setCaptureStep(2);
+          captureStepRef.current = 2;
           // 다음 단계(2/2)를 이어서 진행: 카메라로 가지 않고, 선택한 소스(앨범/촬영)에서 계속 진행
           if (uploadSource === 'gallery') {
             setCapturedPreviewDataUrl(null);
-            galleryInputRef.current?.click();
+            // 상태 반영 후 2단계 선택창을 열어, 같은 파일 재선택 시에도 2단계로 처리되게 함
+            window.setTimeout(() => galleryInputRef.current?.click(), 0);
           } else {
             // 카메라 소스인 경우만 카메라로 이어집니다.
             if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
@@ -991,13 +1007,13 @@ export default function App() {
             }
           }
         } else {
-          if (!rawImageBase64) {
+          if (!rawImageBase64Ref.current) {
             setError('원재료 사진을 먼저 선택해 주세요');
             return;
           }
           setNutritionImageBase64(base64 || '');
           setNutritionImageMimeType(normalizedMime);
-          runAnalyzeTwoImages(rawImageBase64, rawImageMimeType, base64 || '', normalizedMime);
+          runAnalyzeTwoImages(rawImageBase64Ref.current, rawImageMimeType, base64 || '', normalizedMime);
         }
       };
       reader.readAsDataURL(file);
@@ -1145,6 +1161,14 @@ export default function App() {
                   {captureStep === 1 ? '원재료명이 보이게 찍어주세요' : '영양성분표가 보이게 찍어주세요'}
                 </span>
               </div>
+            </div>
+            <div className="camera-step-chip" aria-live="polite">
+              <span className={`step-dot ${captureStep === 1 ? 'active' : ''}`}>1</span>
+              <span className="step-sep">/</span>
+              <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
+              <span className="step-text">
+                {captureStep === 1 ? '1단계 · 원재료 촬영' : '2단계 · 영양성분표 촬영'}
+              </span>
             </div>
             <div className="camera-bottom-row">
               <button
