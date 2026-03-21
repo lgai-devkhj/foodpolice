@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPackageImagePrompt, normalizeGeminiJson, GEMINI_MODEL } from '@/lib/gemini-prompts';
+import {
+  getPackageImagePrompt,
+  getTwoImagePackagePrompt,
+  normalizeGeminiJson,
+  GEMINI_MODEL,
+} from '@/lib/gemini-prompts';
 import {
   buildPersonalizedIntakeNote,
   computeBmiServer,
@@ -15,8 +20,12 @@ export const maxDuration = 60;
 
 interface AnalyzeBody {
   clientId: string;
-  imageBase64: string;
+  imageBase64?: string;
   mimeType?: string;
+  rawImageBase64?: string;
+  rawMimeType?: string;
+  nutritionImageBase64?: string;
+  nutritionMimeType?: string;
   /** BMI 맞춤 영양 안내용 (선택). 키·몸무게만 사용. */
   profile?: { heightCm?: number; weightKg?: number };
 }
@@ -102,9 +111,19 @@ function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
 export async function POST(request: NextRequest) {
   try {
     const body: AnalyzeBody = await request.json();
-    const { clientId, imageBase64, mimeType = 'image/jpeg', profile } = body;
+    const {
+      clientId,
+      imageBase64,
+      mimeType = 'image/jpeg',
+      rawImageBase64,
+      rawMimeType = 'image/jpeg',
+      nutritionImageBase64,
+      nutritionMimeType = 'image/jpeg',
+      profile,
+    } = body;
     requireClientId(clientId);
-    if (!imageBase64) {
+    const hasTwoImages = !!rawImageBase64 && !!nutritionImageBase64;
+    if (!imageBase64 && !hasTwoImages) {
       return NextResponse.json({ error: '이미지가 없습니다.' }, { status: 400 });
     }
 
@@ -117,7 +136,7 @@ export async function POST(request: NextRequest) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    const prompt = getPackageImagePrompt();
+    const prompt = hasTwoImages ? getTwoImagePackagePrompt() : getPackageImagePrompt();
 
     const res = await fetch(url, {
       method: 'POST',
@@ -126,7 +145,17 @@ export async function POST(request: NextRequest) {
         contents: [
           {
             parts: [
-              { inline_data: { mime_type: mimeType, data: imageBase64 } },
+              ...(hasTwoImages
+                ? [
+                    { inline_data: { mime_type: rawMimeType, data: rawImageBase64 || '' } },
+                    {
+                      inline_data: {
+                        mime_type: nutritionMimeType,
+                        data: nutritionImageBase64 || '',
+                      },
+                    },
+                  ]
+                : [{ inline_data: { mime_type: mimeType, data: imageBase64 || '' } }]),
               { text: prompt },
             ],
           },

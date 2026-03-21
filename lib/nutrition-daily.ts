@@ -82,18 +82,40 @@ export function buildPersonalizedIntakeNote(
   basisIsPerServing?: boolean | null
 ): string | null {
   const target = roughDailyKcalTarget(bmi, bmiCategory);
-  if (caloriesKcal == null || !Number.isFinite(caloriesKcal) || caloriesKcal <= 0 || target <= 0) return null;
+  if (target <= 0) return null;
 
-  const servings = target / caloriesKcal;
-  const servingsRounded = Math.round(servings * 10) / 10;
-
-  const basisLabel = (() => {
+  if (caloriesKcal == null || !Number.isFinite(caloriesKcal) || caloriesKcal <= 0) {
+    // kcal이 없으면 “포장 보관법” 대신 계산 생략 안내를 보여주는 용도.
     if (servingSizeText && String(servingSizeText).trim()) {
-      if (basisIsPerServing === false) return `표의 기준(${servingSizeText})`;
-      return `표의 1회 제공량(${servingSizeText})`;
+      return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal)을 읽지 못해서 계산을 생략했어요. ${servingSizeText} 기준으로 다시 열량이 보이게 촬영해 주세요.`;
     }
-    if (basisIsPerServing === false) return '표의 기준';
-    return '표의 1회 제공량';
+    return `일일 권장 섭취량(참고): 영양성분 표의 열량(kcal) 판독이 어려워 계산을 생략했어요. 열량이 보이게 다시 찍어주세요.`;
+  }
+
+  const servings = target / caloriesKcal; // “표의 기준 1개(또는 100ml 등)”를 하루에 몇 번 먹을 수 있는지(참고)
+  const servingsRoundedDown = Math.max(1, Math.floor(servings));
+
+  const normalizedServingSizeText = servingSizeText ? String(servingSizeText).trim() : '';
+  const unitLabel = (() => {
+    const t = normalizedServingSizeText;
+    if (!t) return null;
+    // 병/캔/팩 등 형태가 포함되면 그대로 사용
+    if (t.includes('병')) return '병';
+    if (t.includes('캔')) return '캔';
+    if (t.includes('팩')) return '팩';
+    if (t.includes('컵')) return '컵';
+    if (t.includes('잔')) return '잔';
+    return null;
+  })();
+
+  const volumeMl = (() => {
+    const t = normalizedServingSizeText;
+    if (!t) return null;
+    // 예: "1병(355ml)", "500ml 중 100ml", "100ml당"
+    const m = t.match(/(\d+(?:\.\d+)?)\s*ml/i);
+    if (!m) return null;
+    const v = parseFloat(m[1]);
+    return Number.isFinite(v) ? v : null;
   })();
 
   const bmiPart =
@@ -101,8 +123,21 @@ export function buildPersonalizedIntakeNote(
       ? `현재 BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})이라서, 참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`
       : `참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`;
 
-  // “권장”을 쓰되, 숫자는 표 기준(1회 분량)과 목표 열량을 이용한 계산이라는 점을 함께 적습니다.
-  return `하루 권장 섭취량(참고): ${basisLabel} 기준으로, 하루에 약 ${servingsRounded}회 정도 섭취하는 수준을 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+  // “하루 권장 섭취량: 2병 이내”처럼 용량/개수 중심으로 보여줘요.
+  if (basisIsPerServing === false || (unitLabel == null && volumeMl != null)) {
+    if (volumeMl != null) {
+      const dailyMl = Math.round(servingsRoundedDown * volumeMl);
+      const mlPart = dailyMl >= 1000 ? `${Math.round(dailyMl / 10) / 100}L` : `${dailyMl}ml`;
+      return `일일 권장 섭취량(참고): 약 ${mlPart} 이내로 섭취하는 수준을 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+    }
+    return `일일 권장 섭취량(참고): 하루에 약 ${servingsRoundedDown}회 이내를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+  }
+
+  if (unitLabel) {
+    return `일일 권장 섭취량(참고): ${servingsRoundedDown}${unitLabel} 이내를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
+  }
+
+  return `일일 권장 섭취량(참고): 하루에 약 ${servingsRoundedDown}회 이내를 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
 }
 
 export function computeBmiServer(heightCm: number, weightKg: number): number | null {

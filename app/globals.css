@@ -749,6 +749,82 @@
     .edit-row button.save { color: var(--primary); font-weight: 600; }
     .result-scroll.editing-name #resultContent #productNameCard { display: none; }
 
+    /* 결과 화면: 핵심만 보이게 접기(details) UI */
+    details.result-details {
+      margin: 12px 0;
+      width: 100%;
+    }
+    details.result-details summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: var(--card);
+      border: 1px solid var(--card-stroke);
+      box-shadow: var(--glass-shadow);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    details.result-details summary::-webkit-details-marker { display: none; }
+    details.result-details summary:after {
+      content: '▾';
+      font-weight: 900;
+      color: var(--text3);
+      flex-shrink: 0;
+    }
+    details.result-details[open] summary:after { content: '▴'; }
+    .result-details-body { padding: 14px 4px 2px; }
+    .result-raw-body { max-height: 210px; overflow-y: auto; padding-right: 2px; }
+    .result-details-body pre { margin: 0; }
+
+    .alt-block { padding: 2px 0 6px; }
+    .alt-meta {
+      color: var(--text2);
+      font-size: 0.95rem;
+      margin: 0 0 10px;
+      line-height: 1.4;
+    }
+    .alt-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .alt-item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--card-stroke);
+      background: rgba(0,0,0,0.03);
+    }
+    [data-theme="dark"] .alt-item,
+    html:not([data-theme="light"]) .alt-item { background: rgba(255,255,255,0.05); }
+    .alt-kicker {
+      font-weight: 800;
+      color: var(--text2);
+      font-size: 0.98rem;
+      margin-bottom: 6px;
+    }
+    .alt-product {
+      font-size: 1.28rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+    .alt-reason {
+      color: var(--text2);
+      font-size: 1.05rem;
+      line-height: 1.55;
+      margin-top: 6px;
+      word-break: keep-all;
+    }
+
     .modal {
       position: fixed;
       inset: 0;

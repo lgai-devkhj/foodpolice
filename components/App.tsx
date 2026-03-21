@@ -85,11 +85,9 @@ function buildNutritionResultHtml(
   const hasDaily = daily && Object.keys(daily).length > 0;
   if (!hasNums && !hasDaily) return '';
 
-  let html = '<div class="card"><div class="card-title">영양성분 · 일일 기준 비율</div>';
+  let html = '<div class="result-details-body result-nutrition">';
   html +=
-    '<p class="meta" style="margin:0 0 12px;line-height:1.5;">표에 나온 분량(보통 1회 제공량)을 기준으로, 하루 참고 열량 <strong>' +
-    DAILY_REFERENCE.caloriesKcal +
-    'kcal</strong> 등 일반 표시 기준과 비교한 비율이에요. 표가 없거나 읽지 못하면 이 섹션은 비어 있을 수 있어요.</p>';
+    '<p class="meta" style="margin:0 0 10px;line-height:1.5;">표에 나온 분량을 기준으로, 하루 참고치(2000kcal) 대비 %를 보여드려요.</p>';
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -109,15 +107,12 @@ function buildNutritionResultHtml(
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
+  // 너무 많은 항목을 한 번에 보여주지 않고, 핵심만 먼저 보여요.
   const rows: Row[] = [
     { key: 'calories', label: '열량', unit: '%', dv: DAILY_REFERENCE.caloriesKcal },
     { key: 'sodium', label: '나트륨', unit: '%', dv: DAILY_REFERENCE.sodiumMg },
-    { key: 'carbs', label: '탄수화물', unit: '%', dv: DAILY_REFERENCE.carbsG },
     { key: 'sugar', label: '당류', unit: '%', dv: DAILY_REFERENCE.sugarG },
-    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
-    { key: 'fat', label: '지방', unit: '%', dv: DAILY_REFERENCE.fatG },
     { key: 'saturatedFat', label: '포화지방', unit: '%', dv: DAILY_REFERENCE.saturatedFatG },
-    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
   ];
 
   if (hasDaily && daily) {
@@ -148,6 +143,74 @@ function buildNutritionResultHtml(
 
   html += '</div>';
   return html;
+}
+
+function buildAlternativeFoodHtml(altText: string): string {
+  if (!altText) return '';
+
+  const lines = altText
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const currentFoodLine = lines.find((l) => /^현재 식품\s*:\s*/.test(l)) || '';
+  const stageLine = lines.find((l) => /^가공 단계\s*:\s*/.test(l)) || '';
+  const currentFood = currentFoodLine.replace(/^현재 식품\s*:\s*/, '').trim();
+  const stage = stageLine.replace(/^가공 단계\s*:\s*/, '').trim();
+
+  const optionRe = /^(\d+)\.\s*(조금 개선|더 나은 선택|최적 선택)\s*:\s*(.*)$/;
+  const reasonRe = /^-\s*이유\s*:\s*(.*)$/;
+
+  type Item = { label: string; product: string; reason: string };
+  const items: Item[] = [];
+  let lastIdx: number | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const om = line.match(optionRe);
+    if (om) {
+      const label = om[2] || '';
+      const product = (om[3] || '').trim();
+      if (!product) {
+        lastIdx = null;
+        continue;
+      }
+      items.push({ label, product, reason: '' });
+      lastIdx = items.length - 1;
+      continue;
+    }
+    const rm = line.match(reasonRe);
+    if (rm && lastIdx != null) {
+      items[lastIdx].reason = (rm[1] || '').trim();
+      continue;
+    }
+  }
+
+  const top = [];
+  if (currentFood) top.push(`<div class="alt-meta">현재 식품: ${escapeHtml(currentFood)}</div>`);
+  if (stage) top.push(`<div class="alt-meta">가공 단계: ${escapeHtml(stage)}</div>`);
+
+  const shown = items.slice(0, 3);
+  const grid = shown
+    .map((it) => {
+      const kicker = it.label ? escapeHtml(it.label) : '';
+      const reason = it.reason ? escapeHtml(it.reason) : '';
+      return (
+        '<div class="alt-item">' +
+        (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
+        `<div class="alt-product">${escapeHtml(it.product)}</div>` +
+        (reason ? `<div class="alt-reason">- 이유: ${reason}</div>` : '') +
+        '</div>'
+      );
+    })
+    .join('');
+
+  return (
+    '<div class="alt-block">' +
+    top.join('') +
+    `<div class="alt-grid">${grid}</div>` +
+    '</div>'
+  );
 }
 
 function formatRelativeTime(iso: string): string {
@@ -246,10 +309,17 @@ export default function App() {
   const [showBmiGraph, setShowBmiGraph] = useState(false);
   const [cameraOrientation, setCameraOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [capturedPreviewDataUrl, setCapturedPreviewDataUrl] = useState<string | null>(null);
+  const [capturedPreviewMimeType, setCapturedPreviewMimeType] = useState<string>('image/jpeg');
+  const [captureStep, setCaptureStep] = useState<1 | 2>(1);
+  const [rawImageBase64, setRawImageBase64] = useState<string | null>(null);
+  const [rawImageMimeType, setRawImageMimeType] = useState<string>('image/jpeg');
+  const [nutritionImageBase64, setNutritionImageBase64] = useState<string | null>(null);
+  const [nutritionImageMimeType, setNutritionImageMimeType] = useState<string>('image/jpeg');
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [uploadSource, setUploadSource] = useState<'camera' | 'gallery'>('camera');
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
@@ -365,6 +435,61 @@ export default function App() {
     [clientId, refreshHistory, profile]
   );
 
+  const runAnalyzeTwoImages = useCallback(
+    async (
+      rawBase64: string,
+      rawMimeType: string,
+      nutritionBase64: string,
+      nutritionMimeType: string
+    ) => {
+      if (!clientId) return;
+      const startedAt = performance.now();
+      setLoading(true);
+      setLoadingText('분석하는 중');
+      setError('');
+      try {
+        const p = getProfileWithLatestMeasurement(profile);
+        const profilePayload =
+          p.heightCm != null && p.weightKg != null && p.heightCm > 0 && p.weightKg > 0
+            ? { heightCm: p.heightCm, weightKg: p.weightKg }
+            : undefined;
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId,
+            rawImageBase64: rawBase64,
+            rawMimeType,
+            nutritionImageBase64: nutritionBase64,
+            nutritionMimeType,
+            ...(profilePayload ? { profile: profilePayload } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '분석 중 오류가 났어요.');
+        const result = data as AnalysisResult;
+        const endedAt = performance.now();
+        const sec = Math.max(0, (endedAt - startedAt) / 1000);
+        setLastAnalysisSeconds(sec);
+        const { id, item } = addToHistory(clientId, result);
+        setCurrentResult(result);
+        setCurrentHistoryId(id);
+        setLastAnalysisForId(id);
+        setProfileState(getProfile(clientId));
+        refreshHistory();
+        renderResult(result, item, { analysisSeconds: sec, historyId: id });
+        setShowHome(false);
+        setShowResult(true);
+        setShowDeleteArea(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '분석 중 오류가 났어요.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clientId, refreshHistory, profile]
+  );
+
   const renderResult = useCallback(
     (
       result: AnalysisResult,
@@ -412,11 +537,13 @@ export default function App() {
       if (currentHistoryId)
         html += '<div style="margin-top:8px;"><button type="button" class="edit-row save" id="editNameBtn">✏️ 이름 수정</button></div>';
       html += '</div>';
-      html += '<div class="card"><div class="card-title">원재료</div>';
+      html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
       html += raw
-        ? '<div style="font-size:1.05rem; color:var(--text2);">' + escapeHtml(raw) + '</div>'
-        : '<div class="meta">원재료 정보가 없어요</div>';
-      html += '</div>';
+        ? '<div class="result-details-body result-raw-body"><div style="font-size:1.02rem;color:var(--text2);line-height:1.6;">' +
+          escapeHtml(raw) +
+          '</div></div>'
+        : '<div class="result-details-body"><div class="meta">원재료 정보가 없어요</div></div>';
+      html += '</details>';
       html += '<div class="card card-nova card-nova-' + nova + '">';
       html += '<div class="nova-result-slab">';
       html += '<div class="card-title nova-result-title">한국형 NOVA 분류</div>';
@@ -444,25 +571,35 @@ export default function App() {
           '</div>';
       }
       html += '</div></div>';
-      html += buildNutritionResultHtml(
+      const nutritionHtml = buildNutritionResultHtml(
         result.nutrition ?? undefined,
         result.nutritionDailyPercent ?? undefined
       );
+      if (nutritionHtml) {
+        html += '<details class="result-details"><summary>영양 비율 보기</summary>' + nutritionHtml + '</details>';
+      }
       if (altText) {
-        html += '<div class="card"><div class="card-title">더 나은 선택 (대체 식품)</div>';
-        html +=
-          '<pre style="white-space:pre-wrap;font-family:inherit;font-size:1.02rem;line-height:1.55;color:var(--text2);margin:0;">' +
-          escapeHtml(altText) +
-          '</pre></div>';
+        const altHtml = buildAlternativeFoodHtml(altText);
+        if (!altHtml) {
+          // alternativeFoodText가 파싱되지 않으면 빈 상태로 두되, 섹션 자체는 생략합니다.
+        } else {
+        html += '<details class="result-details"><summary>대체 식품</summary>';
+        html += `<div class="result-details-body">${altHtml}</div>`;
+        html += '</details>';
+        }
       }
       html += '<div class="card"><div class="card-title">맞춤 안내</div>';
-      if (personalizedIntakeNote) html += '<div class="advice-box">🎯 ' + escapeHtml(personalizedIntakeNote) + '</div>';
-      if (advice) html += '<div class="advice-box">🍴 ' + escapeHtml(advice) + '</div>';
+      if (personalizedIntakeNote) {
+        html += '<div class="advice-box">🎯 ' + escapeHtml(personalizedIntakeNote) + '</div>';
+      } else if (advice) {
+        html += '<div class="advice-box">🍴 ' + escapeHtml(advice) + '</div>';
+      }
       if (isUltra) html += '<div class="advice-box advice-warning">⚠️ ' + ultraMsg + '</div>';
       if (!personalizedIntakeNote && !advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
       html += '</div>';
       if (concerns.length > 0) {
-        html += '<div class="card"><div class="card-title">주의 원재료</div>';
+        html += '<details class="result-details"><summary>주의 원재료</summary>';
+        html += '<div class="result-details-body">';
         concerns.forEach(
           (c) =>
             (html +=
@@ -472,7 +609,7 @@ export default function App() {
               escapeHtml(c.explanation) +
               '</div></div>')
         );
-        html += '</div>';
+        html += '</div></details>';
       }
       setResultContentHtml(html);
     },
@@ -517,12 +654,29 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
+    setCapturedPreviewDataUrl(null);
+    setError('');
+    if (captureStep === 1) {
+      // 스캔 시작: 1/2(원재료)부터 다시 진행
+      setCaptureStep(1);
+      setRawImageBase64(null);
+      setNutritionImageBase64(null);
+    } else {
+      // 2/2(영양성분표) 단계에서 카메라 버튼을 눌렀을 때: 원재료가 없으면 진행 불가
+      if (!rawImageBase64) {
+        setError('원재료 사진을 먼저 선택해 주세요');
+        return;
+      }
+      setCaptureStep(2);
+      setNutritionImageBase64(null);
+    }
+    setUploadSource('camera');
     if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
       startCamera();
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera]);
+  }, [startCamera, captureStep, rawImageBase64]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -589,6 +743,7 @@ export default function App() {
     if (!ctx) return;
     ctx.drawImage(v, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     stopCamera();
+    setCapturedPreviewMimeType('image/jpeg');
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -609,9 +764,29 @@ export default function App() {
   const confirmCapturedImage = useCallback(() => {
     if (!capturedPreviewDataUrl) return;
     const base64 = capturedPreviewDataUrl.split(',')[1];
+    const mime = capturedPreviewMimeType || 'image/jpeg';
     setCapturedPreviewDataUrl(null);
-    runAnalyze(base64 || '', 'image/jpeg');
-  }, [capturedPreviewDataUrl, runAnalyze]);
+    if (captureStep === 1) {
+      setRawImageBase64(base64 || '');
+      setRawImageMimeType(mime);
+      setCaptureStep(2);
+      startCamera();
+      return;
+    }
+    if (!rawImageBase64) {
+      setError('원재료 사진을 먼저 선택해 주세요');
+      return;
+    }
+    runAnalyzeTwoImages(rawImageBase64, rawImageMimeType, base64 || '', mime);
+  }, [
+    capturedPreviewDataUrl,
+    capturedPreviewMimeType,
+    captureStep,
+    rawImageBase64,
+    rawImageMimeType,
+    runAnalyzeTwoImages,
+    startCamera,
+  ]);
 
   const retakePhoto = useCallback(() => {
     setCapturedPreviewDataUrl(null);
@@ -627,12 +802,43 @@ export default function App() {
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(',')[1];
         const mime = (file.type || 'image/jpeg').toLowerCase();
-        runAnalyze(base64 || '', mime.startsWith('image/') ? mime : 'image/jpeg');
+        const normalizedMime = mime.startsWith('image/') ? mime : 'image/jpeg';
+        if (captureStep === 1) {
+          setRawImageBase64(base64 || '');
+          setRawImageMimeType(normalizedMime);
+          setCaptureStep(2);
+          // 다음 단계(2/2)를 이어서 진행: 카메라로 가지 않고, 선택한 소스(앨범/촬영)에서 계속 진행
+          if (uploadSource === 'gallery') {
+            setCapturedPreviewDataUrl(null);
+            galleryInputRef.current?.click();
+          } else {
+            // 카메라 소스인 경우만 카메라로 이어집니다.
+            if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+              startCamera();
+            } else {
+              fileInputRef.current?.click();
+            }
+          }
+        } else {
+          if (!rawImageBase64) {
+            setError('원재료 사진을 먼저 선택해 주세요');
+            return;
+          }
+          setNutritionImageBase64(base64 || '');
+          setNutritionImageMimeType(normalizedMime);
+          runAnalyzeTwoImages(rawImageBase64, rawImageMimeType, base64 || '', normalizedMime);
+        }
       };
       reader.readAsDataURL(file);
       e.target.value = '';
     },
-    [runAnalyze]
+    [
+      captureStep,
+      rawImageBase64,
+      rawImageMimeType,
+      runAnalyzeTwoImages,
+      startCamera,
+    ]
   );
 
   const openSettings = useCallback(() => {
@@ -700,7 +906,9 @@ export default function App() {
                 className={`camera-guide-frame ${cameraOrientation}`}
                 aria-hidden
               >
-                <span className="camera-guide-label">원재료·영양표가 보이게 찍어주세요</span>
+                <span className="camera-guide-label">
+                  {captureStep === 1 ? '원재료명이 보이게 찍어주세요' : '영양성분표가 보이게 찍어주세요'}
+                </span>
               </div>
             </div>
             <div className="camera-bottom-row">
@@ -722,7 +930,9 @@ export default function App() {
                 세로
               </button>
             </div>
-            <p className="camera-hint">포장 뒷면 촬영 (원재료·영양성분 표)</p>
+            <p className="camera-hint">
+              {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양성분표 촬영'}
+            </p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
           </div>
         </div>
@@ -731,12 +941,15 @@ export default function App() {
       {capturedPreviewDataUrl && (
         <div className="capture-preview-view" aria-label="촬영 미리보기">
           <img src={capturedPreviewDataUrl} alt="촬영한 사진" className="capture-preview-img" />
+          <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
+            {captureStep === 1 ? '1/2 · 원재료' : '2/2 · 영양성분표'}
+          </p>
           <div className="capture-preview-actions">
             <button type="button" className="capture-preview-btn retake" onClick={retakePhoto}>
               다시 촬영
             </button>
             <button type="button" className="capture-preview-btn confirm" onClick={confirmCapturedImage}>
-              선택하기
+              {captureStep === 1 ? '다음(영양성분표)' : '분석하기'}
             </button>
           </div>
         </div>
@@ -1045,7 +1258,15 @@ export default function App() {
                     className="fab-secondary"
                     id="fabGallery"
                     aria-label="앨범에서 사진 선택"
-                    onClick={() => galleryInputRef.current?.click()}
+                    onClick={() => {
+                      setCapturedPreviewDataUrl(null);
+                      setError('');
+                      setUploadSource('gallery');
+                      setCaptureStep(1);
+                      setRawImageBase64(null);
+                      setNutritionImageBase64(null);
+                      galleryInputRef.current?.click();
+                    }}
                   >
                     🖼
                   </button>
@@ -1053,7 +1274,13 @@ export default function App() {
                 </div>
               </div>
               <span className="fab-label" style={{ marginTop: 4 }}>
-                원재료·영양표가 보이게
+                {captureStep === 1
+                  ? uploadSource === 'gallery'
+                    ? '1/2 · 원재료(앨범 선택)'
+                    : '1/2 · 원재료(촬영)'
+                  : uploadSource === 'gallery'
+                    ? '2/2 · 영양성분표(앨범 선택)'
+                    : '2/2 · 영양성분표(촬영)'}
               </span>
             </div>
           </div>
@@ -1463,7 +1690,7 @@ export default function App() {
             <div className="sheet-icon">📷</div>
             <div className="guide-step">
               <span className="num">1</span>
-              <span className="txt">포장 뒷면의 원재료명이 보이게 해 주세요.</span>
+              <span className="txt">1/2) 포장 뒷면의 원재료명이 보이게 해 주세요.</span>
             </div>
             <div className="guide-step">
               <span className="num">2</span>
@@ -1471,12 +1698,12 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">3</span>
-              <span className="txt"><strong>그림자가 지지 않게</strong> 밝은 곳에서 촬영해 주세요.</span>
+              <span className="txt">3) 다음 단계에서(2/2) <strong>영양성분표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
             </div>
             <div className="guide-step">
               <span className="num">4</span>
               <span className="txt">
-                열량·나트륨 비율을 보려면 <strong>영양성분 표</strong>가 잘 보이게 찍거나, 앨범에서 해당 사진을 올려 주세요.
+                글자가 흐리지 않게, <strong>그림자가 지지 않게</strong> 밝은 곳에서 찍어 주세요.
               </span>
             </div>
             <div className="photo-guide-example-wrap">
