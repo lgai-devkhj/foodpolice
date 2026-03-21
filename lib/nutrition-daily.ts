@@ -77,33 +77,32 @@ function roughDailyKcalTarget(bmi: number | null, category: string | null): numb
 export function buildPersonalizedIntakeNote(
   bmi: number | null,
   bmiCategory: string | null,
-  dailyPct: NutritionDailyPercent | null,
-  caloriesKcal: number | null
+  caloriesKcal: number | null,
+  servingSizeText?: string | null,
+  basisIsPerServing?: boolean | null
 ): string | null {
-  if (!dailyPct && (caloriesKcal == null || !Number.isFinite(caloriesKcal))) return null;
   const target = roughDailyKcalTarget(bmi, bmiCategory);
-  const parts: string[] = [];
-  parts.push(
-    `일반적인 영양성분 표 기준(약 ${DAILY_REFERENCE.caloriesKcal}kcal·나트륨 ${DAILY_REFERENCE.sodiumMg}mg 등)으로 볼 때, 표에 나온 **1회(또는 표기 기준) 분량**이 하루 권장 치에 차지하는 비율을 위에 %로 보여 드렸어요.`
-  );
-  if (caloriesKcal != null && Number.isFinite(caloriesKcal) && target > 0) {
-    const one = Math.round((caloriesKcal / target) * 1000) / 10;
-    if (bmiCategory && bmi != null) {
-      parts.push(
-        `현재 BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})이므로, **참고용**으로 하루 열량을 대략 ${target}kcal 전후로 가정했을 때 이 분량의 열량은 그중 약 ${one}%에 해당한다고 볼 수 있어요(개인 활동량·성장기 등에 따라 실제 필요량은 달라집니다).`
-      );
-    } else {
-      parts.push(
-        `키·몸무게 정보가 없어 BMI 맞춤은 생략했어요. 대략 ${DAILY_REFERENCE.caloriesKcal}kcal 기준으로 보면 이 분량의 열량은 약 ${Math.round((caloriesKcal / DAILY_REFERENCE.caloriesKcal) * 1000) / 10}% 수준이에요.`
-      );
+  if (caloriesKcal == null || !Number.isFinite(caloriesKcal) || caloriesKcal <= 0 || target <= 0) return null;
+
+  const servings = target / caloriesKcal;
+  const servingsRounded = Math.round(servings * 10) / 10;
+
+  const basisLabel = (() => {
+    if (servingSizeText && String(servingSizeText).trim()) {
+      if (basisIsPerServing === false) return `표의 기준(${servingSizeText})`;
+      return `표의 1회 제공량(${servingSizeText})`;
     }
-  } else if (bmiCategory && bmi != null) {
-    parts.push(
-      `BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})예요. 가공 식품·나트륨·당류가 많은 편이면 전체 식단에서 조절하는 것이 좋아요.`
-    );
-  }
-  parts.push('정확한 섭취량은 영양사·의사와 상담하세요.');
-  return parts.join(' ');
+    if (basisIsPerServing === false) return '표의 기준';
+    return '표의 1회 제공량';
+  })();
+
+  const bmiPart =
+    bmi != null && bmiCategory
+      ? `현재 BMI는 약 ${bmi.toFixed(1)}(${bmiCategory})이라서, 참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`
+      : `참고용 하루 열량 목표를 ${target}kcal로 가정했어요.`;
+
+  // “권장”을 쓰되, 숫자는 표 기준(1회 분량)과 목표 열량을 이용한 계산이라는 점을 함께 적습니다.
+  return `하루 권장 섭취량(참고): ${basisLabel} 기준으로, 하루에 약 ${servingsRounded}회 정도 섭취하는 수준을 참고할 수 있어요. ${bmiPart} 개인 활동량·성장기·전체 식단에 따라 달라질 수 있어요.`;
 }
 
 export function computeBmiServer(heightCm: number, weightKg: number): number | null {

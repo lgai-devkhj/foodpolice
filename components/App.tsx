@@ -69,8 +69,7 @@ function nutritionPctBarClass(pct: number): string {
 
 function buildNutritionResultHtml(
   nutrition: NutritionFacts | null | undefined,
-  daily: NutritionDailyPercent | null | undefined,
-  personalized: string | null | undefined
+  daily: NutritionDailyPercent | null | undefined
 ): string {
   const hasNums =
     nutrition &&
@@ -84,7 +83,7 @@ function buildNutritionResultHtml(
       nutrition.saturatedFatG != null ||
       nutrition.transFatG != null);
   const hasDaily = daily && Object.keys(daily).length > 0;
-  if (!hasNums && !hasDaily && !personalized) return '';
+  if (!hasNums && !hasDaily) return '';
 
   let html = '<div class="card"><div class="card-title">영양성분 · 일일 기준 비율</div>';
   html +=
@@ -147,10 +146,6 @@ function buildNutritionResultHtml(
     });
   }
 
-  if (personalized) {
-    html +=
-      '<div class="advice-box" style="margin-top:8px;">🎯 ' + escapeHtml(personalized) + '</div>';
-  }
   html += '</div>';
   return html;
 }
@@ -388,6 +383,7 @@ export default function App() {
       const reason = result.judgmentReason || '';
       const concerns = result.concernIngredients || [];
       const advice = result.consumptionAdvice || '';
+      const personalizedIntakeNote = (result.personalizedIntakeNote || '').trim();
       const altText = (result.alternativeFoodText || '').trim();
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
@@ -450,8 +446,7 @@ export default function App() {
       html += '</div></div>';
       html += buildNutritionResultHtml(
         result.nutrition ?? undefined,
-        result.nutritionDailyPercent ?? undefined,
-        result.personalizedIntakeNote ?? undefined
+        result.nutritionDailyPercent ?? undefined
       );
       if (altText) {
         html += '<div class="card"><div class="card-title">더 나은 선택 (대체 식품)</div>';
@@ -461,9 +456,10 @@ export default function App() {
           '</pre></div>';
       }
       html += '<div class="card"><div class="card-title">맞춤 안내</div>';
+      if (personalizedIntakeNote) html += '<div class="advice-box">🎯 ' + escapeHtml(personalizedIntakeNote) + '</div>';
       if (advice) html += '<div class="advice-box">🍴 ' + escapeHtml(advice) + '</div>';
       if (isUltra) html += '<div class="advice-box advice-warning">⚠️ ' + ultraMsg + '</div>';
-      if (!advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
+      if (!personalizedIntakeNote && !advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
       html += '</div>';
       if (concerns.length > 0) {
         html += '<div class="card"><div class="card-title">주의 원재료</div>';
