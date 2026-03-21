@@ -13,6 +13,11 @@ import {
   type NutritionDailyPercent,
   type NutritionFactsInput,
 } from '@/lib/nutrition-daily';
+import {
+  buildAlternativeFoodWebSearchPrompt,
+  DEFAULT_ALTERNATIVES_GROUNDING_MODEL,
+  fetchAlternativesWithGoogleSearch,
+} from '@/lib/gemini-alternative-search';
 
 /** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
 export const runtime = 'nodejs';
@@ -237,10 +242,40 @@ export async function POST(request: NextRequest) {
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
     const foodCategory = normalizeFoodCategory(parsed.foodCategory);
-    const alternativeFoodText =
+    let alternativeFoodText =
       parsed.alternativeFoodText != null && String(parsed.alternativeFoodText).trim()
         ? String(parsed.alternativeFoodText).trim()
         : null;
+
+    /* 대체 식품: 선택 시 Google Search 그라운딩(추가 API·검색 과금). 기본은 NOVA 4만. */
+    const altSearchOff = process.env.GEMINI_ALTERNATIVES_USE_SEARCH === '0';
+    const altSearchNova4Only = process.env.GEMINI_ALTERNATIVES_SEARCH_ALL_GROUPS !== '1';
+    const groundingModel =
+      (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
+      DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
+    const shouldRunAltSearch =
+      !altSearchOff && (!altSearchNova4Only || novaGroup === 4);
+
+    let alternativeFoodFromWebSearch = false;
+    if (shouldRunAltSearch) {
+      const searchPrompt = buildAlternativeFoodWebSearchPrompt({
+        productName: product.productName,
+        companyName: product.companyName,
+        foodCategory,
+        novaGroup,
+        novaSubgroup,
+        briefDescription:
+          parsed.briefDescription != null && String(parsed.briefDescription).trim()
+            ? String(parsed.briefDescription).trim()
+            : null,
+        rawMaterials: product.rawMaterials,
+      });
+      const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
+      if (fromWeb) {
+        alternativeFoodText = fromWeb;
+        alternativeFoodFromWebSearch = true;
+      }
+    }
 
     const result = {
       product,
@@ -255,6 +290,7 @@ export async function POST(request: NextRequest) {
       nutritionDailyPercent,
       personalizedIntakeNote,
       alternativeFoodText,
+      alternativeFoodFromWebSearch,
     };
 
     return NextResponse.json(result);

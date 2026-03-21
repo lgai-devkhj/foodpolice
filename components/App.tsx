@@ -145,7 +145,7 @@ function buildNutritionResultHtml(
   return html;
 }
 
-function buildAlternativeFoodHtml(altText: string): string {
+function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): string {
   if (!altText) return '';
 
   const lines = altText
@@ -221,7 +221,11 @@ function buildAlternativeFoodHtml(altText: string): string {
   }
 
   const disclaimer =
-    '<p class="alt-disclaimer">AI 참고 제안이에요. 실제 매장 품목·명칭·판매 여부와 다를 수 있으니, 구매 전 라벨을 확인해 주세요.</p>';
+    '<p class="alt-disclaimer">' +
+    (fromWebSearch
+      ? '웹 검색 결과를 참고한 AI 제안이에요. 검색 시점·지역·매장에 따라 품목·명칭이 다를 수 있어요. 구매 전 라벨을 확인해 주세요.'
+      : 'AI 참고 제안이에요. 실제 매장 품목·명칭·판매 여부와 다를 수 있으니, 구매 전 라벨을 확인해 주세요.') +
+    '</p>';
 
   return (
     '<div class="alt-block">' +
@@ -559,19 +563,14 @@ export default function App() {
       ) {
         html += `<div class="result-analysis-time">${lastAnalysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
       }
+      /* 순서: 제목 → NOVA → 맞춤 안내 → 대체 식품 → 주의 원재료 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
       if (currentHistoryId)
         html += '<div style="margin-top:8px;"><button type="button" class="edit-row save" id="editNameBtn">✏️ 이름 수정</button></div>';
       html += '</div>';
-      html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
-      html += raw
-        ? '<div class="result-details-body result-raw-body"><div style="font-size:1.02rem;color:var(--text2);line-height:1.6;">' +
-          escapeHtml(raw) +
-          '</div></div>'
-        : '<div class="result-details-body"><div class="meta">원재료 정보가 없어요</div></div>';
-      html += '</details>';
+
       html += '<div class="card card-nova card-nova-' + nova + '">';
       html += '<div class="nova-result-slab">';
       html += '<div class="card-title nova-result-title">한국형 NOVA 분류</div>';
@@ -599,23 +598,7 @@ export default function App() {
           '</div>';
       }
       html += '</div></div>';
-      const nutritionHtml = buildNutritionResultHtml(
-        result.nutrition ?? undefined,
-        result.nutritionDailyPercent ?? undefined
-      );
-      if (nutritionHtml) {
-        html += '<details class="result-details"><summary>영양 비율 보기</summary>' + nutritionHtml + '</details>';
-      }
-      if (altText) {
-        const altHtml = buildAlternativeFoodHtml(altText);
-        if (!altHtml) {
-          // alternativeFoodText가 파싱되지 않으면 빈 상태로 두되, 섹션 자체는 생략합니다.
-        } else {
-        html += '<details class="result-details"><summary>대체 식품</summary>';
-        html += `<div class="result-details-body">${altHtml}</div>`;
-        html += '</details>';
-        }
-      }
+
       html += '<div class="card"><div class="card-title">맞춤 안내</div>';
       if (personalizedIntakeNote) {
         html += '<div class="advice-box">🎯 ' + escapeHtml(personalizedIntakeNote) + '</div>';
@@ -625,6 +608,16 @@ export default function App() {
       if (isUltra) html += '<div class="advice-box advice-warning">⚠️ ' + ultraMsg + '</div>';
       if (!personalizedIntakeNote && !advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
       html += '</div>';
+
+      if (altText) {
+        const altHtml = buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true);
+        if (altHtml) {
+          html += '<details class="result-details"><summary>대체 식품</summary>';
+          html += `<div class="result-details-body">${altHtml}</div>`;
+          html += '</details>';
+        }
+      }
+
       if (concerns.length > 0) {
         html += '<details class="result-details"><summary>주의 원재료</summary>';
         html += '<div class="result-details-body">';
@@ -638,6 +631,22 @@ export default function App() {
               '</div></div>')
         );
         html += '</div></details>';
+      }
+
+      html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
+      html += raw
+        ? '<div class="result-details-body result-raw-body"><div style="font-size:1.02rem;color:var(--text2);line-height:1.6;">' +
+          escapeHtml(raw) +
+          '</div></div>'
+        : '<div class="result-details-body"><div class="meta">원재료 정보가 없어요</div></div>';
+      html += '</details>';
+
+      const nutritionHtml = buildNutritionResultHtml(
+        result.nutrition ?? undefined,
+        result.nutritionDailyPercent ?? undefined
+      );
+      if (nutritionHtml) {
+        html += '<details class="result-details"><summary>영양 비율 보기</summary>' + nutritionHtml + '</details>';
       }
       setResultContentHtml(html);
     },

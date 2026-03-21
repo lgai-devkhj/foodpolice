@@ -64,6 +64,8 @@ export interface AnalysisResult {
   nutritionDailyPercent?: NutritionDailyPercent | null;
   personalizedIntakeNote?: string | null;
   alternativeFoodText?: string | null;
+  /** true면 대체 식품 문구가 Google Search 그라운딩 2차 호출 결과 */
+  alternativeFoodFromWebSearch?: boolean;
 }
 
 export interface AppState {
