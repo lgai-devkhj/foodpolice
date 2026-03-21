@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPackageImagePrompt, normalizeGeminiJson, GEMINI_MODEL } from '@/lib/gemini-prompts';
+import {
+  buildPersonalizedIntakeNote,
+  computeBmiServer,
+  bmiCategoryKo,
+  computeDailyPercentages,
+  type NutritionDailyPercent,
+  type NutritionFactsInput,
+} from '@/lib/nutrition-daily';
 
 /** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
 export const runtime = 'nodejs';
@@ -9,6 +17,8 @@ interface AnalyzeBody {
   clientId: string;
   imageBase64: string;
   mimeType?: string;
+  /** BMI 맞춤 영양 안내용 (선택). 키·몸무게만 사용. */
+  profile?: { heightCm?: number; weightKg?: number };
 }
 
 function requireClientId(clientId: string): void {
@@ -17,10 +27,82 @@ function requireClientId(clientId: string): void {
   }
 }
 
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function parseNutrition(raw: unknown): NutritionFactsInput | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const caloriesKcal = numOrNull(o.caloriesKcal);
+  const sodiumMg = numOrNull(o.sodiumMg);
+  const carbsG = numOrNull(o.carbsG);
+  const sugarG = numOrNull(o.sugarG);
+  const proteinG = numOrNull(o.proteinG);
+  const fatG = numOrNull(o.fatG);
+  const saturatedFatG = numOrNull(o.saturatedFatG);
+  const transFatG = numOrNull(o.transFatG);
+  const servingSizeText =
+    o.servingSizeText != null && String(o.servingSizeText).trim() ? String(o.servingSizeText).trim() : null;
+  /* 한국 라벨은 대개 1회 제공량 기준이 많아, 미표기 시 true로 둠 */
+  const basisIsPerServing = o.basisIsPerServing !== false;
+  if (
+    caloriesKcal == null &&
+    sodiumMg == null &&
+    carbsG == null &&
+    sugarG == null &&
+    proteinG == null &&
+    fatG == null &&
+    saturatedFatG == null &&
+    transFatG == null &&
+    !servingSizeText
+  ) {
+    return null;
+  }
+  return {
+    caloriesKcal,
+    sodiumMg,
+    carbsG,
+    sugarG,
+    proteinG,
+    fatG,
+    saturatedFatG,
+    transFatG,
+    servingSizeText: servingSizeText ?? undefined,
+    basisIsPerServing,
+  };
+}
+
+const FOOD_CATEGORIES = [
+  '음료',
+  '달콤한 간식',
+  '짭짤한 간식',
+  '간편한 한 끼',
+  '빵·시리얼류',
+  '유제품·디저트',
+] as const;
+
+function normalizeFoodCategory(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (FOOD_CATEGORIES.includes(s as (typeof FOOD_CATEGORIES)[number])) return s;
+  return s.length > 0 ? s : null;
+}
+
+function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
+  if (novaGroup !== 4) return null;
+  const s = v != null ? String(v).trim().toUpperCase() : '';
+  if (s === '4A' || s === '4B' || s === '4C') return s;
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: AnalyzeBody = await request.json();
-    const { clientId, imageBase64, mimeType = 'image/jpeg' } = body;
+    const { clientId, imageBase64, mimeType = 'image/jpeg', profile } = body;
     requireClientId(clientId);
     if (!imageBase64) {
       return NextResponse.json({ error: '이미지가 없습니다.' }, { status: 400 });
@@ -64,7 +146,9 @@ export async function POST(request: NextRequest) {
       try {
         const err = JSON.parse(text);
         if (err?.error?.message) msg = err.error.message;
-      } catch {}
+      } catch {
+        /* ignore */
+      }
       return NextResponse.json({ error: 'Gemini 오류: ' + msg }, { status: res.status });
     }
 
@@ -98,13 +182,50 @@ export async function POST(request: NextRequest) {
           .map((c) => ({ name: c.name || '', explanation: c.explanation || '' }))
       : [];
 
+    const nutritionParsed = parseNutrition(parsed.nutrition);
+    const nutritionDailyPercent: NutritionDailyPercent | null = nutritionParsed
+      ? computeDailyPercentages(nutritionParsed)
+      : null;
+
+    let bmi: number | null = null;
+    let bmiCategory: string | null = null;
+    const h = profile?.heightCm;
+    const w = profile?.weightKg;
+    if (h != null && w != null) {
+      bmi = computeBmiServer(Number(h), Number(w));
+      if (bmi != null) bmiCategory = bmiCategoryKo(bmi);
+    }
+
+    const personalizedIntakeNote =
+      nutritionParsed || nutritionDailyPercent
+        ? buildPersonalizedIntakeNote(
+            bmi,
+            bmiCategory,
+            nutritionDailyPercent,
+            nutritionParsed?.caloriesKcal ?? null
+          )
+        : null;
+
+    const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
+    const foodCategory = normalizeFoodCategory(parsed.foodCategory);
+    const alternativeFoodText =
+      parsed.alternativeFoodText != null && String(parsed.alternativeFoodText).trim()
+        ? String(parsed.alternativeFoodText).trim()
+        : null;
+
     const result = {
       product,
       novaGroup,
+      novaSubgroup,
       judgmentReason: (parsed.judgmentReason && String(parsed.judgmentReason).trim()) || null,
       concernIngredients,
       briefDescription: (parsed.briefDescription && String(parsed.briefDescription).trim()) || null,
       consumptionAdvice: (parsed.consumptionAdvice && String(parsed.consumptionAdvice).trim()) || null,
+      foodCategory,
+      nutrition: nutritionParsed,
+      nutritionDailyPercent,
+      personalizedIntakeNote,
+      alternativeFoodText,
     };
 
     return NextResponse.json(result);

@@ -26,12 +26,44 @@ export interface HistoryItem {
   customProductName?: string | null;
 }
 
+export interface NutritionFacts {
+  caloriesKcal?: number | null;
+  sodiumMg?: number | null;
+  carbsG?: number | null;
+  sugarG?: number | null;
+  proteinG?: number | null;
+  fatG?: number | null;
+  saturatedFatG?: number | null;
+  transFatG?: number | null;
+  servingSizeText?: string | null;
+  basisIsPerServing?: boolean;
+}
+
+export interface NutritionDailyPercent {
+  calories?: number;
+  sodium?: number;
+  carbs?: number;
+  sugar?: number;
+  protein?: number;
+  fat?: number;
+  saturatedFat?: number;
+  transFat?: number;
+}
+
 export interface AnalysisResult {
   product: { productName: string; companyName?: string; rawMaterials?: string };
   novaGroup: number;
+  /** Group IV일 때 4A | 4B | 4C */
+  novaSubgroup?: string | null;
   judgmentReason?: string | null;
   concernIngredients: Array<{ name: string; explanation: string }>;
+  briefDescription?: string | null;
   consumptionAdvice?: string | null;
+  foodCategory?: string | null;
+  nutrition?: NutritionFacts | null;
+  nutritionDailyPercent?: NutritionDailyPercent | null;
+  personalizedIntakeNote?: string | null;
+  alternativeFoodText?: string | null;
 }
 
 export interface AppState {

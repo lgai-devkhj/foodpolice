@@ -15,6 +15,21 @@ export function getKoreanNovaCriteria(): string {
     '4) 원재료 구조가 사라지고 산업적으로 재구성된 식품인가? → YES → Group IV\n\n' +
     '[중요] 첨가물이 있다고 무조건 Group IV로 분류하지 않는다. 성분 개수만으로 Group IV를 판정하지 않는다. **원재료 특성 유지 여부**를 우선 판단한다.\n\n' +
     '[한국 식품 예외] 다음은 기본적으로 Group III로 분류한다: 김, 김자반, 된장, 간장, 고추장, 젓갈, 절임식품, 반찬류. 전통 가공 식품이므로 초가공으로 분류하지 않는다.\n\n' +
+    '[Group IV 세분화 — novaGroup이 4일 때만 적용]\n' +
+    '먼저 아래 분기를 적용한다.\n\n' +
+    'Q6. 이 식품이 "고당·고지·고염 + 저영양 구조"인가?\n' +
+    '→ YES → Q7로\n' +
+    '→ NO → 4A (경계형 초가공)\n\n' +
+    'Q7. 이 식품이 "과소비(과식)"를 유도하도록 설계되었는가?\n' +
+    '→ YES → Q8로\n' +
+    '→ NO → 4B (명확한 초가공)\n\n' +
+    'Q8. 이 식품이 원래 먹어야 할 자연식 대신 소비되기 쉬운 구조인가?\n' +
+    '→ YES → 4C (고도 초가공)\n' +
+    '→ NO → 4B\n\n' +
+    '보조 YES/NO 체크(4A 경향): Q1 당/지방/염분이 과도하지 않은가, Q2 첨가물이 맛 조작이 아닌 보존/안정 목적인가, Q3 원재료 기반이 쉽게 추측되는가 → YES 2개 이상이면 4A 후보.\n' +
+    '보조 YES/NO 체크(4B 경향): Q1 단맛/짠맛/지방이 눈에 띄게 강화되었는가, Q2 향료/감미료/유화제 등 맛 조작 첨가물이 있는가, Q3 원재료보다 제품 느낌이 강한가 → YES 2개 이상이면 4B 후보.\n' +
+    '보조 YES/NO 체크(4C 경향): Q1 당/지방/염분이 매우 높은가, Q2 첨가물이 복합적으로 다수인가, Q3 강한 자극적 맛으로 계속 먹게 되는가, Q4 원재료 기반을 거의 알 수 없는가 → YES 3개 이상이면 4C 후보.\n' +
+    '위 분기(Q6~Q8)와 보조 체크를 종합해 **하나**만 선택: 4A, 4B, 4C.\n\n' +
     '[주의 원재료 선정]\n' +
     '- 최대 3개만 표시. 문제가 될 수 있는 원재료만 선택한다.\n' +
     '- 선정 기준: 초가공 판단 참고 성분(인공 감미료, 색소, 향료·MSG, 유화제, 보존료, 가공전분·고과당옥수수시럽 등), 당류·나트륨 등 과다 섭취 시 주의가 필요한 성분.\n' +
@@ -23,25 +38,67 @@ export function getKoreanNovaCriteria(): string {
   );
 }
 
+function getAlternativeFoodInstructions(): string {
+  return (
+    '[대체 식품 추천 — alternativeFoodText]\n' +
+    '당신은 식품을 분석하여 사용자에게 "더 나은 선택"을 추천하는 전문가입니다.\n\n' +
+    '[목표]\n' +
+    '- 현재 식품과 동일한 소비 상황에서\n' +
+    '- 가공 정도가 더 낮은 대체 식품을 추천\n' +
+    '- "건강한 음식 추천"이 아니라 "현실적인 대체"가 목표\n\n' +
+    '[추천 규칙]\n' +
+    '1. 반드시 동일 foodCategory에서 추천\n' +
+    '2. 가공 단계는 한 단계 이상 낮출 것\n' +
+    '3. 현실적으로 대체 가능한 식품만\n' +
+    '4. 최대 3개까지만 (조금 개선 / 더 나은 선택 / 최적 선택)\n' +
+    '5. 동일 카테고리에서 더 낮은 가공이 없거나, 대체 불가, 이미 적절한 선택이면 **해당 칸과 이유를 비우고** 억지 추천 금지\n\n' +
+    '[출력 형식 — alternativeFoodText 문자열로 그대로 넣기, 줄바꿈 포함]\n' +
+    '현재 식품: {제품명}\n' +
+    '가공 단계: {4A 또는 4B 또는 4C, Group IV가 아니면 "해당 없음"}\n\n' +
+    '👉 더 나은 선택:\n\n' +
+    '1. 조금 개선: {없으면 공백}\n' +
+    '- 이유: {없으면 공백}\n\n' +
+    '2. 더 나은 선택: {없으면 공백}\n' +
+    '- 이유: {없으면 공백}\n\n' +
+    '3. 최적 선택: {없으면 공백}\n' +
+    '- 이유: {없으면 공백}\n\n' +
+    '[설명 규칙] 이유는 첨가물 감소, 원재료 구조 유지, 과식 유도 감소, 영양 균형 개선 중 1~2개만 구체적으로. 추상어 금지.\n' +
+    '[중요] 식습관 존중, 자연식 강요 금지, 추천이 없을 수 있음을 인정.\n' +
+    'Group I~III이면 alternativeFoodText는 짧게 "현재 식품: …\\n가공 단계: 해당 없음\\n👉 더 나은 선택:\\n(초가공이 아니어서 단계 낮추기 추천은 생략합니다.)" 형태로 해도 됨.'
+  );
+}
+
 export function getPackageImagePrompt(): string {
   return (
     getKoreanNovaCriteria() +
     '\n\n' +
-    '당신에게 할 일은 하나입니다: **아래 이미지는 식품 포장(뒷면 또는 원재료 표시) 사진입니다. 이미지에서 텍스트를 읽고 전처리한 뒤, 제품 정보 추출과 한국형 NOVA 분류를 판단해 주세요.** 중간 과정은 출력하지 말고, 최종 판단 결과만 아래 JSON 형식으로 한 개만 출력하세요.\n\n' +
-    '[1단계 — 이미지에서 텍스트 읽기·전처리 (내부적으로만 수행)]\n' +
-    '- OCR 오타·깨진 글자 보정, 줄바꿈으로 끊긴 단어 연결, 무관 문구는 참고만 하고 원재료/제품명만 추출에 사용.\n\n' +
-    '[2단계 — 판단 결과만 JSON으로 출력]\n' +
-    '- productName: 제품명. **완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "" 로 두세요.** 추측·유추 금지.\n' +
-    '- companyName: 제조사·수입자. 정확히 보이지 않으면 공란 ""\n' +
-    '- rawMaterials: 원재료 표기 전체 한 줄, 쉼표 구분\n' +
-    '- novaGroup: 1~4 (위 한국형 NOVA 순서로 판단)\n' +
-    '- judgmentReason: 해당 그룹으로 판단한 이유 (한두 문장)\n' +
+    '당신에게 할 일: **이미지는 식품 포장(원재료명, 영양정보 표, 앞면 등)일 수 있습니다. 텍스트를 읽고 전처리한 뒤, 제품 정보·한국형 NOVA·Group IV 세분화·영양표(있을 때)·카테고리·대체 식품 안내를 판단하세요.** 중간 과정은 출력하지 말고, 최종 결과만 아래 JSON 형식으로 한 개만 출력하세요.\n\n' +
+    '[영양성분 표]\n' +
+    '- 이미지에 영양정보 표가 보이면 숫자를 읽어 nutrition에 넣는다. 없거나 판독 불가면 nutrition은 null.\n' +
+    '- caloriesKcal: 1회 제공량(또는 표기 기준) 기준 **열량(kcal)**. "약", "~"이 있으면 대표값 하나.\n' +
+    '- 나트륨은 mg, 탄수화물·당류·단백질·지방·포화지방·트랜스지방은 g 단위로 숫자만.\n' +
+    '- servingSizeText: 예) "총 내용량 500ml 중 100ml", "1회 30g".\n' +
+    '- basisIsPerServing: 표의 숫자가 **1회 제공량(1회 섭취 참고량)** 기준이면 true, 100g/100ml 기준이면 false.\n\n' +
+    '[foodCategory]\n' +
+    '아래 중 **정확히 하나**의 문자열: "음료", "달콤한 간식", "짭짤한 간식", "간편한 한 끼", "빵·시리얼류", "유제품·디저트".\n\n' +
+    getAlternativeFoodInstructions() +
+    '\n\n' +
+    '[2단계 — JSON만 출력]\n' +
+    '- productName: 제품명. **완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".** 추측·유추 금지.\n' +
+    '- companyName: 제조사·수입자. 정확히 보이지 않으면 ""\n' +
+    '- rawMaterials: 원재료 표기 전체 한 줄, 쉼표 구분. 없으면 ""\n' +
+    '- novaGroup: 1~4 (한국형 NOVA 순서)\n' +
+    '- novaSubgroup: **novaGroup이 4일 때만** "4A" | "4B" | "4C". 그 외는 빈 문자열 "".\n' +
+    '- judgmentReason: 해당 그룹(및 4 세분화 근거를 한 문장 포함 가능) 판단 이유\n' +
     '- concernIngredients: 주의 원재료 최대 3개. [{"name":"","explanation":""}]. 없으면 []\n' +
     '- briefDescription: 이 식품에 대한 간단한 설명 (한 문장)\n' +
-    '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄 이유. 해당 없으면 ""\n' +
-    '- consumptionAdvice: 섭취 방법 조언. 예: 하루에 반봉지씩, 우유와 함께 드시면 좋아요. 한두 문장. 없으면 ""\n\n' +
+    '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 ""\n' +
+    '- consumptionAdvice: 섭취 방법 조언. 한두 문장. 없으면 ""\n' +
+    '- foodCategory: 위 목록 중 하나\n' +
+    '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
+    '- alternativeFoodText: 위 [대체 식품 추천] 형식의 **여러 줄 문자열**. JSON 이스케이프 준수.\n\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
-    '{"productName":"","companyName":"","rawMaterials":"","novaGroup":1~4,"judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":""}'
+    '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null,"alternativeFoodText":""}'
   );
 }
 

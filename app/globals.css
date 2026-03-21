@@ -30,7 +30,8 @@
       min-height: 100dvh;
       min-height: -webkit-fill-available;
       overflow-x: hidden;
-      background: linear-gradient(135deg, #c5d0c9 0%, #b8c4bc 50%, #a8b5ad 100%);
+      /* 메인 화면·온보딩과 동일 톤의 넓은 배경 (과한 회녹색 대신 부드러운 세이지) */
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
     }
     body {
       margin: 0;
@@ -46,7 +47,7 @@
       overflow: hidden;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
-      background: linear-gradient(135deg, #c5d0c9 0%, #b8c4bc 50%, #a8b5ad 100%);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
     }
     #app {
       position: fixed;
@@ -64,7 +65,7 @@
       min-height: -webkit-fill-available;
       margin: 0;
       padding: 0;
-      background: linear-gradient(135deg, #c5d0c9 0%, #b8c4bc 50%, #a8b5ad 100%);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -237,6 +238,46 @@
     }
     .fab:active { transform: scale(0.98); }
     .fab-label { font-size: 0.95rem; font-weight: 500; color: var(--text2); }
+    .fab-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .fab-secondary {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      color: var(--text);
+      border: 1px solid var(--card-stroke);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      box-shadow: var(--glass-shadow);
+      font-size: 1.35rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .fab-secondary:active { opacity: 0.92; }
+    .fab-secondary-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text2);
+      max-width: 72px;
+      text-align: center;
+      line-height: 1.2;
+    }
+    .fab-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
 
     .history-list-wrap { margin-top: 16px; }
     .history-list-title {
@@ -539,6 +580,43 @@
     .nova-2 { background: rgba(230,168,0,0.25); color: #8b6914; }
     .nova-3 { background: rgba(232,108,0,0.2); color: #c55a00; }
     .nova-4 { background: rgba(179,56,46,0.2); color: var(--risk); }
+    .nova-subtag {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      font-size: 0.85em;
+      font-weight: 700;
+      vertical-align: middle;
+      background: rgba(179,56,46,0.15);
+      color: var(--risk);
+    }
+    .nutrition-pct-bar {
+      height: 8px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.08);
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    [data-theme="dark"] .nutrition-pct-bar,
+    html:not([data-theme="light"]) .nutrition-pct-bar { background: rgba(255,255,255,0.1); }
+    .nutrition-pct-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .nutrition-pct-fill.warn { background: #e6a800; }
+    .nutrition-pct-fill.high { background: var(--risk); }
+    .bmi-chart-surface {
+      border-radius: 16px;
+      border: 1px solid var(--card-stroke);
+      background: var(--card);
+      padding: 12px 8px 8px;
+      margin-bottom: 8px;
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+    }
     .concern-item { padding: 12px; border-radius: 10px; background: rgba(0,0,0,0.04); margin-bottom: 8px; }
     .concern-name { font-weight: 500; color: var(--text); }
     .concern-desc { font-size: 1.05rem; color: var(--text2); margin-top: 4px; }

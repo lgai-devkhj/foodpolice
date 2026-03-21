@@ -18,7 +18,16 @@ import {
   type AnalysisResult,
   type BodyMeasurement,
 } from '@/lib/store';
-import { NOVA_NAMES, NOVA_IMG, NOVA_SHORT_REASON, PHOTO_GUIDE_EXAMPLE_URL } from '@/lib/constants';
+import {
+  NOVA_NAMES,
+  NOVA_IMG,
+  NOVA_SHORT_REASON,
+  NOVA_SUBGROUP_NAMES,
+  NOVA_SUBGROUP_HINTS,
+  PHOTO_GUIDE_EXAMPLE_URL,
+} from '@/lib/constants';
+import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
+import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
 
 /** bodyMeasurements 중 날짜 기준 가장 최신 기록의 키·몸무게, 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
@@ -50,6 +59,100 @@ function escapeHtml(s: string): string {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+function nutritionPctBarClass(pct: number): string {
+  if (pct >= 40) return 'nutrition-pct-fill high';
+  if (pct >= 20) return 'nutrition-pct-fill warn';
+  return 'nutrition-pct-fill';
+}
+
+function buildNutritionResultHtml(
+  nutrition: NutritionFacts | null | undefined,
+  daily: NutritionDailyPercent | null | undefined,
+  personalized: string | null | undefined
+): string {
+  const hasNums =
+    nutrition &&
+    (nutrition.servingSizeText ||
+      nutrition.caloriesKcal != null ||
+      nutrition.sodiumMg != null ||
+      nutrition.carbsG != null ||
+      nutrition.sugarG != null ||
+      nutrition.proteinG != null ||
+      nutrition.fatG != null ||
+      nutrition.saturatedFatG != null ||
+      nutrition.transFatG != null);
+  const hasDaily = daily && Object.keys(daily).length > 0;
+  if (!hasNums && !hasDaily && !personalized) return '';
+
+  let html = '<div class="card"><div class="card-title">영양성분 · 일일 기준 비율</div>';
+  html +=
+    '<p class="meta" style="margin:0 0 12px;line-height:1.5;">표에 나온 분량(보통 1회 제공량)을 기준으로, 하루 참고 열량 <strong>' +
+    DAILY_REFERENCE.caloriesKcal +
+    'kcal</strong> 등 일반 표시 기준과 비교한 비율이에요. 표가 없거나 읽지 못하면 이 섹션은 비어 있을 수 있어요.</p>';
+
+  if (nutrition?.servingSizeText) {
+    html +=
+      '<div style="font-size:0.95rem;color:var(--text2);margin-bottom:10px;">📏 ' +
+      escapeHtml(nutrition.servingSizeText) +
+      (nutrition.basisIsPerServing === false
+        ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
+        : '') +
+      '</div>';
+  }
+
+  if (nutrition?.caloriesKcal != null && Number.isFinite(nutrition.caloriesKcal)) {
+    html +=
+      '<div style="margin-bottom:12px;font-size:1.05rem;color:var(--text);"><strong>열량</strong> ' +
+      escapeHtml(String(nutrition.caloriesKcal)) +
+      ' kcal</div>';
+  }
+
+  type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
+  const rows: Row[] = [
+    { key: 'calories', label: '열량', unit: '%', dv: DAILY_REFERENCE.caloriesKcal },
+    { key: 'sodium', label: '나트륨', unit: '%', dv: DAILY_REFERENCE.sodiumMg },
+    { key: 'carbs', label: '탄수화물', unit: '%', dv: DAILY_REFERENCE.carbsG },
+    { key: 'sugar', label: '당류', unit: '%', dv: DAILY_REFERENCE.sugarG },
+    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
+    { key: 'fat', label: '지방', unit: '%', dv: DAILY_REFERENCE.fatG },
+    { key: 'saturatedFat', label: '포화지방', unit: '%', dv: DAILY_REFERENCE.saturatedFatG },
+    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
+  ];
+
+  if (hasDaily && daily) {
+    rows.forEach((r) => {
+      const pct = daily[r.key];
+      if (pct == null || !Number.isFinite(pct)) return;
+      const w = Math.min(100, pct);
+      html += '<div style="margin-bottom:14px;">';
+      html +=
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="color:var(--text);font-weight:500;">' +
+        escapeHtml(r.label) +
+        '</span><span style="color:var(--text2);font-size:0.95rem;">' +
+        escapeHtml(String(pct)) +
+        escapeHtml(r.unit) +
+        ' <span class="meta">(일일 ' +
+        escapeHtml(String(r.dv)) +
+        (r.key === 'calories' ? 'kcal' : r.key === 'sodium' ? 'mg' : 'g') +
+        ')</span></span></div>';
+      html +=
+        '<div class="nutrition-pct-bar"><div class="' +
+        nutritionPctBarClass(pct) +
+        '" style="width:' +
+        w +
+        '%;"></div></div>';
+      html += '</div>';
+    });
+  }
+
+  if (personalized) {
+    html +=
+      '<div class="advice-box" style="margin-top:8px;">🎯 ' + escapeHtml(personalized) + '</div>';
+  }
+  html += '</div>';
+  return html;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -151,6 +254,7 @@ export default function App() {
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
@@ -226,10 +330,20 @@ export default function App() {
       setLoadingText('분석하는 중');
       setError('');
       try {
+        const p = getProfileWithLatestMeasurement(profile);
+        const profilePayload =
+          p.heightCm != null && p.weightKg != null && p.heightCm > 0 && p.weightKg > 0
+            ? { heightCm: p.heightCm, weightKg: p.weightKg }
+            : undefined;
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clientId, imageBase64: base64, mimeType }),
+          body: JSON.stringify({
+            clientId,
+            imageBase64: base64,
+            mimeType,
+            ...(profilePayload ? { profile: profilePayload } : {}),
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '분석 중 오류가 났어요.');
@@ -253,7 +367,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory]
+    [clientId, refreshHistory, profile]
   );
 
   const renderResult = useCallback(
@@ -269,9 +383,12 @@ export default function App() {
       const company = (product.companyName || '').trim();
       const raw = (product.rawMaterials || '').trim();
       const nova = result.novaGroup || 4;
+      const sub = (result.novaSubgroup || '').trim().toUpperCase();
+      const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
       const reason = result.judgmentReason || '';
       const concerns = result.concernIngredients || [];
       const advice = result.consumptionAdvice || '';
+      const altText = (result.alternativeFoodText || '').trim();
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
       const ultraMsg = isObese
@@ -311,14 +428,35 @@ export default function App() {
         '"><img src="' +
         (NOVA_IMG[nova] || '') +
         '" alt="" class="nova-icon" referrerpolicy="no-referrer">' +
-        NOVA_NAMES[nova] +
-        '</span>';
+        NOVA_NAMES[nova];
+      if (subKey && NOVA_SUBGROUP_NAMES[subKey]) {
+        html += '<span class="nova-subtag">' + escapeHtml(NOVA_SUBGROUP_NAMES[subKey]) + '</span>';
+      }
+      html += '</span>';
+      if (subKey && NOVA_SUBGROUP_HINTS[subKey]) {
+        html +=
+          '<div style="font-size:0.95rem;color:var(--text3);margin-top:6px;">' +
+          escapeHtml(NOVA_SUBGROUP_HINTS[subKey]) +
+          '</div>';
+      }
       if (reason) {
         html += '<div style="font-size:1.05rem; color:var(--text2); margin-top:8px;">' + escapeHtml(reason) + '</div>';
       } else {
         html += '<div style="font-size:1.05rem; color:var(--text2); margin-top:8px;">' + escapeHtml(NOVA_SHORT_REASON[nova] || NOVA_SHORT_REASON[4]) + '</div>';
       }
       html += '</div>';
+      html += buildNutritionResultHtml(
+        result.nutrition ?? undefined,
+        result.nutritionDailyPercent ?? undefined,
+        result.personalizedIntakeNote ?? undefined
+      );
+      if (altText) {
+        html += '<div class="card"><div class="card-title">더 나은 선택 (대체 식품)</div>';
+        html +=
+          '<pre style="white-space:pre-wrap;font-family:inherit;font-size:1.02rem;line-height:1.55;color:var(--text2);margin:0;">' +
+          escapeHtml(altText) +
+          '</pre></div>';
+      }
       html += '<div class="card"><div class="card-title">맞춤 안내</div>';
       if (advice) html += '<div class="advice-box">🍴 ' + escapeHtml(advice) + '</div>';
       if (isUltra) html += '<div class="advice-box advice-warning">⚠️ ' + ultraMsg + '</div>';
@@ -535,6 +673,13 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={onFileChange}
       />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={onFileChange}
+      />
 
       {showCamera && (
         <div className="camera-view" aria-label="촬영">
@@ -556,7 +701,7 @@ export default function App() {
                 className={`camera-guide-frame ${cameraOrientation}`}
                 aria-hidden
               >
-                <span className="camera-guide-label">원재료명이 보이게 찍어주세요</span>
+                <span className="camera-guide-label">원재료·영양표가 보이게 찍어주세요</span>
               </div>
             </div>
             <div className="camera-bottom-row">
@@ -578,7 +723,7 @@ export default function App() {
                 세로
               </button>
             </div>
-            <p className="camera-hint">포장 뒷면 촬영</p>
+            <p className="camera-hint">포장 뒷면 촬영 (원재료·영양성분 표)</p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
           </div>
         </div>
@@ -811,7 +956,7 @@ export default function App() {
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
-                원재료·NOVA 한 번에 알려줄게요
+                원재료·NOVA·영양표까지 알려줄게요
               </h2>
             </div>
             <div className="info-cards-wrap">
@@ -888,10 +1033,29 @@ export default function App() {
           </div>
           <div className="bottom-bar">
             <div className="fab-wrap">
-              <button type="button" className="fab" id="fabUpload" aria-label="포장 촬영" onClick={triggerUpload}>
-                📷
-              </button>
-              <span className="fab-label">포장 뒷면 촬영</span>
+              <div className="fab-row">
+                <div className="fab-col">
+                  <button type="button" className="fab" id="fabUpload" aria-label="카메라로 포장 촬영" onClick={triggerUpload}>
+                    📷
+                  </button>
+                  <span className="fab-label">촬영</span>
+                </div>
+                <div className="fab-col">
+                  <button
+                    type="button"
+                    className="fab-secondary"
+                    id="fabGallery"
+                    aria-label="앨범에서 사진 선택"
+                    onClick={() => galleryInputRef.current?.click()}
+                  >
+                    🖼
+                  </button>
+                  <span className="fab-secondary-label">앨범</span>
+                </div>
+              </div>
+              <span className="fab-label" style={{ marginTop: 4 }}>
+                원재료·영양표가 보이게
+              </span>
             </div>
           </div>
         </div>
@@ -1276,7 +1440,10 @@ export default function App() {
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              나이·성별·키·몸무게로 BMI와 비만 판정을 참고해, 초가공 경고 등 맞춤 안내를 드려요.
+              초가공(Group IV)은 분석 시 <strong>4A</strong>(경계형 초가공), <strong>4B</strong>(명확한 초가공), <strong>4C</strong>(고도 초가공)로 더 나누어 볼 수 있어요.
+            </p>
+            <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
+              나이·성별·키·몸무게로 BMI와 비만 판정을 참고해, 영양 표가 있으면 일일 기준 대비 비율·맞춤 안내를 드려요.
             </p>
           </div>
         </div>
@@ -1306,6 +1473,12 @@ export default function App() {
             <div className="guide-step">
               <span className="num">3</span>
               <span className="txt"><strong>그림자가 지지 않게</strong> 밝은 곳에서 촬영해 주세요.</span>
+            </div>
+            <div className="guide-step">
+              <span className="num">4</span>
+              <span className="txt">
+                열량·나트륨 비율을 보려면 <strong>영양성분 표</strong>가 잘 보이게 찍거나, 앨범에서 해당 사진을 올려 주세요.
+              </span>
             </div>
             <div className="photo-guide-example-wrap">
               <div className="photo-guide-example-title">촬영 예시</div>
@@ -1518,6 +1691,7 @@ function BMIGraphSheet({ measurements, onClose }: { measurements: BodyMeasuremen
           <button type="button" className="sheet-close-x" aria-label="닫기" onClick={onClose}>×</button>
         </div>
         <p style={{ fontSize: '0.85rem', color: 'var(--text2)', marginBottom: 12 }}>x축: 날짜 · y축: 비만도(BMI)</p>
+        <div className="bmi-chart-surface">
         <svg viewBox={`0 0 ${leftPad + chartW + 8} ${chartH + bottomPad}`} style={{ width: '100%', maxWidth: 320, height: 'auto', display: 'block' }}>
           {tickValues.map((v) => {
             const yNorm = (v - bmiMin) / (bmiMax - bmiMin);
@@ -1543,6 +1717,7 @@ function BMIGraphSheet({ measurements, onClose }: { measurements: BodyMeasuremen
             );
           })}
         </svg>
+        </div>
       </div>
     </div>
   );
