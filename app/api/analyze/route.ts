@@ -230,18 +230,23 @@ export async function POST(request: NextRequest) {
       if (bmi != null) bmiCategory = bmiCategoryKo(bmi);
     }
 
+    const foodCategory = normalizeFoodCategory(parsed.foodCategory);
+
     const personalizedIntakeNote = nutritionParsed
       ? buildPersonalizedIntakeNote(
           bmi,
           bmiCategory,
           nutritionParsed.caloriesKcal ?? null,
           nutritionParsed.servingSizeText ?? null,
-          nutritionParsed.basisIsPerServing ?? null
+          nutritionParsed.basisIsPerServing ?? null,
+          {
+            foodCategory,
+            sugarG: nutritionParsed.sugarG ?? null,
+          }
         )
       : null;
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
-    const foodCategory = normalizeFoodCategory(parsed.foodCategory);
     let alternativeFoodText =
       parsed.alternativeFoodText != null && String(parsed.alternativeFoodText).trim()
         ? String(parsed.alternativeFoodText).trim()

@@ -61,6 +61,52 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** 대체 식품 썸네일 로딩 전 자리(이모지 일러스트) */
+const ALT_PRODUCT_IMG_PLACEHOLDER =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 112"><rect fill="#e8eaf6" width="112" height="112" rx="18"/><text x="56" y="72" text-anchor="middle" font-size="44">🛒</text></svg>'
+  );
+
+/** Open Food Facts 검색으로 소비자 사진(있을 때만) — 실패 시 플레이스홀더 유지 */
+async function hydrateAltProductImages(container: HTMLElement): Promise<void> {
+  const items = container.querySelectorAll('.alt-item[data-off-query]');
+  for (let i = 0; i < items.length; i++) {
+    const el = items[i] as HTMLElement;
+    const q = el.getAttribute('data-off-query');
+    if (!q) continue;
+    const img = el.querySelector('img.alt-product-img') as HTMLImageElement | null;
+    if (!img) continue;
+    try {
+      const url =
+        'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' +
+        encodeURIComponent(q) +
+        '&search_simple=1&action=process&json=1&page_size=1';
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = (await res.json()) as {
+        products?: Array<{ image_front_small_url?: string; image_url?: string }>;
+      };
+      const p = data.products?.[0];
+      const src = p?.image_front_small_url || p?.image_url;
+      if (src) {
+        img.src = src;
+        img.classList.add('alt-product-img--loaded');
+      }
+    } catch {
+      /* CORS·빈 검색 등 */
+    }
+  }
+}
+
 function nutritionPctBarClass(pct: number): string {
   if (pct >= 40) return 'nutrition-pct-fill high';
   if (pct >= 20) return 'nutrition-pct-fill warn';
@@ -195,12 +241,22 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     .map((it) => {
       const kicker = it.label ? escapeHtml(it.label) : '';
       const reason = it.reason ? escapeHtml(it.reason) : '';
+      const qAttr = escapeAttr(it.product);
       return (
-        '<div class="alt-item">' +
+        '<div class="alt-item" data-off-query="' +
+        qAttr +
+        '">' +
+        '<div class="alt-item-row">' +
+        '<div class="alt-thumb-wrap">' +
+        '<img class="alt-product-img" alt="" width="112" height="112" decoding="async" src="' +
+        ALT_PRODUCT_IMG_PLACEHOLDER +
+        '" />' +
+        '</div>' +
+        '<div class="alt-item-main">' +
         (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
         `<div class="alt-product">${escapeHtml(it.product)}</div>` +
-        (reason ? `<div class="alt-reason">- 이유: ${reason}</div>` : '') +
-        '</div>'
+        (reason ? `<div class="alt-reason">${reason}</div>` : '') +
+        '</div></div></div>'
       );
     })
     .join('');
@@ -563,7 +619,7 @@ export default function App() {
       ) {
         html += `<div class="result-analysis-time">${lastAnalysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
       }
-      /* 순서: 제목 → NOVA → 맞춤 안내 → 대체 식품 → 주의 원재료 → 원재료 보기 → 영양 비율 */
+      /* 순서: 제목 → NOVA → 맞춤 안내 → 주의 원재료(펼침) → 대체 식품 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
@@ -609,6 +665,25 @@ export default function App() {
       if (!personalizedIntakeNote && !advice && !isUltra) html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
       html += '</div>';
 
+      if (concerns.length > 0) {
+        html +=
+          '<details class="result-details concern-details" open><summary><span class="concern-summary-inner"><span class="concern-summary-icon" aria-hidden="true">⚠️</span> 주의 원재료</span></summary>';
+        html += '<div class="result-details-body concern-panel">';
+        concerns.forEach((c) => {
+          html +=
+            '<div class="concern-card">' +
+            '<div class="concern-card-icon" aria-hidden="true">!</div>' +
+            '<div class="concern-card-body">' +
+            '<div class="concern-card-name">' +
+            escapeHtml(c.name) +
+            '</div>' +
+            '<div class="concern-card-desc">' +
+            escapeHtml(c.explanation) +
+            '</div></div></div>';
+        });
+        html += '</div></details>';
+      }
+
       if (altText) {
         const altHtml = buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true);
         if (altHtml) {
@@ -616,21 +691,6 @@ export default function App() {
           html += `<div class="result-details-body">${altHtml}</div>`;
           html += '</details>';
         }
-      }
-
-      if (concerns.length > 0) {
-        html += '<details class="result-details"><summary>주의 원재료</summary>';
-        html += '<div class="result-details-body">';
-        concerns.forEach(
-          (c) =>
-            (html +=
-              '<div class="concern-item"><div class="concern-name">' +
-              escapeHtml(c.name) +
-              '</div><div class="concern-desc">' +
-              escapeHtml(c.explanation) +
-              '</div></div>')
-        );
-        html += '</div></details>';
       }
 
       html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
@@ -658,6 +718,7 @@ export default function App() {
     const container = document.getElementById('resultContent');
     if (!container) return;
     container.innerHTML = resultContentHtml;
+    void hydrateAltProductImages(container);
     const editBtn = container.querySelector('#editNameBtn');
     if (editBtn && currentHistoryId) {
       const historyItem = history.find((i) => i.id === currentHistoryId) || null;
