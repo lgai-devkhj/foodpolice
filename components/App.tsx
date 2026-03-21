@@ -8,6 +8,7 @@ import {
   getProfile,
   getHistory,
   addToHistory,
+  updateHistoryResult,
   updateProductName,
   deleteFromHistory,
   clearAllData,
@@ -466,6 +467,7 @@ export default function App() {
   const resultScrollRef = useRef<HTMLDivElement>(null);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
+  const currentHistoryIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -512,6 +514,9 @@ export default function App() {
   useEffect(() => {
     rawImageBase64Ref.current = rawImageBase64;
   }, [rawImageBase64]);
+  useEffect(() => {
+    currentHistoryIdRef.current = currentHistoryId;
+  }, [currentHistoryId]);
 
   useEffect(() => {
     const mode = profile.appearanceMode || 'system';
@@ -586,6 +591,41 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
+        if (result.novaGroup === 4) {
+          void fetch('/api/alternatives', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productName: result.product?.productName || '',
+              companyName: result.product?.companyName || '',
+              foodCategory: result.foodCategory || null,
+              novaGroup: result.novaGroup,
+              novaSubgroup: result.novaSubgroup || null,
+              briefDescription: result.briefDescription || null,
+              rawMaterials: result.product?.rawMaterials || '',
+            }),
+          })
+            .then((r) => r.json())
+            .then((d) => {
+              const alt = d?.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+              if (!alt) return;
+              const merged: AnalysisResult = {
+                ...result,
+                alternativeFoodText: alt,
+                alternativeFoodFromWebSearch: true,
+              };
+              updateHistoryResult(clientId, id, {
+                alternativeFoodText: alt,
+                alternativeFoodFromWebSearch: true,
+              });
+              refreshHistory();
+              if (currentHistoryIdRef.current === id) {
+                setCurrentResult(merged);
+                renderResult(merged, null, { analysisSeconds: sec, historyId: id });
+              }
+            })
+            .catch(() => {});
+        }
         setShowHome(false);
         setShowResult(true);
         setShowDeleteArea(true);
@@ -645,6 +685,41 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
+        if (result.novaGroup === 4) {
+          void fetch('/api/alternatives', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productName: result.product?.productName || '',
+              companyName: result.product?.companyName || '',
+              foodCategory: result.foodCategory || null,
+              novaGroup: result.novaGroup,
+              novaSubgroup: result.novaSubgroup || null,
+              briefDescription: result.briefDescription || null,
+              rawMaterials: result.product?.rawMaterials || '',
+            }),
+          })
+            .then((r) => r.json())
+            .then((d) => {
+              const alt = d?.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+              if (!alt) return;
+              const merged: AnalysisResult = {
+                ...result,
+                alternativeFoodText: alt,
+                alternativeFoodFromWebSearch: true,
+              };
+              updateHistoryResult(clientId, id, {
+                alternativeFoodText: alt,
+                alternativeFoodFromWebSearch: true,
+              });
+              refreshHistory();
+              if (currentHistoryIdRef.current === id) {
+                setCurrentResult(merged);
+                renderResult(merged, null, { analysisSeconds: sec, historyId: id });
+              }
+            })
+            .catch(() => {});
+        }
         setShowHome(false);
         setShowResult(true);
         setShowDeleteArea(true);
@@ -976,6 +1051,15 @@ export default function App() {
     startCamera();
   }, [startCamera]);
 
+  const analyzeWithoutNutrition = useCallback(() => {
+    if (!rawImageBase64Ref.current) {
+      setError('원재료 사진을 먼저 선택해 주세요');
+      return;
+    }
+    stopCamera();
+    runAnalyze(rawImageBase64Ref.current, rawImageMimeType);
+  }, [rawImageMimeType, runAnalyze, stopCamera]);
+
   const onFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1203,6 +1287,16 @@ export default function App() {
               <IconImage size={20} />
               앨범
             </button>
+            {captureStep === 2 && (
+              <button
+                type="button"
+                className="camera-no-nutrition-btn"
+                aria-label="영양성분표 없음"
+                onClick={analyzeWithoutNutrition}
+              >
+                영양성분표 없음
+              </button>
+            )}
             <p className="camera-hint">
               {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양성분표 촬영'}
             </p>

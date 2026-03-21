@@ -14,9 +14,7 @@ import {
   type NutritionFactsInput,
 } from '@/lib/nutrition-daily';
 import {
-  buildAlternativeFoodWebSearchPrompt,
   DEFAULT_ALTERNATIVES_GROUNDING_MODEL,
-  fetchAlternativesWithGoogleSearch,
 } from '@/lib/gemini-alternative-search';
 
 /** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
@@ -315,51 +313,15 @@ export async function POST(request: NextRequest) {
         ? String(parsed.alternativeFoodText).trim()
         : null;
 
-    // 대체식품 신뢰도 강화:
-    // Group IV(초가공)는 웹검색 근거를 우선 사용해 "없는 제품명" 추천을 최대한 차단합니다.
-    const shouldPreferWebSearchForAlternatives = novaGroup === 4;
+    // 속도 최적화: 분석 응답 시간을 줄이기 위해 추가 웹검색 호출을 생략합니다.
+    const shouldPreferWebSearchForAlternatives = false;
     const groundingModel =
       (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
       DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
 
     let alternativeFoodFromWebSearch = false;
     if (shouldPreferWebSearchForAlternatives) {
-      const briefDescription =
-        parsed.briefDescription != null && String(parsed.briefDescription).trim()
-          ? String(parsed.briefDescription).trim()
-          : null;
-      const canRunGroundedSearch = isLikelyReliableProductName(product.productName);
-      if (canRunGroundedSearch) {
-        // 응답 지연을 줄이기 위해 검색은 1회만 수행
-        const searchPrompt = buildAlternativeFoodWebSearchPrompt({
-          productName: product.productName,
-          companyName: product.companyName,
-          foodCategory,
-          novaGroup,
-          novaSubgroup,
-          briefDescription,
-          rawMaterials: product.rawMaterials,
-        });
-        const fromWeb = await fetchAlternativesWithGoogleSearch(key, groundingModel, searchPrompt);
-        if (fromWeb && hasConcreteAlternativeItems(fromWeb)) {
-          alternativeFoodText = fromWeb;
-          alternativeFoodFromWebSearch = true;
-        } else if (!(alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText))) {
-          alternativeFoodText =
-            '현재 식품: ' +
-            (product.productName || '(라벨에서 읽지 못함)') +
-            '\n가공 단계: Group IV' +
-            (novaSubgroup ? ` · ${novaSubgroup}` : '') +
-            '\n👉 더 나은 선택:\n(마트에서 라벨을 비교해 보세요.)';
-        }
-      } else if (!(alternativeFoodText && hasConcreteAlternativeItems(alternativeFoodText))) {
-        alternativeFoodText =
-          '현재 식품: ' +
-          (product.productName || '(라벨에서 읽지 못함)') +
-          '\n가공 단계: Group IV' +
-          (novaSubgroup ? ` · ${novaSubgroup}` : '') +
-          '\n👉 더 나은 선택:\n(마트에서 라벨을 비교해 보세요.)';
-      }
+      // reserved: 필요 시 환경변수 기반으로 재활성화
     }
     alternativeFoodText = syncAlternativeCurrentFoodLine(alternativeFoodText, product.productName);
 

@@ -519,7 +519,8 @@
     .camera-ui .camera-x,
     .camera-ui .camera-orient-btn,
     .camera-ui .camera-shutter,
-    .camera-ui .camera-album-btn { pointer-events: auto; }
+    .camera-ui .camera-album-btn,
+    .camera-ui .camera-no-nutrition-btn { pointer-events: auto; }
     .camera-top-bar {
       display: flex;
       align-items: center;
@@ -676,6 +677,25 @@
     }
     .camera-album-btn:active { opacity: 0.9; }
     .camera-album-btn svg { flex-shrink: 0; }
+    .camera-no-nutrition-btn {
+      position: absolute;
+      left: 16px;
+      top: 72px;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      border: none;
+      border-radius: 9999px;
+      padding: 10px 14px;
+      background: rgba(17, 24, 39, 0.78);
+      color: #fff;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .camera-no-nutrition-btn:active { opacity: 0.9; }
     .camera-hint {
       margin: 4px 0 0;
       font-size: 0.95rem;

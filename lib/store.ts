@@ -205,6 +205,20 @@ export function deleteFromHistory(clientId: string, id: string): void {
   saveState(clientId, state);
 }
 
+export function updateHistoryResult(
+  clientId: string,
+  id: string,
+  patch: Partial<AnalysisResult>
+): void {
+  const state = loadState(clientId);
+  const list = state.history || [];
+  const idx = list.findIndex((i) => i.id === id);
+  if (idx === -1) return;
+  list[idx].result = { ...list[idx].result, ...patch };
+  state.history = list;
+  saveState(clientId, state);
+}
+
 export function clearAllHistory(clientId: string): void {
   const state = loadState(clientId);
   state.history = [];
