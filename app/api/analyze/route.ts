@@ -242,6 +242,7 @@ export async function POST(request: NextRequest) {
           {
             foodCategory,
             sugarG: nutritionParsed.sugarG ?? null,
+            productName: product.productName || null,
           }
         )
       : null;

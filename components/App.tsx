@@ -619,7 +619,7 @@ export default function App() {
       ) {
         html += `<div class="result-analysis-time">${lastAnalysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
       }
-      /* 순서: 제목 → NOVA → 맞춤 안내 → 주의 원재료(펼침) → 대체 식품 → 원재료 보기 → 영양 비율 */
+      /* 순서: 제목 → NOVA → 맞춤 안내 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
@@ -666,9 +666,8 @@ export default function App() {
       html += '</div>';
 
       if (concerns.length > 0) {
-        html +=
-          '<details class="result-details concern-details" open><summary><span class="concern-summary-inner"><span class="concern-summary-icon" aria-hidden="true">⚠️</span> 주의 원재료</span></summary>';
-        html += '<div class="result-details-body concern-panel">';
+        html += '<div class="card"><div class="card-title">주의 원재료</div>';
+        html += '<div class="concern-panel">';
         concerns.forEach((c) => {
           html +=
             '<div class="concern-card">' +
@@ -681,7 +680,7 @@ export default function App() {
             escapeHtml(c.explanation) +
             '</div></div></div>';
         });
-        html += '</div></details>';
+        html += '</div></div>';
       }
 
       if (altText) {

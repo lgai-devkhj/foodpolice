@@ -18,6 +18,12 @@
       --safe-left: env(safe-area-inset-left, 0px);
       --safe-right: env(safe-area-inset-right, 0px);
       --touch: 44px;
+      /* 버튼 — 모던 필·그림자·이징 */
+      --btn-pill: 9999px;
+      --btn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --btn-shadow-primary: 0 4px 14px -2px rgba(46, 125, 50, 0.38), 0 2px 6px -2px rgba(0, 0, 0, 0.08);
+      --btn-shadow-primary-inset: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      --btn-shadow-ghost: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     img { max-width: 100%; height: auto; vertical-align: middle; }
@@ -85,16 +91,20 @@
       min-height: 44px;
       padding: 0;
       border: none;
-      background: transparent;
-      font-size: 1.4rem;
+      background: rgba(0, 0, 0, 0.04);
+      font-size: 1.35rem;
       cursor: pointer;
       color: var(--text2);
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 50%;
+      border-radius: 12px;
+      transition: background 0.2s var(--btn-ease), color 0.15s ease, transform 0.15s var(--btn-ease);
     }
-    .btn-settings-home:active { background: rgba(255,255,255,0.7); }
+    .btn-settings-home:active {
+      background: rgba(0, 0, 0, 0.08);
+      transform: scale(0.96);
+    }
 
     #homeView {
       flex: 1;
@@ -122,7 +132,7 @@
       .hero-section .hero-icon { font-size: 120px; }
       .hero-section .hero-title { font-size: 2.25rem; }
       .info-cards-wrap .info-card { padding: 26px 22px; font-size: 1.25rem; }
-      .fab { width: 130px; height: 130px; font-size: 44px; }
+      .fab { width: 130px; height: 130px; font-size: 44px; border-radius: 32px; }
       .fab-label { font-size: 1.35rem; }
     }
     .home-scroll.hidden { display: none; }
@@ -174,20 +184,58 @@
 
     .btn {
       border: none;
-      border-radius: 12px;
-      padding: 12px 20px;
+      border-radius: var(--btn-pill);
+      padding: 13px 22px;
       min-height: 44px;
-      font-size: 1rem;
+      font-size: 0.97rem;
       font-weight: 600;
+      letter-spacing: -0.02em;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 8px;
       color: var(--text);
+      -webkit-appearance: none;
+      appearance: none;
+      transition:
+        transform 0.2s var(--btn-ease),
+        box-shadow 0.2s ease,
+        background 0.2s ease,
+        border-color 0.2s ease,
+        opacity 0.15s ease;
     }
-    .btn:active { opacity: 0.9; }
-    .btn-primary { background: var(--primary); color: #fff !important; font-weight: 600; border-radius: 14px; }
-    .btn-ghost { background: var(--glass-bg); color: var(--text) !important; border: 1px solid var(--card-stroke); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+    .btn:focus-visible {
+      outline: 2px solid rgba(46, 125, 50, 0.45);
+      outline-offset: 3px;
+    }
+    .btn:active {
+      transform: scale(0.985);
+      opacity: 0.96;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff !important;
+      font-weight: 600;
+      border-radius: var(--btn-pill);
+      box-shadow: var(--btn-shadow-primary), var(--btn-shadow-primary-inset);
+    }
+    .btn-primary:active {
+      box-shadow: 0 2px 8px -2px rgba(46, 125, 50, 0.32), var(--btn-shadow-primary-inset);
+    }
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.62);
+      color: var(--text) !important;
+      font-weight: 600;
+      border: 1px solid rgba(0, 0, 0, 0.07);
+      border-radius: var(--btn-pill);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      box-shadow: var(--btn-shadow-ghost);
+    }
+    .btn-ghost:active {
+      background: rgba(255, 255, 255, 0.78);
+    }
     .btn-full { width: 100%; max-width: 280px; margin-left: auto; margin-right: auto; display: flex; }
 
     .bottom-bar {
@@ -215,11 +263,14 @@
     .fab {
       width: 80px;
       height: 80px;
-      border-radius: 50%;
+      border-radius: 22px;
       background: var(--primary);
       color: #fff;
       border: none;
-      box-shadow: 0 6px 20px rgba(46,125,50,0.5);
+      box-shadow:
+        0 12px 32px -8px rgba(46, 125, 50, 0.48),
+        0 4px 12px -2px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
       font-size: 2rem;
       cursor: pointer;
       display: flex;
@@ -227,16 +278,19 @@
       justify-content: center;
       flex-shrink: 0;
       position: relative;
+      transition: transform 0.2s var(--btn-ease), box-shadow 0.2s ease;
     }
-    .fab::before {
-      content: '';
-      position: absolute;
-      inset: 8px;
-      border: 5px solid rgba(255,255,255,0.35);
-      border-radius: 50%;
-      pointer-events: none;
+    .fab:focus-visible {
+      outline: 3px solid rgba(46, 125, 50, 0.45);
+      outline-offset: 4px;
     }
-    .fab:active { transform: scale(0.98); }
+    .fab:active {
+      transform: scale(0.96);
+      box-shadow:
+        0 8px 22px -8px rgba(46, 125, 50, 0.4),
+        0 2px 8px -2px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    }
     .fab-label { font-size: 0.95rem; font-weight: 500; color: var(--text2); }
     .fab-row {
       display: flex;
@@ -249,21 +303,25 @@
     .fab-secondary {
       width: 56px;
       height: 56px;
-      border-radius: 50%;
-      background: var(--glass-bg);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.65);
       color: var(--text);
-      border: 1px solid var(--card-stroke);
+      border: 1px solid rgba(0, 0, 0, 0.07);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: var(--glass-shadow);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
       font-size: 1.35rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+      transition: transform 0.2s var(--btn-ease), background 0.2s ease, box-shadow 0.2s ease;
     }
-    .fab-secondary:active { opacity: 0.92; }
+    .fab-secondary:active {
+      transform: scale(0.96);
+      background: rgba(255, 255, 255, 0.82);
+    }
     .fab-secondary-label {
       font-size: 0.8rem;
       font-weight: 500;
@@ -736,25 +794,11 @@
     .concern-name { font-weight: 500; color: var(--text); }
     .concern-desc { font-size: 1.05rem; color: var(--text2); margin-top: 4px; }
 
-    details.concern-details summary {
-      border-left: 4px solid #f57c00;
-      background: linear-gradient(90deg, rgba(245,124,0,0.12) 0%, var(--card) 48%);
-    }
-    .concern-summary-inner {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .concern-summary-icon {
-      font-size: 1.35rem;
-      line-height: 1;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.12));
-    }
     .concern-panel {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      padding-top: 4px;
+      margin-top: 4px;
     }
     .concern-card {
       display: flex;
@@ -799,8 +843,28 @@
     .disclaimer { font-size: 0.875rem; color: var(--text3); text-align: center; margin-top: 16px; line-height: 1.55; padding-bottom: 8px; }
     .edit-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
     .edit-row input { flex: 1; min-width: 0; max-width: 280px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--card-stroke); font-size: 1.15rem; min-height: 48px; background: var(--glass-bg); color: var(--text); }
-    .edit-row button { min-height: 48px; padding: 0 20px; font-size: 1.1rem; border-radius: 14px; border: none; cursor: pointer; background: transparent; color: var(--text2); }
-    .edit-row button.save { color: var(--primary); font-weight: 600; }
+    .edit-row button {
+      min-height: 48px;
+      padding: 0 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      border-radius: var(--btn-pill);
+      border: none;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.05);
+      color: var(--text2);
+      transition: background 0.2s var(--btn-ease), transform 0.15s var(--btn-ease), color 0.15s ease;
+    }
+    .edit-row button:active { transform: scale(0.98); }
+    .edit-row button.save {
+      color: #fff !important;
+      background: var(--primary);
+      box-shadow: var(--btn-shadow-primary), var(--btn-shadow-primary-inset);
+    }
+    .edit-row button.save:active {
+      box-shadow: 0 2px 8px -2px rgba(46, 125, 50, 0.32), var(--btn-shadow-primary-inset);
+    }
     .result-scroll.editing-name #resultContent #productNameCard { display: none; }
 
     /* 결과 화면: 핵심만 보이게 접기(details) UI */
@@ -1093,8 +1157,20 @@
     [data-theme="dark"] .settings-modal input, [data-theme="dark"] .settings-modal select,
     html:not([data-theme="light"]) .modal-panel input, html:not([data-theme="light"]) .modal-panel select,
     html:not([data-theme="light"]) .settings-modal input, html:not([data-theme="light"]) .settings-modal select { background: rgba(45,45,48,0.95); color: var(--text); }
+    [data-theme="dark"] .btn-primary,
+    html:not([data-theme="light"]) .btn-primary {
+      box-shadow:
+        0 4px 18px -2px rgba(0, 0, 0, 0.45),
+        0 2px 8px -2px rgba(76, 175, 80, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
     [data-theme="dark"] .btn-ghost,
-    html:not([data-theme="light"]) .btn-ghost { background: rgba(55,55,58,0.9); color: var(--text) !important; border-color: var(--card-stroke); }
+    html:not([data-theme="light"]) .btn-ghost {
+      background: rgba(48, 48, 52, 0.88);
+      color: var(--text) !important;
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    }
     [data-theme="dark"] #onboardingView .ob-step-actions .btn-ghost,
     [data-theme="dark"] #onboardingView .ob-confirm-actions .btn-ghost,
     html:not([data-theme="light"]) #onboardingView .ob-step-actions .btn-ghost,
@@ -1183,11 +1259,6 @@
 
     [data-theme="dark"] .concern-item,
     html:not([data-theme="light"]) .concern-item { background: rgba(255,255,255,0.06); }
-    [data-theme="dark"] details.concern-details summary,
-    html:not([data-theme="light"]) details.concern-details summary {
-      border-left-color: #ff9800;
-      background: linear-gradient(90deg, rgba(255,152,0,0.18) 0%, var(--card) 50%);
-    }
     [data-theme="dark"] .concern-card,
     html:not([data-theme="light"]) .concern-card {
       background: linear-gradient(135deg, rgba(255,152,0,0.16) 0%, rgba(255,255,255,0.04) 50%);
@@ -1206,10 +1277,25 @@
     html:not([data-theme="light"]) .advice-box { background: rgba(76,175,80,0.15); }
     [data-theme="dark"] .edit-row input,
     html:not([data-theme="light"]) .edit-row input { background: rgba(45,45,48,0.95); border-color: var(--card-stroke); color: var(--text); }
+    [data-theme="dark"] .edit-row button:not(.save),
+    html:not([data-theme="light"]) .edit-row button:not(.save) {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text2);
+    }
+    [data-theme="dark"] .btn-settings-home,
+    html:not([data-theme="light"]) .btn-settings-home { background: rgba(255, 255, 255, 0.08); }
     [data-theme="dark"] .btn-settings-home:active,
-    html:not([data-theme="light"]) .btn-settings-home:active { background: rgba(255,255,255,0.15); }
+    html:not([data-theme="light"]) .btn-settings-home:active { background: rgba(255, 255, 255, 0.14); }
+    [data-theme="dark"] .mode-option,
+    html:not([data-theme="light"]) .mode-option {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.22);
+    }
     [data-theme="dark"] .mode-option.selected,
-    html:not([data-theme="light"]) .mode-option.selected { background: rgba(76,175,80,0.2); }
+    html:not([data-theme="light"]) .mode-option.selected {
+      background: rgba(76, 175, 80, 0.2);
+      border-color: rgba(129, 199, 132, 0.45);
+    }
     [data-theme="dark"] .error-msg,
     html:not([data-theme="light"]) .error-msg { background: rgba(239,83,80,0.15); border-color: rgba(239,83,80,0.35); }
 
@@ -1277,21 +1363,28 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 24px 26px;
-      border-radius: 18px;
-      border: 1px solid var(--card-stroke);
+      padding: 22px 24px;
+      border-radius: 16px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
       background: var(--card);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: var(--glass-shadow);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
       cursor: pointer;
       font: inherit;
-      font-size: 1.35rem;
-      font-weight: 500;
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
       color: var(--text);
       text-align: left;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s var(--btn-ease);
     }
-    .mode-option.selected { border-color: var(--primary); background: rgba(46,125,50,0.12); }
+    .mode-option:active { transform: scale(0.995); }
+    .mode-option.selected {
+      border-color: rgba(46, 125, 50, 0.45);
+      background: rgba(46, 125, 50, 0.1);
+      box-shadow: 0 2px 14px rgba(46, 125, 50, 0.12);
+    }
     .mode-option .check { color: var(--primary); font-weight: 700; font-size: 1.4rem; }
     .settings-modal .form-group { max-width: none; margin-left: 0; margin-right: 0; }
     .settings-modal .form-group label { font-size: 1.2rem; font-weight: 600; margin-bottom: 10px; color: var(--text2); }
@@ -1300,7 +1393,15 @@
     .settings-readonly-row .value { font-size: 1rem; font-weight: 600; color: var(--text); }
     .settings-modal .form-group input,
     .settings-modal .form-group select { font-size: 1.2rem; padding: 16px 18px; min-height: 52px; border-radius: 14px; }
-    .modal-panel .btn { min-height: 56px; padding: 18px 28px; font-size: 1.3rem; font-weight: 600; border-radius: 18px; margin-top: 12px; }
+    .modal-panel .btn {
+      min-height: 56px;
+      padding: 16px 26px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      border-radius: var(--btn-pill);
+      margin-top: 12px;
+      letter-spacing: -0.02em;
+    }
     .modal-panel .btn-full { margin-top: 12px; }
 
     #onboardingView {
@@ -1436,7 +1537,20 @@
     #onboardingView .onboarding-inner .form-group input,
     #onboardingView .onboarding-inner .form-group select { background: #fff !important; color: #1f231f !important; border-color: rgba(46,125,50,0.35) !important; }
     #onboardingView .onboarding-inner .form-group input::placeholder { color: #666b68 !important; }
-    .onboarding-inner .btn { width: 100%; min-width: 0; max-width: 100%; min-height: 52px; font-size: 1.05rem; font-weight: 600; margin-top: auto; padding: 16px 20px; border-radius: 16px; box-sizing: border-box; flex-shrink: 0; }
+    .onboarding-inner .btn {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 52px;
+      font-size: 1.02rem;
+      font-weight: 600;
+      margin-top: auto;
+      padding: 15px 22px;
+      border-radius: var(--btn-pill);
+      box-sizing: border-box;
+      flex-shrink: 0;
+      letter-spacing: -0.02em;
+    }
     .onboarding-inner .btn-full { max-width: 100%; margin-left: 0; margin-right: 0; }
     .onboarding-inner .meta { font-size: 1rem; color: var(--text3); margin-top: 20px; line-height: 1.6; }
     .ob-confirm-title { flex-shrink: 0; font-size: 1.4rem; font-weight: 700; margin: 0 0 20px; line-height: 1.3; color: var(--text); letter-spacing: -0.01em; }
@@ -1451,5 +1565,11 @@
     #onboardingView .ob-step-actions .btn-ghost,
     #onboardingView .ob-confirm-actions .btn-ghost { background: rgba(46,125,50,0.15); color: #1a5c1e !important; border-color: rgba(46,125,50,0.4); }
     .ob-confirm-actions { margin-top: auto; padding-top: 16px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
-    .ob-confirm-actions .btn { margin-top: 0; min-height: 48px; font-size: 1rem; padding: 14px 18px; border-radius: 14px; }
+    .ob-confirm-actions .btn {
+      margin-top: 0;
+      min-height: 48px;
+      font-size: 0.98rem;
+      padding: 14px 20px;
+      border-radius: var(--btn-pill);
+    }
     .ob-confirm-actions .btn-ghost { font-size: 0.95rem; min-height: 44px; padding: 12px; color: var(--text) !important; }
