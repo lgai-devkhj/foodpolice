@@ -106,7 +106,8 @@ function buildNutritionResultHtml(
       nutrition.proteinG != null ||
       nutrition.fatG != null ||
       nutrition.saturatedFatG != null ||
-      nutrition.transFatG != null);
+      nutrition.transFatG != null ||
+      nutrition.cholesterolMg != null);
   const hasDaily = daily && Object.keys(daily).length > 0;
   if (!hasNums && !hasDaily) return '';
 
@@ -124,37 +125,68 @@ function buildNutritionResultHtml(
       '</span></div>';
   }
 
-  if (nutrition?.caloriesKcal != null && Number.isFinite(nutrition.caloriesKcal)) {
-    html +=
-      '<div style="margin-bottom:12px;font-size:1.05rem;color:var(--text);"><strong>열량</strong> ' +
-      escapeHtml(String(nutrition.caloriesKcal)) +
-      ' kcal</div>';
-  }
-
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
-  // 너무 많은 항목을 한 번에 보여주지 않고, 핵심만 먼저 보여요.
   const rows: Row[] = [
     { key: 'calories', label: '열량', unit: '%', dv: DAILY_REFERENCE.caloriesKcal },
     { key: 'sodium', label: '나트륨', unit: '%', dv: DAILY_REFERENCE.sodiumMg },
+    { key: 'carbs', label: '탄수화물', unit: '%', dv: DAILY_REFERENCE.carbsG },
+    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
     { key: 'sugar', label: '당류', unit: '%', dv: DAILY_REFERENCE.sugarG },
+    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
     { key: 'saturatedFat', label: '포화지방', unit: '%', dv: DAILY_REFERENCE.saturatedFatG },
+    { key: 'cholesterol', label: '콜레스테롤', unit: '%', dv: DAILY_REFERENCE.cholesterolMg },
   ];
+
+  const nutritionAmountPrefix = (r: Row, n: NutritionFacts | null | undefined): string => {
+    if (!n) return '';
+    if (r.key === 'calories' && n.caloriesKcal != null && Number.isFinite(n.caloriesKcal)) {
+      return escapeHtml(String(n.caloriesKcal)) + 'kcal · ';
+    }
+    if (r.key === 'sodium' && n.sodiumMg != null && Number.isFinite(n.sodiumMg)) {
+      return escapeHtml(String(n.sodiumMg)) + 'mg · ';
+    }
+    if (r.key === 'carbs' && n.carbsG != null && Number.isFinite(n.carbsG)) {
+      return escapeHtml(String(n.carbsG)) + 'g · ';
+    }
+    if (r.key === 'protein' && n.proteinG != null && Number.isFinite(n.proteinG)) {
+      return escapeHtml(String(n.proteinG)) + 'g · ';
+    }
+    if (r.key === 'sugar' && n.sugarG != null && Number.isFinite(n.sugarG)) {
+      return escapeHtml(String(n.sugarG)) + 'g · ';
+    }
+    if (r.key === 'transFat' && n.transFatG != null && Number.isFinite(n.transFatG)) {
+      return escapeHtml(String(n.transFatG)) + 'g · ';
+    }
+    if (r.key === 'saturatedFat' && n.saturatedFatG != null && Number.isFinite(n.saturatedFatG)) {
+      return escapeHtml(String(n.saturatedFatG)) + 'g · ';
+    }
+    if (r.key === 'cholesterol' && n.cholesterolMg != null && Number.isFinite(n.cholesterolMg)) {
+      return escapeHtml(String(n.cholesterolMg)) + 'mg · ';
+    }
+    return '';
+  };
 
   if (hasDaily && daily) {
     rows.forEach((r) => {
       const pct = daily[r.key];
       if (pct == null || !Number.isFinite(pct)) return;
       const w = Math.min(100, pct);
+      const amountPrefix = nutritionAmountPrefix(r, nutrition ?? null);
       html += '<div style="margin-bottom:14px;">';
       html +=
         '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="color:var(--text);font-weight:500;">' +
         escapeHtml(r.label) +
         '</span><span style="color:var(--text2);font-size:0.95rem;">' +
+        amountPrefix +
         escapeHtml(String(pct)) +
         escapeHtml(r.unit) +
         ' <span class="meta">(일일 ' +
         escapeHtml(String(r.dv)) +
-        (r.key === 'calories' ? 'kcal' : r.key === 'sodium' ? 'mg' : 'g') +
+        (r.key === 'calories'
+          ? 'kcal'
+          : r.key === 'sodium' || r.key === 'cholesterol'
+            ? 'mg'
+            : 'g') +
         ')</span></span></div>';
       html +=
         '<div class="nutrition-pct-bar"><div class="' +
@@ -552,7 +584,8 @@ function YmdDateSelect({
 
 export default function App() {
   const [clientId, setClientId] = useState('');
-  const [showDesktopQrGate, setShowDesktopQrGate] = useState(false);
+  const [isLikelyDesktop, setIsLikelyDesktop] = useState(false);
+  const [showDesktopRecommendModal, setShowDesktopRecommendModal] = useState(false);
   const [profile, setProfileState] = useState<Profile>({});
   const [history, setHistoryList] = useState<HistoryItem[]>([]);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -632,8 +665,18 @@ export default function App() {
         : false;
     const narrowViewport = typeof window !== 'undefined' ? window.innerWidth <= 1024 : false;
     const isLikelyMobile = isMobileUa || (hasTouch && narrowViewport);
-    setShowDesktopQrGate(!isLikelyMobile);
+    setIsLikelyDesktop(!isLikelyMobile);
   }, []);
+
+  useEffect(() => {
+    if (!isLikelyDesktop || !clientId || !onboardingCompleted) return;
+    try {
+      if (sessionStorage.getItem('fp_desktopRecommendDismissed') === '1') return;
+    } catch {
+      /* 비공개 창 등 */
+    }
+    setShowDesktopRecommendModal(true);
+  }, [isLikelyDesktop, clientId, onboardingCompleted]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -1176,13 +1219,33 @@ export default function App() {
     captureStepRef.current = 1;
     setRawImageBase64(null);
     setNutritionImageBase64(null);
+    if (isLikelyDesktop) {
+      setUploadSource('gallery');
+      window.setTimeout(() => galleryInputRef.current?.click(), 0);
+      return;
+    }
     setUploadSource('camera');
     if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
       startCamera();
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera]);
+  }, [startCamera, isLikelyDesktop]);
+
+  const dismissDesktopRecommend = useCallback(
+    (andOpenUpload: boolean) => {
+      try {
+        sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
+      } catch {
+        /* ignore */
+      }
+      setShowDesktopRecommendModal(false);
+      if (andOpenUpload) {
+        window.setTimeout(() => triggerUpload(), 0);
+      }
+    },
+    [triggerUpload]
+  );
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1390,71 +1453,6 @@ export default function App() {
     return '설정되지 않음';
   })();
 
-  if (showDesktopQrGate) {
-    return (
-      <div
-        style={{
-          minHeight: '100dvh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          background: 'var(--bg-bottom)',
-        }}
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: 420,
-            background: 'var(--card)',
-            border: '1px solid var(--card-stroke)',
-            borderRadius: 24,
-            padding: 24,
-            textAlign: 'center',
-          }}
-        >
-          <div
-            style={{
-              width: 68,
-              height: 68,
-              borderRadius: '50%',
-              margin: '0 auto 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(46,125,50,0.12)',
-              color: 'var(--primary)',
-            }}
-            aria-hidden
-          >
-            <IconLeaf size={36} />
-          </div>
-          <h1 style={{ margin: '0 0 4px', color: 'var(--text)', fontSize: '1.5rem', letterSpacing: '-0.01em' }}>
-            FoodPolice
-          </h1>
-          <p style={{ margin: '0 0 18px', color: 'var(--text2)', fontSize: '0.98rem' }}>
-            모바일 카메라로 포장을 촬영해 분석해요
-          </p>
-          <img
-            src="/images/qrcode.png"
-            alt="스마트폰 접속용 QR 코드"
-            style={{
-              width: '100%',
-              maxWidth: 280,
-              height: 'auto',
-              display: 'block',
-              margin: '0 auto 16px',
-              borderRadius: 16,
-            }}
-          />
-          <p style={{ margin: 0, color: 'var(--text)', fontSize: '1.15rem', fontWeight: 700 }}>
-            스마트폰에서 계속하세요
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (!clientId) return null;
 
   return (
@@ -1474,6 +1472,74 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={onFileChange}
       />
+
+      {showDesktopRecommendModal && (
+        <div
+          className="modal info-sheet visible"
+          role="dialog"
+          aria-labelledby="desktop-recommend-title"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend(false)}
+        >
+          <div
+            className="modal-panel"
+            style={{ maxWidth: 420, textAlign: 'center' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sheet-header">
+              <h2 id="desktop-recommend-title" className="sheet-title" style={{ textAlign: 'left' }}>
+                스마트폰 사용을 추천해요
+              </h2>
+              <button
+                type="button"
+                className="sheet-close-x"
+                aria-label="닫기"
+                onClick={() => dismissDesktopRecommend(false)}
+              >
+                ×
+              </button>
+            </div>
+            <p
+              style={{
+                margin: '0 0 16px',
+                color: 'var(--text2)',
+                fontSize: '1.05rem',
+                lineHeight: 1.55,
+                textAlign: 'left',
+              }}
+            >
+              촬영과 글자 인식은 휴대폰에서 더 잘 맞아요. 아래 QR로 같은 페이지를 열거나, PC에서는 사진 파일을 올려 분석할 수 있어요.
+            </p>
+            <img
+              src="/images/qrcode.png"
+              alt="이 페이지를 스마트폰에서 열기 위한 QR 코드"
+              style={{
+                width: '100%',
+                maxWidth: 260,
+                height: 'auto',
+                display: 'block',
+                margin: '0 auto 18px',
+                borderRadius: 16,
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-full"
+              onClick={() => dismissDesktopRecommend(true)}
+            >
+              사진 업로드로 계속
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-full"
+              style={{ marginTop: 10 }}
+              onClick={() => dismissDesktopRecommend(false)}
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
 
       {showCamera && (
         <div className="camera-view" aria-label="촬영">
@@ -1970,13 +2036,19 @@ export default function App() {
             <div className="fab-wrap">
               <div className="fab-row">
                 <div className="fab-col">
-                  <button type="button" className="fab" id="fabUpload" aria-label="카메라로 포장 촬영" onClick={triggerUpload}>
+                  <button
+                    type="button"
+                    className="fab"
+                    id="fabUpload"
+                    aria-label={isLikelyDesktop ? '포장 사진 파일 업로드' : '카메라로 포장 촬영'}
+                    onClick={triggerUpload}
+                  >
                     <span className="fab-pulse" aria-hidden />
                     <span className="fab-pulse fab-pulse--2" aria-hidden />
                     <span className="fab-pulse fab-pulse--3" aria-hidden />
-                    <IconCamera size={34} />
+                    {isLikelyDesktop ? <IconImage size={34} /> : <IconCamera size={34} />}
                   </button>
-                  <span className="fab-label">촬영</span>
+                  <span className="fab-label">{isLikelyDesktop ? '업로드' : '촬영'}</span>
                 </div>
               </div>
               <span className="fab-label" style={{ marginTop: 4 }}>

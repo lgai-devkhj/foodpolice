@@ -35,6 +35,8 @@ export interface NutritionFacts {
   fatG?: number | null;
   saturatedFatG?: number | null;
   transFatG?: number | null;
+  /** 한국 영양표 기준 mg */
+  cholesterolMg?: number | null;
   servingSizeText?: string | null;
   basisIsPerServing?: boolean;
 }
@@ -48,6 +50,7 @@ export interface NutritionDailyPercent {
   fat?: number;
   saturatedFat?: number;
   transFat?: number;
+  cholesterol?: number;
 }
 
 export interface AnalysisResult {

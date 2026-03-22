@@ -74,6 +74,7 @@ export function getTwoImagePackagePrompt(): string {
     '\n' +
     '- 영양정보 표가 보이면 nutrition에 숫자를 채웁니다. 없거나 판독 불가면 nutrition은 null로 둡니다.\n' +
     '- 표에 **0kcal·제로칼로리·열량 0** 등으로 나오면 caloriesKcal는 **반드시 숫자 0**(null·빈 문자열 금지).\n' +
+    '- **콜레스테롤** 행이 있으면 cholesterolMg에 mg 숫자(0 포함)를 넣습니다. 표에 없으면 null.\n' +
     '- consumptionAdvice: 라벨에 보이는 것만, **짧게 한 문장**(보관·섭취·당·나트륨 중 눈에 띄는 것 하나). 열량만 길게 설명하지 말 것. kcal를 못 읽으면 추측하지 말 것.\n\n' +
     '[2단계 — JSON만 출력]\n' +
     '- productName: 제품명. **완전히 정확한 이름이 명시되지 않았으면 반드시 공란 \"\".** 추측·유추 금지.\n' +
@@ -87,7 +88,7 @@ export function getTwoImagePackagePrompt(): string {
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 \"\"\n' +
     '- consumptionAdvice: 라벨 기반 섭취/보관 조언. 한두 문장. 없으면 \"\"\n' +
     '- foodCategory: 위 목록 중 하나\n' +
-    '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
+    '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg (콜레스테롤·mg, 없으면 null), servingSizeText, basisIsPerServing\n' +
     '[foodCategory 구분]\n' +
     '- **간식**: 과자·젤리·초콜릿·스낵 등 소량으로 먹는 것 → "달콤한 간식" 또는 "짭짤한 간식". 우유·요거트·푸딩·아이스크림 → "유제품·디저트".\n' +
     '- **한 끼·식사에 가까움**: 컵라면·즉석 도시락·햄버거·샌드위치 등 끼니를 대체하기 쉬운 것 → "간편한 한 끼". 식빵·시리얼·베이글 → "빵·시리얼류".\n' +
@@ -107,7 +108,7 @@ export function getPackageImagePrompt(): string {
     '\n' +
     '- 이미지에 영양정보 표가 보이면 숫자를 읽어 nutrition에 넣는다. 없거나 판독 불가면 nutrition은 null.\n' +
     '- caloriesKcal: 1회 제공량(또는 표기 기준) 기준 **열량(kcal)**. "약", "~"이 있으면 대표값 하나. **0kcal·제로칼로리·열량 0**이면 **0**을 넣는다(null 금지).\n' +
-    '- 나트륨은 mg, 탄수화물·당류·단백질·지방·포화지방·트랜스지방은 g 단위로 숫자만.\n' +
+    '- 나트륨·콜레스테롤은 mg, 탄수화물·당류·단백질·지방·포화지방·트랜스지방은 g 단위로 숫자만.\n' +
     '- servingSizeText: 가능하면 제품 표기 그대로. 예) "1병(355ml)", "1캔(250ml)", "총 내용량 500ml 중 100ml", "1회 30g".\n' +
     '- basisIsPerServing: 표의 숫자가 **1회 제공량(1회 섭취 참고량)** 기준이면 true, 100g/100ml 기준이면 false.\n\n' +
     '[foodCategory]\n' +
@@ -126,7 +127,7 @@ export function getPackageImagePrompt(): string {
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 ""\n' +
     '- consumptionAdvice: 라벨에 보이는 것만 **한 문장**. 열량만 길게 쓰지 말 것. 없으면 ""\n' +
     '- foodCategory: 위 목록 중 하나\n' +
-    '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
+    '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg (콜레스테롤·mg, 없으면 null), servingSizeText, basisIsPerServing\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
     '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null}'
   );

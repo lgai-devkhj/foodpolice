@@ -60,6 +60,7 @@ function parseNutrition(raw: unknown): NutritionFactsInput | null {
   const fatG = numOrNull(o.fatG);
   const saturatedFatG = numOrNull(o.saturatedFatG);
   const transFatG = numOrNull(o.transFatG);
+  const cholesterolMg = numOrNull(o.cholesterolMg);
   const servingSizeText =
     o.servingSizeText != null && String(o.servingSizeText).trim() ? String(o.servingSizeText).trim() : null;
   /* 한국 라벨은 대개 1회 제공량 기준이 많아, 미표기 시 true로 둠 */
@@ -86,6 +87,7 @@ function parseNutrition(raw: unknown): NutritionFactsInput | null {
     fatG,
     saturatedFatG,
     transFatG,
+    cholesterolMg,
     servingSizeText: servingSizeText ?? undefined,
     basisIsPerServing,
   };

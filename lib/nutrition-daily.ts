@@ -11,6 +11,8 @@ export const DAILY_REFERENCE = {
   fatG: 54,
   saturatedFatG: 15,
   transFatG: 2.2,
+  /** 한국 영양성분 표에서 % 계산에 흔히 쓰는 1일 참고치(mg) */
+  cholesterolMg: 300,
 } as const;
 
 export interface NutritionFactsInput {
@@ -22,6 +24,7 @@ export interface NutritionFactsInput {
   fatG?: number | null;
   saturatedFatG?: number | null;
   transFatG?: number | null;
+  cholesterolMg?: number | null;
   /** 예: "1회 30g", "100ml당" */
   servingSizeText?: string | null;
   /** 표 숫자가 1회 제공량 기준이면 true, 100g·100ml 기준이면 false */
@@ -37,6 +40,7 @@ export interface NutritionDailyPercent {
   fat?: number;
   saturatedFat?: number;
   transFat?: number;
+  cholesterol?: number;
 }
 
 function pctOf(val: number | null | undefined, dv: number): number | undefined {
@@ -62,6 +66,8 @@ export function computeDailyPercentages(n: NutritionFactsInput): NutritionDailyP
   if (sf !== undefined) out.saturatedFat = sf;
   const tf = pctOf(n.transFatG, DAILY_REFERENCE.transFatG);
   if (tf !== undefined) out.transFat = tf;
+  const chol = pctOf(n.cholesterolMg, DAILY_REFERENCE.cholesterolMg);
+  if (chol !== undefined) out.cholesterol = chol;
   return Object.keys(out).length > 0 ? out : null;
 }
 
