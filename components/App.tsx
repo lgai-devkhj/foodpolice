@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type MutableRefObject } from 'react';
 import { getClientId } from '@/lib/clientId';
 import {
   loadState,
@@ -261,6 +261,55 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     disclaimer +
     '</div>'
   );
+}
+
+const ALT_SEARCH_EMPTY_MESSAGE =
+  '웹 검색으로 바로 쓸 만한 대체 품명은 확인하지 못했어요. 마트에서 원재료·가공도를 비교하거나, 같은 종류 중 덜 가공된 제품을 찾아보세요.';
+
+function applyAlternativesFetchResult(
+  clientId: string,
+  historyId: string,
+  baseResult: AnalysisResult,
+  analysisSeconds: number,
+  altRaw: string,
+  httpOk: boolean,
+  refreshHistory: () => void,
+  currentHistoryIdRef: MutableRefObject<string | null>,
+  setCurrentResult: (r: AnalysisResult) => void,
+  renderResult: (
+    r: AnalysisResult,
+    historyItem: HistoryItem | null,
+    opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
+  ) => void
+): void {
+  const alt = altRaw.trim();
+  const merged: AnalysisResult = {
+    ...baseResult,
+    alternativeFoodText: alt || null,
+    alternativeFoodFromWebSearch: httpOk && !!alt,
+    alternativeFoodLoaded: true,
+  };
+  updateHistoryResult(clientId, historyId, {
+    alternativeFoodText: merged.alternativeFoodText,
+    alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
+    alternativeFoodLoaded: true,
+  });
+  refreshHistory();
+  if (currentHistoryIdRef.current !== historyId) return;
+  const resultContainer = document.getElementById('resultContent');
+  const altDetails = resultContainer
+    ? Array.from(resultContainer.querySelectorAll('details.result-details')).find((el) => {
+        const summary = el.querySelector('summary');
+        return (summary?.textContent || '').trim() === '대체 식품';
+      })
+    : null;
+  const keepAltOpen = !!altDetails && (altDetails as HTMLDetailsElement).open;
+  setCurrentResult(merged);
+  renderResult(merged, null, {
+    analysisSeconds,
+    historyId,
+    keepAltOpen,
+  });
 }
 
 function formatRelativeTime(iso: string): string {
@@ -599,7 +648,11 @@ export default function App() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
-        const result = data as AnalysisResult;
+        const rawResult = data as AnalysisResult;
+        const result: AnalysisResult =
+          rawResult.novaGroup === 4
+            ? { ...rawResult, alternativeFoodLoaded: false }
+            : rawResult;
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
@@ -624,38 +677,42 @@ export default function App() {
               rawMaterials: result.product?.rawMaterials || '',
             }),
           })
-            .then((r) => r.json())
-            .then((d) => {
-              const alt = d?.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
-              if (!alt) return;
-              const merged: AnalysisResult = {
-                ...result,
-                alternativeFoodText: alt,
-                alternativeFoodFromWebSearch: true,
-              };
-              updateHistoryResult(clientId, id, {
-                alternativeFoodText: alt,
-                alternativeFoodFromWebSearch: true,
-              });
-              refreshHistory();
-              if (currentHistoryIdRef.current === id) {
-                const resultContainer = document.getElementById('resultContent');
-                const altDetails = resultContainer
-                  ? Array.from(resultContainer.querySelectorAll('details.result-details')).find((el) => {
-                      const summary = el.querySelector('summary');
-                      return (summary?.textContent || '').trim() === '대체 식품';
-                    })
-                  : null;
-                const keepAltOpen = !!altDetails && (altDetails as HTMLDetailsElement).open;
-                setCurrentResult(merged);
-                renderResult(merged, null, {
-                  analysisSeconds: sec,
-                  historyId: id,
-                  keepAltOpen,
-                });
+            .then(async (r) => {
+              let d: Record<string, unknown> = {};
+              try {
+                d = (await r.json()) as Record<string, unknown>;
+              } catch {
+                /* ignore */
               }
+              const alt =
+                r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+              applyAlternativesFetchResult(
+                clientId,
+                id,
+                result,
+                sec,
+                alt,
+                r.ok,
+                refreshHistory,
+                currentHistoryIdRef,
+                setCurrentResult,
+                renderResult
+              );
             })
-            .catch(() => {});
+            .catch(() => {
+              applyAlternativesFetchResult(
+                clientId,
+                id,
+                result,
+                sec,
+                '',
+                false,
+                refreshHistory,
+                currentHistoryIdRef,
+                setCurrentResult,
+                renderResult
+              );
+            });
         }
         setShowHome(false);
         setShowResult(true);
@@ -710,7 +767,11 @@ export default function App() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
-        const result = data as AnalysisResult;
+        const rawResult = data as AnalysisResult;
+        const result: AnalysisResult =
+          rawResult.novaGroup === 4
+            ? { ...rawResult, alternativeFoodLoaded: false }
+            : rawResult;
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
@@ -735,38 +796,42 @@ export default function App() {
               rawMaterials: result.product?.rawMaterials || '',
             }),
           })
-            .then((r) => r.json())
-            .then((d) => {
-              const alt = d?.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
-              if (!alt) return;
-              const merged: AnalysisResult = {
-                ...result,
-                alternativeFoodText: alt,
-                alternativeFoodFromWebSearch: true,
-              };
-              updateHistoryResult(clientId, id, {
-                alternativeFoodText: alt,
-                alternativeFoodFromWebSearch: true,
-              });
-              refreshHistory();
-              if (currentHistoryIdRef.current === id) {
-                const resultContainer = document.getElementById('resultContent');
-                const altDetails = resultContainer
-                  ? Array.from(resultContainer.querySelectorAll('details.result-details')).find((el) => {
-                      const summary = el.querySelector('summary');
-                      return (summary?.textContent || '').trim() === '대체 식품';
-                    })
-                  : null;
-                const keepAltOpen = !!altDetails && (altDetails as HTMLDetailsElement).open;
-                setCurrentResult(merged);
-                renderResult(merged, null, {
-                  analysisSeconds: sec,
-                  historyId: id,
-                  keepAltOpen,
-                });
+            .then(async (r) => {
+              let d: Record<string, unknown> = {};
+              try {
+                d = (await r.json()) as Record<string, unknown>;
+              } catch {
+                /* ignore */
               }
+              const alt =
+                r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+              applyAlternativesFetchResult(
+                clientId,
+                id,
+                result,
+                sec,
+                alt,
+                r.ok,
+                refreshHistory,
+                currentHistoryIdRef,
+                setCurrentResult,
+                renderResult
+              );
             })
-            .catch(() => {});
+            .catch(() => {
+              applyAlternativesFetchResult(
+                clientId,
+                id,
+                result,
+                sec,
+                '',
+                false,
+                refreshHistory,
+                currentHistoryIdRef,
+                setCurrentResult,
+                renderResult
+              );
+            });
         }
         setShowHome(false);
         setShowResult(true);
@@ -863,7 +928,7 @@ export default function App() {
       }
       html += '</div></div>';
 
-      html += '<div class="card"><div class="card-title">맞춤 안내</div>';
+      html += '<div class="card"><div class="card-title">맞춤 참고</div>';
       if (personalizedIntakeNote) {
         html +=
           '<div class="advice-box advice-box--with-leading"><span class="advice-leading advice-leading--target-mask" aria-hidden="true"></span><span class="advice-text">' +
@@ -906,17 +971,32 @@ export default function App() {
         html += '</div></div>';
       }
 
-      if (altText) {
-        const altHtml = buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true);
-        if (altHtml) {
+      if (isUltra) {
+        const altPending = result.alternativeFoodLoaded === false;
+        const altHtml = altText
+          ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
+          : '';
+        if (altPending) {
+          html += '<details class="result-details"><summary>대체 식품</summary>';
+          html +=
+            '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
+          html += '</details>';
+        } else if (altHtml) {
           html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
           html += `<div class="result-details-body">${altHtml}</div>`;
           html += '</details>';
+        } else {
+          const emptyDisc =
+            '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
+          html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+          html +=
+            '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+            escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
+            '</div>' +
+            emptyDisc +
+            '</div></div>';
+          html += '</details>';
         }
-      } else if (isUltra) {
-        html += '<details class="result-details"><summary>대체 식품</summary>';
-        html += '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">분석 중... 20초 정도 소요될 수 있어요.</div></div></div>';
-        html += '</details>';
       }
 
       html += '<details class="result-details result-details-raw"><summary>원재료 보기</summary>';
@@ -2211,7 +2291,7 @@ export default function App() {
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              나이·성별·키·몸무게로 BMI와 비만 판정을 참고해, 영양 표가 있으면 일일 기준 대비 비율·맞춤 안내를 드려요.
+              나이·성별·키·몸무게로 BMI를 참고하고, 영양 표가 있으면 열량뿐 아니라 나트륨·당 등 비율과 함께 맞춤 참고를 드려요.
             </p>
           </div>
         </div>

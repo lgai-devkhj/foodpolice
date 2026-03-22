@@ -68,6 +68,8 @@ export interface AnalysisResult {
   alternativeFoodText?: string | null;
   /** true면 대체 식품 문구가 Google Search 그라운딩 2차 호출 결과 */
   alternativeFoodFromWebSearch?: boolean;
+  /** Group IV만: /api/alternatives 응답 전까지 false → 로딩 UI. 완료 후 true */
+  alternativeFoodLoaded?: boolean;
 }
 
 export interface AppState {

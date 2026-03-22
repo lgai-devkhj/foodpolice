@@ -10,7 +10,7 @@ import {
   computeBmiServer,
   bmiCategoryKo,
   computeDailyPercentages,
-  PERSONALIZED_INTAKE_KCAL_FOOTNOTE,
+  PERSONALIZED_INTAKE_FOOTNOTE,
   type NutritionDailyPercent,
   type NutritionFactsInput,
   type ProfileForKcalNote,
@@ -274,8 +274,8 @@ export async function POST(request: NextRequest) {
     const personalizedIntakeFootnote =
       profileForKcal &&
       personalizedIntakeNote &&
-      !personalizedIntakeNote.includes('계산을 생략')
-        ? PERSONALIZED_INTAKE_KCAL_FOOTNOTE
+      !personalizedIntakeNote.includes('양 안내는 줄였어요')
+        ? PERSONALIZED_INTAKE_FOOTNOTE
         : null;
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);

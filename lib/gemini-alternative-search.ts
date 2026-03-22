@@ -114,10 +114,17 @@ export async function fetchAlternativesWithGoogleSearch(
   const text = extractTextFromGenerateContentResponse(data).trim();
   if (!text) return null;
 
-  // 최소한의 형식 검증 — UI 파서와 맞춤
-  if (!/현재 식품\s*:/.test(text) || !/👉\s*더 나은 선택/.test(text)) {
-    return null;
+  // 형식 검증: 엄격히 맞지 않아도 본문에 제안이 있으면 UI·폴백 문단으로 처리
+  if (/현재 식품\s*:/i.test(text) && /(👉\s*)?더\s*나은\s*선택/i.test(text)) {
+    return text;
   }
+  if (
+    text.length >= 35 &&
+    /(조금\s*개선|더\s*나은\s*선택|최적\s*선택|대체|유통|마트|쇼핑|라벨)/.test(text)
+  ) {
+    return text;
+  }
+  if (text.length >= 120) return text;
 
-  return text;
+  return null;
 }
