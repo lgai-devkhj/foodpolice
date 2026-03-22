@@ -29,6 +29,7 @@ import {
   CAPTURE_GUIDE_INGREDIENT_URL,
   CAPTURE_GUIDE_NUTRIENT_URL,
 } from '@/lib/constants';
+import { ALTERNATIVE_NOT_FOUND_MESSAGE, normalizeAlternativeFoodOutput } from '@/lib/alternative-food-normalize';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
 import {
@@ -172,7 +173,8 @@ function buildNutritionResultHtml(
 function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): string {
   if (!altText) return '';
 
-  const lines = altText
+  const normalized = normalizeAlternativeFoodOutput(altText.trim());
+  const lines = normalized
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
@@ -262,9 +264,6 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     '</div>'
   );
 }
-
-const ALT_SEARCH_EMPTY_MESSAGE =
-  '웹 검색으로 바로 쓸 만한 대체 품명은 확인하지 못했어요. 마트에서 원재료·가공도를 비교하거나, 같은 종류 중 덜 가공된 제품을 찾아보세요.';
 
 /** NOVA 1~2: 웹 대체 추천 없음 — 로딩 없이 바로 표시 */
 const ALT_NOVA_1_2_NOTICE =
@@ -1017,7 +1016,7 @@ export default function App() {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
-              escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
+              escapeHtml(ALTERNATIVE_NOT_FOUND_MESSAGE) +
               '</div>' +
               emptyDisc +
               '</div></div>';
@@ -1043,7 +1042,7 @@ export default function App() {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
-              escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
+              escapeHtml(ALTERNATIVE_NOT_FOUND_MESSAGE) +
               '</div>' +
               emptyDisc +
               '</div></div>';
@@ -2401,7 +2400,7 @@ export default function App() {
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              나이·성별·키·몸무게로 BMI를 참고하고, 영양 표가 있으면 열량뿐 아니라 나트륨·당 등 비율과 함께 맞춤 참고를 드려요.
+              프로필(키·몸무게 등)이 있으면 하루 열량을 참고해 맞춤 참고를 짧게 보여 드려요. 나트륨·당 등은 아래 영양 표에서 확인하세요.
             </p>
           </div>
         </div>

@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
     const personalizedIntakeFootnote =
       profileForKcal &&
       personalizedIntakeNote &&
-      !personalizedIntakeNote.includes('양 안내는 줄였어요')
+      !personalizedIntakeNote.includes('숫자 안내는 빼었어요')
         ? PERSONALIZED_INTAKE_FOOTNOTE
         : null;
 

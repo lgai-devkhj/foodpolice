@@ -4,6 +4,7 @@
  * @see https://ai.google.dev/gemini-api/docs/google-search
  */
 
+import { normalizeAlternativeFoodOutput } from '@/lib/alternative-food-normalize';
 import { SEARCH_MODEL } from '@/lib/gemini-models';
 import { generateContentWithGoogleSearch } from '@/lib/gemini-grounding';
 
@@ -33,8 +34,9 @@ const OUTPUT_FORMAT =
   '- 이유: {공백 가능}\n\n' +
   '3. 최적 선택: {실제 제품명 또는 공백}\n' +
   '- 이유: {공백 가능}\n\n' +
-  '검색으로도 구체 품명을 확인할 수 없으면 1~3번 제품명은 모두 비우고, "👉 더 나은 선택:" 바로 아래에 한 줄로만:\n' +
-  '(마트에서 라벨을 비교해 보세요.)\n';
+  '검색으로도 구체 품명을 확인할 수 없으면 1~3번 제품명은 모두 비우고, "👉 더 나은 선택:" 바로 아래에 **딱 한 줄만** 출력:\n' +
+  '더 건강한 식품은 찾지 못했어요.\n' +
+  '(금지: 현재 식품·NOVA·식품군 설명, **이유:**, HTML, 여러 문단. 위 한 문장만.)\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = (ctx.rawMaterials || '').slice(0, 900);
@@ -132,7 +134,7 @@ async function generateAlternativesOnce(
   }
 
   if (acceptAlternativeModelText(t, grounded)) {
-    return { text: t, ok: true, status, bodySnippet: '' };
+    return { text: normalizeAlternativeFoodOutput(t), ok: true, status, bodySnippet: '' };
   }
 
   console.warn(`[alternatives] rejected by validator model=${model} len=${t.length} grounded=${grounded}`);

@@ -67,7 +67,7 @@ export function computeDailyPercentages(n: NutritionFactsInput): NutritionDailyP
 
 /** 맞춤 참고 아래 짧은 설명(키·몸무게 기반일 때만 API에서 채움) */
 export const PERSONALIZED_INTAKE_FOOTNOTE =
-  '위 양 안내는 키·몸무게 등으로 잡은 하루 열량 참고와 간식·한 끼 구분을 반영한 추정이에요. 사람마다 달라요.';
+  '키·몸무게로 잡은 참고치예요. 사람마다 달라요.';
 /** @deprecated PERSONALIZED_INTAKE_FOOTNOTE 사용 */
 export const PERSONALIZED_INTAKE_KCAL_FOOTNOTE = PERSONALIZED_INTAKE_FOOTNOTE;
 
@@ -152,15 +152,9 @@ function dailyKcalBudgetForThisFood(target: number, kind: IntakeSlotKind): numbe
   return Math.max(120, Math.min(850, raw));
 }
 
-/** 열량(양) 안내 뒤에 붙이는 한 마디 — kcal만 따지는 느낌 완화 */
-function wholeDietReminder(): string {
-  return ' 열량·양 말고도 나트륨·당류·지방은 아래 영양 정보에서 함께 보면 좋아요.';
-}
-
 function beverageIntakeLine(): string {
   return (
-    '맞춤 참고: **병·캔·팩 한 개**가 곧 한 번 섭취량은 아닐 수 있어요. 라벨의 **1회 제공량(ml)**과 당·열량을 함께 보고, 달고 가진 편이면 하루 양을 줄이는 편이 좋아요.' +
-    wholeDietReminder()
+    '맞춤 참고: 1병·1캔이 곧 한 번은 아니에요. 라벨 **1회 제공량(ml)** 보고, 단 음료면 양을 줄여 보세요.'
   );
 }
 
@@ -168,12 +162,12 @@ function beverageIntakeLine(): string {
 function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string {
   const q = `${n}${unit}`;
   if (kind === 'snack') {
-    return `맞춤 참고: 간식으로는 하루 ${q} 이내를 참고해 보세요.${wholeDietReminder()}`;
+    return `맞춤 참고: 간식이면 하루 **${q}** 정도까지.`;
   }
   if (kind === 'meal') {
-    return `맞춤 참고: 한 끼·간편식으로는 하루 ${q} 이내를 참고해 보세요.${wholeDietReminder()}`;
+    return `맞춤 참고: 한 끼·간편식이면 하루 **${q}** 정도까지.`;
   }
-  return `맞춤 참고: 하루 ${q} 이내를 참고해 보세요.${wholeDietReminder()}`;
+  return `맞춤 참고: 하루 **${q}** 정도까지.`;
 }
 
 const PACKAGING_COUNT_UNITS = new Set(['통', '봉지', '박스']);
@@ -246,42 +240,29 @@ function extractTotalContentGrams(servingText: string): number | null {
 
 function perServingBasisIntakeLine(n: number, kind: IntakeSlotKind): string {
   const slot =
-    kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 유형 식품';
+    kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 유형';
   const capped = Math.min(20, Math.max(1, n));
-  return (
-    `맞춤 참고: 영양표 **1회 제공량(또는 표기 1단위)** 기준으로, ${slot} 몫(열량)에는 하루 약 ${capped}회 분량 이내를 참고해 보세요. 포장 통·봉지·박스 **개수**로 계산하지 않았어요.` +
-    wholeDietReminder()
-  );
+  return `맞춤 참고: 영양표 **1회 분량** 기준, ${slot} 열량 몫은 하루 **약 ${capped}번**까지.`;
 }
 
 function weightBasisIntakeLine(grams: number, totalGramsKnown: boolean, kind: IntakeSlotKind): string {
   const slot = kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 식품';
   const g = Math.min(500, Math.max(5, Math.round(grams)));
-  const totalNote = totalGramsKnown ? ' 라벨 총 내용량과 비교해 가며' : '';
-  return (
-    `맞춤 참고: 개별 알·조각·낱개 수가 불명확해 **중량(g)** 기준으로만 맞춰 봤어요.${totalNote} ${slot} 몫(열량)에는 하루 약 **${g}g** 이내가 이 표 기준으로는 가깝게 맞춰져요. 몇 통·몇 봉지·몇 박스 가능 같은 식으로는 안내하지 않았어요.` +
-    wholeDietReminder()
-  );
+  const tail = totalGramsKnown ? ' 총량과 맞춰 보세요.' : '';
+  return `맞춤 참고: **${g}g** 안팎이면 ${slot} 열량 몫에 가깝습니다(이 표 기준).${tail}`;
 }
 
 /** 액체: 병·캔 **개수** 대신 ml 분량 기준으로만 서술 */
 function liquidPortionIntakeLine(n: number, mlPerPortion: number, kind: IntakeSlotKind): string {
   const slot =
-    kind === 'snack' ? '간식·음료 몫' : kind === 'meal' ? '한 끼·간편식 몫' : '이 유형 몫';
+    kind === 'snack' ? '간식·음료' : kind === 'meal' ? '한 끼·간편식' : '이 유형';
   const capped = Math.min(25, Math.max(1, n));
   const ml = Math.round(mlPerPortion);
-  return (
-    `맞춤 참고: 라벨에 나온 **약 ${ml}ml** 한 분량(또는 그에 준하는 기준)으로 보면, ${slot}(열량)에는 하루 약 **${capped}번** 그 정도 분량 이내가 참고값에 가깝습니다. **병·캔·팩 개수**로 바로 단정하지 않았어요.` +
-    wholeDietReminder()
-  );
+  return `맞춤 참고: **${ml}ml** 한 번 기준, ${slot} 열량 몫은 하루 **약 ${capped}번**까지.`;
 }
 
-function conservativeWeightFallbackIntakeLine(kind: IntakeSlotKind): string {
-  const slot = kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '섭취';
-  return (
-    `맞춤 참고: 개별 섭취 단위가 불명확해 **총 내용량·중량**을 기준으로 보는 편이 좋아요. 포장 단위가 곧 한 번 섭취는 아닐 수 있어, **몇 통·몇 봉지·몇 박스**로 허용량을 말하지 않았어요. ${slot}은 **1회 제공량 또는 총 g**를 라벨에서 확인해 주세요.` +
-    wholeDietReminder()
-  );
+function conservativeWeightFallbackIntakeLine(_kind: IntakeSlotKind): string {
+  return '맞춤 참고: 라벨 **1회 제공량**이나 **총 g**를 보고 양을 잡아 주세요.';
 }
 
 /**
@@ -323,14 +304,13 @@ function fallbackToWeightGrams(
 }
 
 function lowKcalSolidLine(kind: IntakeSlotKind): string {
-  const tail = wholeDietReminder();
   if (kind === 'snack') {
-    return `맞춤 참고: 표상 열량 부담은 낮아 보여요. 간식은 가끔·적게 맞춰 보세요.${tail}`;
+    return '맞춤 참고: 열량은 낮아 보여요. 간식은 조금만.';
   }
   if (kind === 'meal') {
-    return `맞춤 참고: 표상 열량 부담은 낮아 보여요. 한 끼로만 몰아먹지 않도록 나눠 보세요.${tail}`;
+    return '맞춤 참고: 열량은 낮아 보여요. 한 번에만 많이 먹지 말아 주세요.';
   }
-  return `맞춤 참고: 표상 열량 부담은 낮아 보여요. 하루 식단 전체와 나눠 맞춰 보세요.${tail}`;
+  return '맞춤 참고: 열량은 낮아 보여요. 다른 끼니와 나눠 드세요.';
 }
 
 /** 맞춤 안내에만 사용. API에서 넘길 때 선택. */
@@ -466,7 +446,7 @@ export function buildPersonalizedIntakeNote(
       : firstMl;
 
   if (caloriesKcal == null || !Number.isFinite(caloriesKcal)) {
-    return '맞춤 참고: 열량 숫자는 잘 안 읽혀 양 안내는 줄였어요. 나트륨·당류 등은 아래 영양 정보를 봐 주세요.';
+    return '맞춤 참고: 열량을 못 읽어 숫자 안내는 빼었어요. 아래 영양 표를 봐 주세요.';
   }
 
   const looksLikeSeasoningOrSauce =

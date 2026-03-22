@@ -74,7 +74,7 @@ export function getTwoImagePackagePrompt(): string {
     '\n' +
     '- 영양정보 표가 보이면 nutrition에 숫자를 채웁니다. 없거나 판독 불가면 nutrition은 null로 둡니다.\n' +
     '- 표에 **0kcal·제로칼로리·열량 0** 등으로 나오면 caloriesKcal는 **반드시 숫자 0**(null·빈 문자열 금지).\n' +
-    '- consumptionAdvice는 **열량(kcal)만** 강조하지 말고, 라벨에 보이는 보관·섭취 방법·당·나트륨 등 균형 잡힌 생활 조언을 한두 문장으로 정리합니다. kcal 판독이 불가하면 과도한 추측을 하지 않습니다.\n\n' +
+    '- consumptionAdvice: 라벨에 보이는 것만, **짧게 한 문장**(보관·섭취·당·나트륨 중 눈에 띄는 것 하나). 열량만 길게 설명하지 말 것. kcal를 못 읽으면 추측하지 말 것.\n\n' +
     '[2단계 — JSON만 출력]\n' +
     '- productName: 제품명. **완전히 정확한 이름이 명시되지 않았으면 반드시 공란 \"\".** 추측·유추 금지.\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 \"\"\n' +
@@ -124,7 +124,7 @@ export function getPackageImagePrompt(): string {
     '- concernIngredients: 주의 원재료 최대 3개. [{"name":"","explanation":""}]. 없으면 []\n' +
     '- briefDescription: 이 식품에 대한 간단한 설명 (한 문장)\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 ""\n' +
-    '- consumptionAdvice: 섭취·보관 등 생활 조언. 열량만 내세우지 말고 당·나트륨·균형을 함께 짚을 수 있으면 한두 문장. 없으면 ""\n' +
+    '- consumptionAdvice: 라벨에 보이는 것만 **한 문장**. 열량만 길게 쓰지 말 것. 없으면 ""\n' +
     '- foodCategory: 위 목록 중 하나\n' +
     '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG (없으면 null), servingSizeText, basisIsPerServing\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
