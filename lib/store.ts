@@ -26,6 +26,13 @@ export interface HistoryItem {
   customProductName?: string | null;
 }
 
+/** 영양표 한 줄(항목명 + 표기량 문자열). 칼슘·비타민 등 임의 항목 포함 */
+export interface NutritionTableRow {
+  name: string;
+  /** 숫자·단위·% 등 라벨에 적힌 그대로 */
+  amount: string;
+}
+
 export interface NutritionFacts {
   caloriesKcal?: number | null;
   sodiumMg?: number | null;
@@ -37,8 +44,12 @@ export interface NutritionFacts {
   transFatG?: number | null;
   /** 한국 영양표 기준 mg */
   cholesterolMg?: number | null;
+  /** 식이섬유 g */
+  dietaryFiberG?: number | null;
   servingSizeText?: string | null;
   basisIsPerServing?: boolean;
+  /** 표에 보이는 영양항목 전부(위에서 아래 순). 있으면 UI에서 이걸 우선 표시 */
+  tableRows?: NutritionTableRow[] | null;
 }
 
 export interface NutritionDailyPercent {
@@ -51,6 +62,7 @@ export interface NutritionDailyPercent {
   saturatedFat?: number;
   transFat?: number;
   cholesterol?: number;
+  dietaryFiber?: number;
 }
 
 export interface AnalysisResult {

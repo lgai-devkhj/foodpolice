@@ -96,9 +96,12 @@ function buildNutritionResultHtml(
   nutrition: NutritionFacts | null | undefined,
   daily: NutritionDailyPercent | null | undefined
 ): string {
+  const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
+  const hasTableRows = tableRows.length > 0;
   const hasNums =
     nutrition &&
-    (nutrition.servingSizeText ||
+    (hasTableRows ||
+      nutrition.servingSizeText ||
       nutrition.caloriesKcal != null ||
       nutrition.sodiumMg != null ||
       nutrition.carbsG != null ||
@@ -107,13 +110,33 @@ function buildNutritionResultHtml(
       nutrition.fatG != null ||
       nutrition.saturatedFatG != null ||
       nutrition.transFatG != null ||
-      nutrition.cholesterolMg != null);
+      nutrition.cholesterolMg != null ||
+      nutrition.dietaryFiberG != null);
   const hasDaily = daily && Object.keys(daily).length > 0;
   if (!hasNums && !hasDaily) return '';
 
+  const labelDefs: Array<{ label: string; unit: string; pick: (n: NutritionFacts) => number | null | undefined }> = [
+    { label: '열량', unit: 'kcal', pick: (n) => n.caloriesKcal },
+    { label: '나트륨', unit: 'mg', pick: (n) => n.sodiumMg },
+    { label: '탄수화물', unit: 'g', pick: (n) => n.carbsG },
+    { label: '당류', unit: 'g', pick: (n) => n.sugarG },
+    { label: '지방', unit: 'g', pick: (n) => n.fatG },
+    { label: '포화지방', unit: 'g', pick: (n) => n.saturatedFatG },
+    { label: '트랜스지방', unit: 'g', pick: (n) => n.transFatG },
+    { label: '콜레스테롤', unit: 'mg', pick: (n) => n.cholesterolMg },
+    { label: '단백질', unit: 'g', pick: (n) => n.proteinG },
+    { label: '식이섬유', unit: 'g', pick: (n) => n.dietaryFiberG },
+  ];
+  const labelRows =
+    nutrition &&
+    labelDefs.filter((d) => {
+      const v = d.pick(nutrition);
+      return v != null && Number.isFinite(v);
+    });
+
   let html = '<div class="result-details-body result-nutrition">';
   html +=
-    '<p class="meta" style="margin:0 0 10px;line-height:1.5;">표에 나온 분량을 기준으로, 하루 참고치(2000kcal) 대비 %를 보여드려요.</p>';
+    '<p class="meta nutrition-intro-meta">표에서 읽은 영양성분을 아래에 모두 적었어요. 막대는 하루 참고치(2000kcal) 대비 비율이에요.</p>';
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -125,16 +148,47 @@ function buildNutritionResultHtml(
       '</span></div>';
   }
 
+  if (hasTableRows) {
+    html += '<p class="nutrition-label-heading">표기 영양성분</p>';
+    html += '<div class="nutrition-label-table" role="list">';
+    tableRows.forEach((row) => {
+      html +=
+        '<div class="nutrition-label-row" role="listitem"><span class="nutrition-label-name">' +
+        escapeHtml(row.name) +
+        '</span><span class="nutrition-label-value">' +
+        escapeHtml(row.amount) +
+        '</span></div>';
+    });
+    html += '</div>';
+  } else if (labelRows && labelRows.length > 0) {
+    html += '<p class="nutrition-label-heading">표기 영양성분</p>';
+    html += '<div class="nutrition-label-table" role="list">';
+    labelRows.forEach((d) => {
+      const v = d.pick(nutrition!);
+      html +=
+        '<div class="nutrition-label-row" role="listitem"><span class="nutrition-label-name">' +
+        escapeHtml(d.label) +
+        '</span><span class="nutrition-label-value">' +
+        escapeHtml(String(v)) +
+        ' ' +
+        escapeHtml(d.unit) +
+        '</span></div>';
+    });
+    html += '</div>';
+  }
+
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
   const rows: Row[] = [
     { key: 'calories', label: '열량', unit: '%', dv: DAILY_REFERENCE.caloriesKcal },
     { key: 'sodium', label: '나트륨', unit: '%', dv: DAILY_REFERENCE.sodiumMg },
     { key: 'carbs', label: '탄수화물', unit: '%', dv: DAILY_REFERENCE.carbsG },
-    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
     { key: 'sugar', label: '당류', unit: '%', dv: DAILY_REFERENCE.sugarG },
-    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
+    { key: 'fat', label: '지방', unit: '%', dv: DAILY_REFERENCE.fatG },
     { key: 'saturatedFat', label: '포화지방', unit: '%', dv: DAILY_REFERENCE.saturatedFatG },
+    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
     { key: 'cholesterol', label: '콜레스테롤', unit: '%', dv: DAILY_REFERENCE.cholesterolMg },
+    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
+    { key: 'dietaryFiber', label: '식이섬유', unit: '%', dv: DAILY_REFERENCE.dietaryFiberG },
   ];
 
   const nutritionAmountPrefix = (r: Row, n: NutritionFacts | null | undefined): string => {
@@ -154,6 +208,9 @@ function buildNutritionResultHtml(
     if (r.key === 'sugar' && n.sugarG != null && Number.isFinite(n.sugarG)) {
       return escapeHtml(String(n.sugarG)) + 'g · ';
     }
+    if (r.key === 'fat' && n.fatG != null && Number.isFinite(n.fatG)) {
+      return escapeHtml(String(n.fatG)) + 'g · ';
+    }
     if (r.key === 'transFat' && n.transFatG != null && Number.isFinite(n.transFatG)) {
       return escapeHtml(String(n.transFatG)) + 'g · ';
     }
@@ -163,10 +220,14 @@ function buildNutritionResultHtml(
     if (r.key === 'cholesterol' && n.cholesterolMg != null && Number.isFinite(n.cholesterolMg)) {
       return escapeHtml(String(n.cholesterolMg)) + 'mg · ';
     }
+    if (r.key === 'dietaryFiber' && n.dietaryFiberG != null && Number.isFinite(n.dietaryFiberG)) {
+      return escapeHtml(String(n.dietaryFiberG)) + 'g · ';
+    }
     return '';
   };
 
   if (hasDaily && daily) {
+    html += '<p class="nutrition-daily-heading">일일 참고치 대비</p>';
     rows.forEach((r) => {
       const pct = daily[r.key];
       if (pct == null || !Number.isFinite(pct)) return;
@@ -1475,17 +1536,13 @@ export default function App() {
 
       {showDesktopRecommendModal && (
         <div
-          className="modal info-sheet visible"
+          className="modal modal--center-dialog visible"
           role="dialog"
           aria-labelledby="desktop-recommend-title"
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend(false)}
         >
-          <div
-            className="modal-panel"
-            style={{ maxWidth: 420, textAlign: 'center' }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 id="desktop-recommend-title" className="sheet-title" style={{ textAlign: 'left' }}>
                 스마트폰 사용을 추천해요

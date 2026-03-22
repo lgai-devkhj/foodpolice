@@ -2,6 +2,8 @@
  * 2000kcal 기준 일일 영양소 참고치(한국 영양성분 표의 % 계산에 흔히 쓰이는 값에 근사).
  * 실제 필요 에너지는 개인차가 크므로 참고용 문구에만 사용합니다.
  */
+import type { NutritionTableRow } from './store';
+
 export const DAILY_REFERENCE = {
   caloriesKcal: 2000,
   sodiumMg: 2000,
@@ -13,6 +15,8 @@ export const DAILY_REFERENCE = {
   transFatG: 2.2,
   /** 한국 영양성분 표에서 % 계산에 흔히 쓰는 1일 참고치(mg) */
   cholesterolMg: 300,
+  /** 식이섬유 1일 참고량(g) 근사 */
+  dietaryFiberG: 25,
 } as const;
 
 export interface NutritionFactsInput {
@@ -25,10 +29,12 @@ export interface NutritionFactsInput {
   saturatedFatG?: number | null;
   transFatG?: number | null;
   cholesterolMg?: number | null;
+  dietaryFiberG?: number | null;
   /** 예: "1회 30g", "100ml당" */
   servingSizeText?: string | null;
   /** 표 숫자가 1회 제공량 기준이면 true, 100g·100ml 기준이면 false */
   basisIsPerServing?: boolean;
+  tableRows?: NutritionTableRow[] | null;
 }
 
 export interface NutritionDailyPercent {
@@ -41,6 +47,7 @@ export interface NutritionDailyPercent {
   saturatedFat?: number;
   transFat?: number;
   cholesterol?: number;
+  dietaryFiber?: number;
 }
 
 function pctOf(val: number | null | undefined, dv: number): number | undefined {
@@ -68,6 +75,8 @@ export function computeDailyPercentages(n: NutritionFactsInput): NutritionDailyP
   if (tf !== undefined) out.transFat = tf;
   const chol = pctOf(n.cholesterolMg, DAILY_REFERENCE.cholesterolMg);
   if (chol !== undefined) out.cholesterol = chol;
+  const fib = pctOf(n.dietaryFiberG, DAILY_REFERENCE.dietaryFiberG);
+  if (fib !== undefined) out.dietaryFiber = fib;
   return Object.keys(out).length > 0 ? out : null;
 }
 

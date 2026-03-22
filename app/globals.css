@@ -1208,6 +1208,38 @@
       -webkit-mask-repeat: no-repeat;
       mask-repeat: no-repeat;
     }
+    .nutrition-intro-meta { margin: 0 0 10px; line-height: 1.5; }
+    .nutrition-label-heading,
+    .nutrition-daily-heading {
+      margin: 14px 0 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .nutrition-label-heading { margin-top: 4px; }
+    .nutrition-label-table {
+      border-radius: 12px;
+      border: 1px solid var(--card-stroke);
+      background: rgba(0, 0, 0, 0.03);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+    [data-theme="dark"] .nutrition-label-table,
+    html:not([data-theme="light"]) .nutrition-label-table {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .nutrition-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 10px 14px;
+      font-size: 0.98rem;
+      border-bottom: 1px solid var(--card-stroke);
+    }
+    .nutrition-label-row:last-child { border-bottom: none; }
+    .nutrition-label-name { color: var(--text2); font-weight: 500; }
+    .nutrition-label-value { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .edit-name-btn-inner {
       display: inline-flex;
       align-items: center;
@@ -1390,6 +1422,34 @@
       padding-bottom: var(--safe-bottom);
     }
     .modal.visible { display: flex; }
+
+    /* 데스크톱 QR 안내 등 — 뷰포트 정가운데 카드 */
+    .modal.modal--center-dialog {
+      align-items: center;
+      justify-content: center;
+      padding: max(20px, var(--safe-top)) max(20px, var(--safe-right)) max(20px, var(--safe-bottom))
+        max(20px, var(--safe-left));
+    }
+    .modal.modal--center-dialog .modal-panel.modal-panel--center-dialog {
+      border-radius: 24px;
+      border: 1px solid var(--card-stroke);
+      border-bottom: 1px solid var(--card-stroke);
+      width: 100%;
+      max-width: 420px;
+      max-height: min(92vh, 92dvh);
+      height: auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 24px 22px calc(26px + var(--safe-bottom));
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
+      margin: 0 auto;
+    }
+    [data-theme="dark"] .modal.modal--center-dialog .modal-panel.modal-panel--center-dialog,
+    html:not([data-theme="light"]) .modal.modal--center-dialog .modal-panel.modal-panel--center-dialog {
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.38);
+    }
+
     .modal-panel {
       background: var(--glass-bg);
       backdrop-filter: var(--glass-blur);
