@@ -526,12 +526,6 @@ export default function App() {
   }, [captureStep]);
 
   useEffect(() => {
-    if (captureStepGuide == null) return;
-    const t = window.setTimeout(() => setCaptureStepGuide(null), 3400);
-    return () => clearTimeout(t);
-  }, [captureStepGuide]);
-
-  useEffect(() => {
     rawImageBase64Ref.current = rawImageBase64;
   }, [rawImageBase64]);
   useEffect(() => {
@@ -1385,12 +1379,8 @@ export default function App() {
           aria-labelledby={
             captureStepGuide === 1 ? 'capture-step-overlay-title-1' : 'capture-step-overlay-title-2'
           }
-          onClick={() => setCaptureStepGuide(null)}
         >
-          <div
-            className="capture-step-overlay-card"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="capture-step-overlay-card">
             <p className="capture-step-overlay-badge" aria-hidden>
               {captureStepGuide === 1 ? '1 / 2' : '2 / 2'}
             </p>

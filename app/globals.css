@@ -735,9 +735,14 @@
       padding: 24px;
       padding-top: calc(24px + var(--safe-top));
       padding-bottom: calc(24px + var(--safe-bottom));
-      background: rgba(0,0,0,0.55);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
+      background: linear-gradient(
+        165deg,
+        rgba(28, 52, 36, 0.96) 0%,
+        rgba(10, 22, 16, 0.98) 55%,
+        rgba(6, 14, 10, 0.99) 100%
+      );
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       animation: capture-step-overlay-in 0.28s ease-out;
     }
     @keyframes capture-step-overlay-in {
@@ -755,9 +760,10 @@
       overflow-y: auto;
       border-radius: 20px;
       padding: 22px 22px 18px;
-      background: var(--surface);
+      background: #eef1ee;
       color: var(--text);
-      box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+      border: 1px solid rgba(46, 125, 50, 0.22);
+      box-shadow: 0 20px 56px rgba(0, 0, 0, 0.4);
       animation: capture-step-card-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
     }
     .capture-step-overlay-example {
@@ -814,6 +820,21 @@
     @media (prefers-reduced-motion: reduce) {
       .capture-step-overlay { animation: none; }
       .capture-step-overlay-card { animation: none; }
+    }
+
+    [data-theme="dark"] .capture-step-overlay,
+    html:not([data-theme="light"]) .capture-step-overlay {
+      background: linear-gradient(
+        165deg,
+        rgba(8, 18, 12, 0.98) 0%,
+        rgba(4, 10, 7, 0.99) 100%
+      );
+    }
+    [data-theme="dark"] .capture-step-overlay-card,
+    html:not([data-theme="light"]) .capture-step-overlay-card {
+      background: #1a221e;
+      border-color: rgba(76, 175, 80, 0.28);
+      box-shadow: 0 20px 56px rgba(0, 0, 0, 0.65);
     }
 
     .capture-preview-view {
