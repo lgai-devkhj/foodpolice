@@ -68,8 +68,12 @@ export interface AnalysisResult {
   alternativeFoodText?: string | null;
   /** true면 대체 식품 문구가 Google Search 그라운딩 2차 호출 결과 */
   alternativeFoodFromWebSearch?: boolean;
-  /** Group IV만: /api/alternatives 응답 전까지 false → 로딩 UI. 완료 후 true */
+  /** NOVA 3·4: /api/alternatives 응답 전 false → 로딩. 1·2는 즉시 true */
   alternativeFoodLoaded?: boolean;
+  /** NOVA 1~2 등: 대체 추천 없음 이유(즉시 표시, 웹 검색 없음) */
+  alternativeFoodNotice?: string | null;
+  /** NOVA 1~2: 사용자가 「그래도 받기」로 웹 추천을 요청함 */
+  alternativeFoodUserRequested?: boolean;
 }
 
 export interface AppState {

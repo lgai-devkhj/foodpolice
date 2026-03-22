@@ -1,6 +1,17 @@
 /** 이미지 입력·K-NOVA 통합 판정 (단일 프롬프트·단일 호출) */
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
+/** 영양표·섭취 안내용 — 맞춤 참고 로직과 동일 원칙 */
+export function getNutritionServingUnitRulesBlock(): string {
+  return (
+    '[섭취·포장 단위 — 반드시 준수]\n' +
+    '포장 단위와 섭취 단위가 다를 수 있다. 낱개 수나 1회 제공량이 불명확하면 포장 개수로 추정하지 말고 총 내용량 또는 중량 기준으로 계산하라.\n' +
+    '- **통·봉지·박스·(액체의) 병·캔**은 판매 단위일 수 있다. **1통=1회 섭취**로 가정하지 말 것. 캔디·껌·목캔디·정제형·작은 알갱이 간식은 특히 금지.\n' +
+    '- servingSizeText에는 **1회 제공량·개당 중량·총 내용량(g/ml)** 등 표기를 가능한 그대로 넣고, 표 숫자 기준은 basisIsPerServing로 정확히 구분할 것.\n' +
+    '- consumptionAdvice에서 **내부 개수 확인 없이** "하루 몇 통·몇 봉지·몇 박스" 식으로 구체적 허용 개수를 쓰지 말 것. 애매하면 중량·1회 제공량 확인을 권하는 보수적 문장만 쓸 것.\n'
+  );
+}
+
 export function getKoreanNovaCriteria(): string {
   return (
     '당신은 **한국형 NOVA(Korean NOVA)** 분류 기준에 따라 식품을 분석합니다.\n\n' +
@@ -59,6 +70,8 @@ export function getTwoImagePackagePrompt(): string {
     '- 원재료(원재료 표기 전체 한 줄), 제품명(productName), 제조사(companyName)를 이미지에서 읽어 추출합니다.\n' +
     '- rawMaterials를 기준으로 한국형 NOVA 분류(novaGroup)를 판단합니다. Group IV이면 novaSubgroup(4A/4B/4C)도 판단합니다.\n\n' +
     '[이미지 B: 영양정보 표]\n' +
+    getNutritionServingUnitRulesBlock() +
+    '\n' +
     '- 영양정보 표가 보이면 nutrition에 숫자를 채웁니다. 없거나 판독 불가면 nutrition은 null로 둡니다.\n' +
     '- 표에 **0kcal·제로칼로리·열량 0** 등으로 나오면 caloriesKcal는 **반드시 숫자 0**(null·빈 문자열 금지).\n' +
     '- consumptionAdvice는 **열량(kcal)만** 강조하지 말고, 라벨에 보이는 보관·섭취 방법·당·나트륨 등 균형 잡힌 생활 조언을 한두 문장으로 정리합니다. kcal 판독이 불가하면 과도한 추측을 하지 않습니다.\n\n' +
@@ -90,6 +103,8 @@ export function getPackageImagePrompt(): string {
     '\n\n' +
     '당신에게 할 일: **이미지는 식품 포장(원재료명, 영양정보 표, 앞면 등)일 수 있습니다. 텍스트를 읽고 전처리한 뒤, 제품 정보·한국형 NOVA·Group IV 세분화·영양표(있을 때)·카테고리를 판단하세요.** 중간 과정은 출력하지 말고, 최종 결과만 아래 JSON 형식으로 한 개만 출력하세요.\n\n' +
     '[영양정보 표]\n' +
+    getNutritionServingUnitRulesBlock() +
+    '\n' +
     '- 이미지에 영양정보 표가 보이면 숫자를 읽어 nutrition에 넣는다. 없거나 판독 불가면 nutrition은 null.\n' +
     '- caloriesKcal: 1회 제공량(또는 표기 기준) 기준 **열량(kcal)**. "약", "~"이 있으면 대표값 하나. **0kcal·제로칼로리·열량 0**이면 **0**을 넣는다(null 금지).\n' +
     '- 나트륨은 mg, 탄수화물·당류·단백질·지방·포화지방·트랜스지방은 g 단위로 숫자만.\n' +

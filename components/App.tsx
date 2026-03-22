@@ -266,6 +266,36 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 const ALT_SEARCH_EMPTY_MESSAGE =
   '웹 검색으로 바로 쓸 만한 대체 품명은 확인하지 못했어요. 마트에서 원재료·가공도를 비교하거나, 같은 종류 중 덜 가공된 제품을 찾아보세요.';
 
+/** NOVA 1~2: 웹 대체 추천 없음 — 로딩 없이 바로 표시 */
+const ALT_NOVA_1_2_NOTICE =
+  '이 제품은 NOVA 1~2단계(비가공·최소 가공 또는 조리용 재료)로 분류됐어요. 이미 가공도가 낮은 편이라, 앱에서 “더 건강한 대체 식품” 추천은 제공하지 않아요. 채소·과일·통곡물·콩류 등 다양한 식재료를 골고루 드시면 좋아요.';
+
+function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
+  const g = raw.novaGroup;
+  if (g === 1 || g === 2) {
+    return {
+      ...raw,
+      alternativeFoodLoaded: true,
+      alternativeFoodNotice: ALT_NOVA_1_2_NOTICE,
+      alternativeFoodText: null,
+      alternativeFoodFromWebSearch: false,
+      alternativeFoodUserRequested: false,
+    };
+  }
+  if (g === 3 || g === 4) {
+    return {
+      ...raw,
+      alternativeFoodLoaded: false,
+      alternativeFoodNotice: null,
+    };
+  }
+  return {
+    ...raw,
+    alternativeFoodLoaded: true,
+    alternativeFoodNotice: null,
+  };
+}
+
 function applyAlternativesFetchResult(
   clientId: string,
   historyId: string,
@@ -285,11 +315,13 @@ function applyAlternativesFetchResult(
   const alt = altRaw.trim();
   const merged: AnalysisResult = {
     ...baseResult,
+    alternativeFoodNotice: null,
     alternativeFoodText: alt || null,
     alternativeFoodFromWebSearch: httpOk && !!alt,
     alternativeFoodLoaded: true,
   };
   updateHistoryResult(clientId, historyId, {
+    alternativeFoodNotice: null,
     alternativeFoodText: merged.alternativeFoodText,
     alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
     alternativeFoodLoaded: true,
@@ -310,6 +342,71 @@ function applyAlternativesFetchResult(
     historyId,
     keepAltOpen,
   });
+}
+
+function requestAlternativesFromApi(
+  clientId: string,
+  historyId: string,
+  baseResult: AnalysisResult,
+  analysisSeconds: number,
+  refreshHistory: () => void,
+  currentHistoryIdRef: MutableRefObject<string | null>,
+  setCurrentResult: (r: AnalysisResult) => void,
+  renderResult: (
+    r: AnalysisResult,
+    historyItem: HistoryItem | null,
+    opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
+  ) => void
+): void {
+  void fetch('/api/alternatives', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      productName: baseResult.product?.productName || '',
+      companyName: baseResult.product?.companyName || '',
+      foodCategory: baseResult.foodCategory || null,
+      novaGroup: baseResult.novaGroup,
+      novaSubgroup: baseResult.novaSubgroup || null,
+      briefDescription: baseResult.briefDescription || null,
+      rawMaterials: baseResult.product?.rawMaterials || '',
+    }),
+  })
+    .then(async (r) => {
+      let d: Record<string, unknown> = {};
+      try {
+        d = (await r.json()) as Record<string, unknown>;
+      } catch {
+        /* ignore */
+      }
+      const alt =
+        r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+      applyAlternativesFetchResult(
+        clientId,
+        historyId,
+        baseResult,
+        analysisSeconds,
+        alt,
+        r.ok,
+        refreshHistory,
+        currentHistoryIdRef,
+        setCurrentResult,
+        renderResult
+      );
+    })
+    .catch(() => {
+      applyAlternativesFetchResult(
+        clientId,
+        historyId,
+        baseResult,
+        analysisSeconds,
+        '',
+        false,
+        refreshHistory,
+        currentHistoryIdRef,
+        setCurrentResult,
+        renderResult
+      );
+    });
 }
 
 function formatRelativeTime(iso: string): string {
@@ -649,10 +746,7 @@ export default function App() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
         const rawResult = data as AnalysisResult;
-        const result: AnalysisResult =
-          rawResult.novaGroup === 4
-            ? { ...rawResult, alternativeFoodLoaded: false }
-            : rawResult;
+        const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
@@ -663,56 +757,17 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
-        if (result.novaGroup === 4) {
-          void fetch('/api/alternatives', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productName: result.product?.productName || '',
-              companyName: result.product?.companyName || '',
-              foodCategory: result.foodCategory || null,
-              novaGroup: result.novaGroup,
-              novaSubgroup: result.novaSubgroup || null,
-              briefDescription: result.briefDescription || null,
-              rawMaterials: result.product?.rawMaterials || '',
-            }),
-          })
-            .then(async (r) => {
-              let d: Record<string, unknown> = {};
-              try {
-                d = (await r.json()) as Record<string, unknown>;
-              } catch {
-                /* ignore */
-              }
-              const alt =
-                r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
-              applyAlternativesFetchResult(
-                clientId,
-                id,
-                result,
-                sec,
-                alt,
-                r.ok,
-                refreshHistory,
-                currentHistoryIdRef,
-                setCurrentResult,
-                renderResult
-              );
-            })
-            .catch(() => {
-              applyAlternativesFetchResult(
-                clientId,
-                id,
-                result,
-                sec,
-                '',
-                false,
-                refreshHistory,
-                currentHistoryIdRef,
-                setCurrentResult,
-                renderResult
-              );
-            });
+        if (result.novaGroup === 3 || result.novaGroup === 4) {
+          requestAlternativesFromApi(
+            clientId,
+            id,
+            result,
+            sec,
+            refreshHistory,
+            currentHistoryIdRef,
+            setCurrentResult,
+            renderResult
+          );
         }
         setShowHome(false);
         setShowResult(true);
@@ -768,10 +823,7 @@ export default function App() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
         const rawResult = data as AnalysisResult;
-        const result: AnalysisResult =
-          rawResult.novaGroup === 4
-            ? { ...rawResult, alternativeFoodLoaded: false }
-            : rawResult;
+        const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
@@ -782,56 +834,17 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
-        if (result.novaGroup === 4) {
-          void fetch('/api/alternatives', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productName: result.product?.productName || '',
-              companyName: result.product?.companyName || '',
-              foodCategory: result.foodCategory || null,
-              novaGroup: result.novaGroup,
-              novaSubgroup: result.novaSubgroup || null,
-              briefDescription: result.briefDescription || null,
-              rawMaterials: result.product?.rawMaterials || '',
-            }),
-          })
-            .then(async (r) => {
-              let d: Record<string, unknown> = {};
-              try {
-                d = (await r.json()) as Record<string, unknown>;
-              } catch {
-                /* ignore */
-              }
-              const alt =
-                r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
-              applyAlternativesFetchResult(
-                clientId,
-                id,
-                result,
-                sec,
-                alt,
-                r.ok,
-                refreshHistory,
-                currentHistoryIdRef,
-                setCurrentResult,
-                renderResult
-              );
-            })
-            .catch(() => {
-              applyAlternativesFetchResult(
-                clientId,
-                id,
-                result,
-                sec,
-                '',
-                false,
-                refreshHistory,
-                currentHistoryIdRef,
-                setCurrentResult,
-                renderResult
-              );
-            });
+        if (result.novaGroup === 3 || result.novaGroup === 4) {
+          requestAlternativesFromApi(
+            clientId,
+            id,
+            result,
+            sec,
+            refreshHistory,
+            currentHistoryIdRef,
+            setCurrentResult,
+            renderResult
+          );
         }
         setShowHome(false);
         setShowResult(true);
@@ -971,31 +984,71 @@ export default function App() {
         html += '</div></div>';
       }
 
-      if (isUltra) {
-        const altPending = result.alternativeFoodLoaded === false;
-        const altHtml = altText
-          ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
-          : '';
-        if (altPending) {
-          html += '<details class="result-details"><summary>대체 식품</summary>';
-          html +=
-            '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
-          html += '</details>';
-        } else if (altHtml) {
-          html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
-          html += `<div class="result-details-body">${altHtml}</div>`;
-          html += '</details>';
+      const showAlternativeSection = nova >= 1 && nova <= 4;
+      if (showAlternativeSection) {
+        if (nova === 1 || nova === 2) {
+          const altPending = result.alternativeFoodLoaded === false;
+          const altHtml = altText
+            ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
+            : '';
+          const showNoticeWithButton = !result.alternativeFoodUserRequested;
+          if (altPending) {
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html +=
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
+            html += '</details>';
+          } else if (altHtml) {
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html += `<div class="result-details-body">${altHtml}</div>`;
+            html += '</details>';
+          } else if (showNoticeWithButton) {
+            const notice =
+              (result.alternativeFoodNotice || '').trim() || ALT_NOVA_1_2_NOTICE;
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html +=
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+              escapeHtml(notice) +
+              '</div>' +
+              '<div style="margin-top:12px"><button type="button" class="edit-row save" id="altForceFetchBtn"><span class="edit-name-btn-inner"><span class="edit-leading" aria-hidden="true"></span>그래도 받기</span></button></div>' +
+              '</div></div></details>';
+          } else {
+            const emptyDisc =
+              '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html +=
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+              escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
+              '</div>' +
+              emptyDisc +
+              '</div></div>';
+            html += '</details>';
+          }
         } else {
-          const emptyDisc =
-            '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
-          html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
-          html +=
-            '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
-            escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
-            '</div>' +
-            emptyDisc +
-            '</div></div>';
-          html += '</details>';
+          const altPending = result.alternativeFoodLoaded === false;
+          const altHtml = altText
+            ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
+            : '';
+          if (altPending) {
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html +=
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
+            html += '</details>';
+          } else if (altHtml) {
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html += `<div class="result-details-body">${altHtml}</div>`;
+            html += '</details>';
+          } else {
+            const emptyDisc =
+              '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
+            html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
+            html +=
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+              escapeHtml(ALT_SEARCH_EMPTY_MESSAGE) +
+              '</div>' +
+              emptyDisc +
+              '</div></div>';
+            html += '</details>';
+          }
         }
       }
 
@@ -1019,11 +1072,58 @@ export default function App() {
     [profile, currentHistoryId, lastAnalysisForId, lastAnalysisSeconds]
   );
 
+  const handleAltForceFetch = useCallback(() => {
+    if (!clientId || !currentHistoryId || !currentResult) return;
+    const r = currentResult;
+    if (r.novaGroup !== 1 && r.novaGroup !== 2) return;
+    if (r.alternativeFoodLoaded === false) return;
+    if (r.alternativeFoodUserRequested) return;
+
+    const sec = lastAnalysisSeconds ?? 0;
+    const patched: AnalysisResult = {
+      ...r,
+      alternativeFoodNotice: null,
+      alternativeFoodLoaded: false,
+      alternativeFoodUserRequested: true,
+    };
+    updateHistoryResult(clientId, currentHistoryId, {
+      alternativeFoodNotice: null,
+      alternativeFoodLoaded: false,
+      alternativeFoodUserRequested: true,
+    });
+    refreshHistory();
+    setCurrentResult(patched);
+    renderResult(patched, null, {
+      analysisSeconds: sec,
+      historyId: currentHistoryId,
+      keepAltOpen: true,
+    });
+    requestAlternativesFromApi(
+      clientId,
+      currentHistoryId,
+      patched,
+      sec,
+      refreshHistory,
+      currentHistoryIdRef,
+      setCurrentResult,
+      renderResult
+    );
+  }, [
+    clientId,
+    currentHistoryId,
+    currentResult,
+    lastAnalysisSeconds,
+    refreshHistory,
+    renderResult,
+  ]);
+
   useEffect(() => {
     if (!resultContentHtml) return;
     const container = document.getElementById('resultContent');
     if (!container) return;
     container.innerHTML = resultContentHtml;
+    const cleanups: Array<() => void> = [];
+
     const editBtn = container.querySelector('#editNameBtn');
     if (editBtn && currentHistoryId) {
       const historyItem = history.find((i) => i.id === currentHistoryId) || null;
@@ -1033,9 +1133,19 @@ export default function App() {
         setEditingName(name);
       };
       editBtn.addEventListener('click', handler);
-      return () => editBtn.removeEventListener('click', handler);
+      cleanups.push(() => editBtn.removeEventListener('click', handler));
     }
-  }, [resultContentHtml, currentHistoryId, history]);
+
+    const altBtn = container.querySelector('#altForceFetchBtn');
+    if (altBtn && currentHistoryId) {
+      altBtn.addEventListener('click', handleAltForceFetch);
+      cleanups.push(() => altBtn.removeEventListener('click', handleAltForceFetch));
+    }
+
+    return () => {
+      cleanups.forEach((fn) => fn());
+    };
+  }, [resultContentHtml, currentHistoryId, history, handleAltForceFetch]);
 
   const startCamera = useCallback(() => {
     if (!navigator.mediaDevices?.getUserMedia) return false;

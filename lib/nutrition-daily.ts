@@ -157,10 +157,14 @@ function wholeDietReminder(): string {
   return ' 열량·양 말고도 나트륨·당류·지방은 아래 영양 정보에서 함께 보면 좋아요.';
 }
 
-function beverageIntakeLine(drinkUnit: string): string {
-  return `맞춤 참고: 달고 가진 음료는 하루 2${drinkUnit} 이내로 줄이는 편이 좋아요.${wholeDietReminder()}`;
+function beverageIntakeLine(): string {
+  return (
+    '맞춤 참고: **병·캔·팩 한 개**가 곧 한 번 섭취량은 아닐 수 있어요. 라벨의 **1회 제공량(ml)**과 당·열량을 함께 보고, 달고 가진 편이면 하루 양을 줄이는 편이 좋아요.' +
+    wholeDietReminder()
+  );
 }
 
+/** 통·봉지·박스 등 포장 개수로 허용량을 말하지 않을 때만 사용 가능한 단위 */
 function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string {
   const q = `${n}${unit}`;
   if (kind === 'snack') {
@@ -170,6 +174,152 @@ function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string 
     return `맞춤 참고: 한 끼·간편식으로는 하루 ${q} 이내를 참고해 보세요.${wholeDietReminder()}`;
   }
   return `맞춤 참고: 하루 ${q} 이내를 참고해 보세요.${wholeDietReminder()}`;
+}
+
+const PACKAGING_COUNT_UNITS = new Set(['통', '봉지', '박스']);
+
+/** 판매 포장 단위(통·봉 등). 섭취 1회와 다를 수 있음 */
+function detectPackageUnit(servingText: string): string | null {
+  return retailUnitFromServing(servingText);
+}
+
+/**
+ * 1회 제공량·섭취 참고 등이 라벨에 분명한지 (우선순위 1)
+ */
+function detectServingUnitClear(servingText: string): boolean {
+  return /1\s*회\s*섭취|1\s*회\s*제공|1\s*회\s*당|회\s*섭취|섭취\s*참고\s*량|제공량|1\s*일|일일\s*섭취|하루\s*\d+\s*회|1\s*회\s*\(|1\s*회\s*기준/i.test(
+    servingText
+  );
+}
+
+/** 낱개·개당 중량 등 (우선순위 2) */
+function detectPieceBasisClear(servingText: string): boolean {
+  return /(?:개|알|정|캡슐)\s*당|1\s*(?:개|알)\s*당|당\s*\d+\s*(?:개|알)|\d+\s*(?:개|알)\s*입/i.test(
+    servingText
+  );
+}
+
+/** 캔디·껌·목캔디·정제형 등 — 1통=1회 가정 금지 */
+function isDiscreteCandyOrGumLike(
+  foodCategory: string | null | undefined,
+  productName: string | null | undefined,
+  servingText: string
+): boolean {
+  const blob = `${productName ?? ''} ${servingText}`;
+  if (
+    /이클립스|쿨에어|더블민트|맥스무작|스카치|목캔디|목\s*캔디|츄\s*잉|츄잉껌|블루\s*껌|질소\s*캔디|드롭스|정제|알갱이|젤리빈|별\s*사탕/i.test(
+      blob
+    )
+  ) {
+    return true;
+  }
+  if (foodCategory === '달콤한 간식' && /껌|캔디|사탕|민트|목캔|알\s*사탕|정\b|드롭/i.test(blob)) {
+    return true;
+  }
+  return false;
+}
+
+/** 총 내용량 g (우선순위 3). "3.4g×50" 형태면 합산 시도 */
+function extractTotalContentGrams(servingText: string): number | null {
+  const t = servingText;
+  let best = 0;
+  const m1 = t.match(/(?:총|전체)\s*내용량\s*[：:]?\s*(\d+(?:\.\d+)?)\s*g\b/i);
+  if (m1) {
+    const v = parseFloat(m1[1]);
+    if (Number.isFinite(v) && v >= 1 && v <= 5000) best = Math.max(best, v);
+  }
+  const m2 = t.match(/내용량\s*(\d+(?:\.\d+)?)\s*g\b/i);
+  if (m2) {
+    const v = parseFloat(m2[1]);
+    if (Number.isFinite(v) && v >= 5 && v <= 5000) best = Math.max(best, v);
+  }
+  const m3 = t.match(/(\d+(?:\.\d+)?)\s*g\s*[×x＊*]\s*(\d+)\s*(?:개|입|알)?/i);
+  if (m3) {
+    const a = parseFloat(m3[1]);
+    const b = parseFloat(m3[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b >= 2 && a * b <= 5000) {
+      best = Math.max(best, Math.round(a * b));
+    }
+  }
+  return best > 0 ? best : null;
+}
+
+function perServingBasisIntakeLine(n: number, kind: IntakeSlotKind): string {
+  const slot =
+    kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 유형 식품';
+  const capped = Math.min(20, Math.max(1, n));
+  return (
+    `맞춤 참고: 영양표 **1회 제공량(또는 표기 1단위)** 기준으로, ${slot} 몫(열량)에는 하루 약 ${capped}회 분량 이내를 참고해 보세요. 포장 통·봉지·박스 **개수**로 계산하지 않았어요.` +
+    wholeDietReminder()
+  );
+}
+
+function weightBasisIntakeLine(grams: number, totalGramsKnown: boolean, kind: IntakeSlotKind): string {
+  const slot = kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 식품';
+  const g = Math.min(500, Math.max(5, Math.round(grams)));
+  const totalNote = totalGramsKnown ? ' 라벨 총 내용량과 비교해 가며' : '';
+  return (
+    `맞춤 참고: 개별 알·조각·낱개 수가 불명확해 **중량(g)** 기준으로만 맞춰 봤어요.${totalNote} ${slot} 몫(열량)에는 하루 약 **${g}g** 이내가 이 표 기준으로는 가깝게 맞춰져요. 몇 통·몇 봉지·몇 박스 가능 같은 식으로는 안내하지 않았어요.` +
+    wholeDietReminder()
+  );
+}
+
+/** 액체: 병·캔 **개수** 대신 ml 분량 기준으로만 서술 */
+function liquidPortionIntakeLine(n: number, mlPerPortion: number, kind: IntakeSlotKind): string {
+  const slot =
+    kind === 'snack' ? '간식·음료 몫' : kind === 'meal' ? '한 끼·간편식 몫' : '이 유형 몫';
+  const capped = Math.min(25, Math.max(1, n));
+  const ml = Math.round(mlPerPortion);
+  return (
+    `맞춤 참고: 라벨에 나온 **약 ${ml}ml** 한 분량(또는 그에 준하는 기준)으로 보면, ${slot}(열량)에는 하루 약 **${capped}번** 그 정도 분량 이내가 참고값에 가깝습니다. **병·캔·팩 개수**로 바로 단정하지 않았어요.` +
+    wholeDietReminder()
+  );
+}
+
+function conservativeWeightFallbackIntakeLine(kind: IntakeSlotKind): string {
+  const slot = kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '섭취';
+  return (
+    `맞춤 참고: 개별 섭취 단위가 불명확해 **총 내용량·중량**을 기준으로 보는 편이 좋아요. 포장 단위가 곧 한 번 섭취는 아닐 수 있어, **몇 통·몇 봉지·몇 박스**로 허용량을 말하지 않았어요. ${slot}은 **1회 제공량 또는 총 g**를 라벨에서 확인해 주세요.` +
+    wholeDietReminder()
+  );
+}
+
+/**
+ * 포장 개수 안내 전 단위 검증. 실패 시 중량·보수 문구로 전환해야 함.
+ */
+function validateCountUnitForIntakeAdvice(
+  unit: string | null,
+  servingText: string,
+  basisIsPerServing: boolean | null | undefined,
+  candyLike: boolean
+): { ok: boolean; usePerServingWording: boolean } {
+  if (unit == null) return { ok: false, usePerServingWording: basisIsPerServing === true };
+  if (PACKAGING_COUNT_UNITS.has(unit)) {
+    if (candyLike) return { ok: false, usePerServingWording: false };
+    if (basisIsPerServing === true && detectServingUnitClear(servingText)) {
+      return { ok: false, usePerServingWording: true };
+    }
+    return { ok: false, usePerServingWording: false };
+  }
+  if (unit === '개') {
+    if (!detectPieceBasisClear(servingText) && !detectServingUnitClear(servingText)) {
+      return { ok: false, usePerServingWording: basisIsPerServing === true };
+    }
+  }
+  return { ok: true, usePerServingWording: false };
+}
+
+/** 100g 기준 열량으로 하루 몫에 맞는 그램 수 */
+function fallbackToWeightGrams(
+  caloriesPer100g: number,
+  budgetKcal: number,
+  totalG: number | null
+): number | null {
+  if (!Number.isFinite(caloriesPer100g) || caloriesPer100g <= 0) return null;
+  const raw = budgetKcal / (caloriesPer100g / 100);
+  if (!Number.isFinite(raw) || raw < 3) return null;
+  const capped = totalG != null ? Math.min(totalG, raw) : Math.min(350, raw);
+  return Math.max(5, Math.floor(capped));
 }
 
 function lowKcalSolidLine(kind: IntakeSlotKind): string {
@@ -276,10 +426,14 @@ function extractPackageMl(servingText: string): number | null {
   return Math.max(...all);
 }
 
-function defaultSnackUnit(foodCategory: string | null | undefined, servingText: string): string {
+/** 포장(통·봉지)은 반환하지 않음 — 호출부에서 중량·1회 기준으로 처리 */
+function defaultSnackUnit(foodCategory: string | null | undefined, servingText: string): string | null {
   const u = retailUnitFromServing(servingText);
-  if (u) return u;
-  if (foodCategory === '달콤한 간식' || foodCategory === '짭짤한 간식') return '봉지';
+  if (u) {
+    if (PACKAGING_COUNT_UNITS.has(u)) return null;
+    return u;
+  }
+  if (foodCategory === '달콤한 간식' || foodCategory === '짭짤한 간식') return null;
   return '개';
 }
 
@@ -346,16 +500,15 @@ export function buildPersonalizedIntakeNote(
   // 0kcal·저열량(제로 음료 등): 열량은 유효하게 “0”으로 읽힌 경우. 나눗셈은 쓰지 않음.
   if (caloriesKcal >= 0 && caloriesKcal < 0.5) {
     if (beverage || likelySweetDrinkPer100ml) {
-      return beverageIntakeLine(defaultDrinkUnit(normalizedServingSizeText));
+      return beverageIntakeLine();
     }
     const solidKind = slotKind === 'beverage' ? 'general' : slotKind;
     return lowKcalSolidLine(solidKind);
   }
 
-  // 음료·100ml당 저열량 액체표: ml 나눗셈은 비현실적이라 병·캔 단위 안내
+  // 음료·100ml당 저열량 액체표 — 병·캔 **개수** 고정 안내 없음
   if (beverage || likelySweetDrinkPer100ml) {
-    const du = defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeLine(du);
+    return beverageIntakeLine();
   }
 
   const servings = budgetKcal / caloriesKcal;
@@ -364,14 +517,56 @@ export function buildPersonalizedIntakeNote(
 
   const capLiquidSugarDrink = beverage || sodaLikeHint;
   if (isLiquidRetailUnit(unitLabel) && servingsRoundedDown >= 3 && capLiquidSugarDrink) {
-    const du = unitLabel || defaultDrinkUnit(normalizedServingSizeText);
-    return beverageIntakeLine(du);
+    return beverageIntakeLine();
   }
 
   const solidKindForLine: IntakeSlotKind =
     slotKind === 'beverage' ? 'general' : slotKind;
 
-  // 100g/ml당 표기: ml 리터로 쓰지 않고, 포장 1개 분량으로 환산해 **N병·N봉지** 형태
+  const candyLike = isDiscreteCandyOrGumLike(
+    extras?.foodCategory ?? null,
+    extras?.productName ?? null,
+    normalizedServingSizeText
+  );
+  const servingClear = detectServingUnitClear(normalizedServingSizeText);
+  const pieceClear = detectPieceBasisClear(normalizedServingSizeText);
+
+  // 캔디/껌/정제형: 1통=1회 금지 → 중량 또는 1회 제공량 문구만
+  if (candyLike && !servingClear && !pieceClear) {
+    if (basisIsPerServing === false && caloriesKcal > 0) {
+      const totalG = extractTotalContentGrams(normalizedServingSizeText);
+      const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+      if (gW != null) {
+        return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+      }
+    }
+    if (basisIsPerServing === true) {
+      return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+    }
+    return conservativeWeightFallbackIntakeLine(solidKindForLine);
+  }
+
+  // 통·봉지·박스만 보이고 1회 제공이 불명확 — 포장 개수 안내 금지
+  if (
+    unitLabel &&
+    PACKAGING_COUNT_UNITS.has(unitLabel) &&
+    !servingClear &&
+    !candyLike
+  ) {
+    if (basisIsPerServing === false && caloriesKcal > 0) {
+      const totalG = extractTotalContentGrams(normalizedServingSizeText);
+      const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+      if (gW != null) {
+        return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+      }
+    }
+    if (basisIsPerServing === true) {
+      return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+    }
+    return conservativeWeightFallbackIntakeLine(solidKindForLine);
+  }
+
+  // 100g/ml당 표기: ml은 **병·캔 개수**가 아니라 ml 분량으로 안내
   if (basisIsPerServing === false || (unitLabel == null && scaleMlForKcal != null)) {
     if (scaleMlForKcal != null && scaleMlForKcal > 0) {
       const packMl = extractPackageMl(normalizedServingSizeText);
@@ -385,15 +580,46 @@ export function buildPersonalizedIntakeNote(
       if (Number.isFinite(kcalPerPack) && kcalPerPack > 0) {
         const nRaw = Math.floor(budgetKcal / kcalPerPack);
         const n = Math.min(30, Math.max(1, nRaw));
-        const u =
+        const uGuess =
           unitLabel ??
           (scaleMlForKcal >= 90 && scaleMlForKcal <= 110
             ? defaultDrinkUnit(normalizedServingSizeText)
             : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
-        if (isLiquidRetailUnit(u) && n >= 3 && capLiquidSugarDrink) {
-          return beverageIntakeLine(u);
+        if (isLiquidRetailUnit(uGuess) && n >= 3 && capLiquidSugarDrink) {
+          return beverageIntakeLine();
         }
-        return solidIntakeLine(n, u, solidKindForLine);
+        if (isLiquidRetailUnit(uGuess) && refMl > 0) {
+          return liquidPortionIntakeLine(n, refMl, solidKindForLine);
+        }
+        if (uGuess && PACKAGING_COUNT_UNITS.has(uGuess)) {
+          const totalG = extractTotalContentGrams(normalizedServingSizeText);
+          const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+          if (gW != null) {
+            return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+          }
+          return conservativeWeightFallbackIntakeLine(solidKindForLine);
+        }
+        if (uGuess) {
+          const val = validateCountUnitForIntakeAdvice(
+            uGuess,
+            normalizedServingSizeText,
+            basisIsPerServing,
+            candyLike
+          );
+          if (val.usePerServingWording) {
+            return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+          }
+          if (!val.ok) {
+            const totalG = extractTotalContentGrams(normalizedServingSizeText);
+            const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+            if (gW != null) {
+              return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+            }
+            return conservativeWeightFallbackIntakeLine(solidKindForLine);
+          }
+          return solidIntakeLine(n, uGuess, solidKindForLine);
+        }
+        return liquidPortionIntakeLine(n, refMl, solidKindForLine);
       }
     }
     const u =
@@ -401,14 +627,85 @@ export function buildPersonalizedIntakeNote(
       (basisIsPerServing === false && scaleMlForKcal == null
         ? '회'
         : defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText));
+    if (u == null) {
+      if (basisIsPerServing === true) {
+        return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+      }
+      const totalG = extractTotalContentGrams(normalizedServingSizeText);
+      const gW =
+        basisIsPerServing === false && caloriesKcal > 0
+          ? fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG)
+          : null;
+      if (gW != null) {
+        return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+      }
+      return conservativeWeightFallbackIntakeLine(solidKindForLine);
+    }
+    const val = validateCountUnitForIntakeAdvice(
+      u,
+      normalizedServingSizeText,
+      basisIsPerServing,
+      candyLike
+    );
+    if (val.usePerServingWording) {
+      return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+    }
+    if (!val.ok) {
+      const totalG = extractTotalContentGrams(normalizedServingSizeText);
+      const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+      if (gW != null) {
+        return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+      }
+      return conservativeWeightFallbackIntakeLine(solidKindForLine);
+    }
     return solidIntakeLine(servingsRoundedDown, u, solidKindForLine);
   }
 
   if (unitLabel) {
+    const val = validateCountUnitForIntakeAdvice(
+      unitLabel,
+      normalizedServingSizeText,
+      basisIsPerServing,
+      candyLike
+    );
+    if (val.usePerServingWording) {
+      return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+    }
+    if (!val.ok) {
+      const totalG = extractTotalContentGrams(normalizedServingSizeText);
+      const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+      if (gW != null) {
+        return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+      }
+      return conservativeWeightFallbackIntakeLine(solidKindForLine);
+    }
     return solidIntakeLine(servingsRoundedDown, unitLabel, solidKindForLine);
   }
 
   const fallbackU = defaultSnackUnit(extras?.foodCategory ?? null, normalizedServingSizeText);
+  if (fallbackU == null) {
+    if (basisIsPerServing === true) {
+      return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+    }
+    return conservativeWeightFallbackIntakeLine(solidKindForLine);
+  }
+  const val = validateCountUnitForIntakeAdvice(
+    fallbackU,
+    normalizedServingSizeText,
+    basisIsPerServing,
+    candyLike
+  );
+  if (val.usePerServingWording) {
+    return perServingBasisIntakeLine(servingsRoundedDown, solidKindForLine);
+  }
+  if (!val.ok) {
+    const totalG = extractTotalContentGrams(normalizedServingSizeText);
+    const gW = fallbackToWeightGrams(caloriesKcal, budgetKcal, totalG);
+    if (gW != null) {
+      return weightBasisIntakeLine(gW, totalG != null, solidKindForLine);
+    }
+    return conservativeWeightFallbackIntakeLine(solidKindForLine);
+  }
   return solidIntakeLine(servingsRoundedDown, fallbackU, solidKindForLine);
 }
 
