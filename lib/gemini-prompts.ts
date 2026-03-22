@@ -1,4 +1,4 @@
-/** 이미지 입력 지원을 위해 gemini-3.1-flash-lite-preview 모델 사용 */
+/** 이미지 입력·K-NOVA 통합 판정 (단일 프롬프트·단일 호출) */
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
 export function getKoreanNovaCriteria(): string {

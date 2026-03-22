@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   buildAlternativeFoodWebSearchPrompt,
-  DEFAULT_ALTERNATIVES_GROUNDING_MODEL,
   fetchAlternativesWithGoogleSearch,
 } from '@/lib/gemini-alternative-search';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+/** gemini-2.5-flash 그라운딩 1회(최대 ~24s) + 여유 */
+export const maxDuration = 45;
 
 interface AlternativesBody {
   productName?: string;
@@ -37,11 +37,8 @@ export async function POST(request: NextRequest) {
       rawMaterials: (body.rawMaterials || '').trim(),
     };
 
-    const model =
-      (process.env.GEMINI_ALTERNATIVES_GROUNDING_MODEL || '').trim() ||
-      DEFAULT_ALTERNATIVES_GROUNDING_MODEL;
     const prompt = buildAlternativeFoodWebSearchPrompt(ctx);
-    const alternativeFoodText = await fetchAlternativesWithGoogleSearch(key, model, prompt);
+    const alternativeFoodText = await fetchAlternativesWithGoogleSearch(key, prompt);
 
     return NextResponse.json({
       alternativeFoodText: alternativeFoodText || null,

@@ -15,10 +15,7 @@ import {
   type NutritionFactsInput,
   type ProfileForKcalNote,
 } from '@/lib/nutrition-daily';
-import {
-} from '@/lib/gemini-alternative-search';
-
-/** 이미지→텍스트·NOVA 판정: Gemini Vision(멀티모달). 별도 OCR 엔진 없음. */
+/** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 

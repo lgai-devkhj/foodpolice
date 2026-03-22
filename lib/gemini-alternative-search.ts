@@ -1,9 +1,16 @@
 /**
  * 대체 식품 안내 — Gemini **Google Search 그라운딩** 전용 (텍스트만, 이미지 없음).
+ * 모델 ID는 `lib/gemini-models.ts`의 SEARCH_MODEL 과 동일.
  * @see https://ai.google.dev/gemini-api/docs/google-search
  */
 
-export const DEFAULT_ALTERNATIVES_GROUNDING_MODEL = 'gemini-3.1-flash-lite-preview';
+import { SEARCH_MODEL } from '@/lib/gemini-models';
+import { generateContentWithGoogleSearch } from '@/lib/gemini-grounding';
+
+export const ALTERNATIVES_GROUNDING_MODEL = SEARCH_MODEL;
+
+/** 한 번의 generateContent(검색 그라운딩 포함) 최대 대기 */
+const PER_ATTEMPT_TIMEOUT_MS = 24_000;
 
 export interface AlternativeSearchContext {
   productName: string;
@@ -38,6 +45,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
 
 
   return (
+    '**필수:** 답하기 전에 **Google Search 도구로 실제 웹 검색을 반드시 실행**하고, 네이버 쇼핑·마트 채널 등에서 **품명이 스니펫에 보이는지** 확인하세요. 검색 없이 추측만 하지 마세요.\n\n' +
     '당신은 **Google Search(웹 검색) 도구**로 얻은 정보**만** 근거로, 한국에서 살 수 있는 **실제 유통 제품**을 제안합니다.\n\n' +
     '[현재 식품 — 이미지 분석 결과]\n' +
     `제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}\n` +
@@ -65,66 +73,76 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   );
 }
 
-function extractTextFromGenerateContentResponse(data: unknown): string {
-  const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> })?.candidates?.[0]
-    ?.content?.parts;
-  if (!Array.isArray(parts)) return '';
-  return parts.map((p) => (typeof p?.text === 'string' ? p.text : '')).join('');
+function responseHasGroundingMetadata(data: unknown): boolean {
+  const candidates = (data as { candidates?: Array<{ groundingMetadata?: unknown }> })?.candidates;
+  if (!Array.isArray(candidates)) return false;
+  return candidates.some(
+    (c) => c?.groundingMetadata != null && typeof c.groundingMetadata === 'object'
+  );
+}
+
+function acceptAlternativeModelText(text: string, grounded: boolean): boolean {
+  const t = text.trim();
+  if (!t) return false;
+
+  if (/현재 식품\s*:/i.test(t) && /(👉\s*)?더\s*나은\s*선택/i.test(t)) return true;
+  if (
+    t.length >= 35 &&
+    /(조금\s*개선|더\s*나은\s*선택|최적\s*선택|대체|유통|마트|쇼핑|라벨|네이버|쇼핑)/.test(t)
+  ) {
+    return true;
+  }
+  if (grounded && t.length >= 28) return true;
+  if (t.length >= 120) return true;
+  return false;
+}
+
+async function generateAlternativesOnce(
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<{ text: string | null; ok: boolean; status: number; bodySnippet: string }> {
+  const { text, ok, status, raw } = await generateContentWithGoogleSearch(
+    apiKey,
+    model,
+    prompt,
+    PER_ATTEMPT_TIMEOUT_MS
+  );
+
+  if (!ok && status === 0) {
+    return { text: null, ok: false, status: 0, bodySnippet: '' };
+  }
+  if (!ok) {
+    const snippet =
+      raw != null && typeof raw === 'object'
+        ? JSON.stringify(raw).slice(0, 500)
+        : String(raw).slice(0, 500);
+    return { text: null, ok: false, status, bodySnippet: snippet };
+  }
+
+  const grounded = responseHasGroundingMetadata(raw);
+  const t = text.trim();
+  if (!t) {
+    console.warn(`[alternatives] empty text model=${model} grounded=${grounded}`);
+    return { text: null, ok: true, status, bodySnippet: '' };
+  }
+
+  if (acceptAlternativeModelText(t, grounded)) {
+    return { text: t, ok: true, status, bodySnippet: '' };
+  }
+
+  console.warn(`[alternatives] rejected by validator model=${model} len=${t.length} grounded=${grounded}`);
+  return { text: null, ok: true, status, bodySnippet: '' };
 }
 
 /**
+ * Google Search 그라운딩 — 항상 `gemini-2.5-flash`.
  * @returns 대체 식품 블록 텍스트, 실패 시 null
  */
 export async function fetchAlternativesWithGoogleSearch(
   apiKey: string,
-  model: string,
   prompt: string
 ): Promise<string | null> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: prompt }],
-        },
-      ],
-      tools: [{ google_search: {} }],
-      generationConfig: {
-        temperature: 0.35,
-        topP: 0.95,
-        topK: 40,
-      },
-    }),
-  });
-
-  const rawBody = await res.text();
-  if (!res.ok) {
-    return null;
-  }
-
-  let data: unknown;
-  try {
-    data = JSON.parse(rawBody);
-  } catch {
-    return null;
-  }
-
-  const text = extractTextFromGenerateContentResponse(data).trim();
-  if (!text) return null;
-
-  // 형식 검증: 엄격히 맞지 않아도 본문에 제안이 있으면 UI·폴백 문단으로 처리
-  if (/현재 식품\s*:/i.test(text) && /(👉\s*)?더\s*나은\s*선택/i.test(text)) {
-    return text;
-  }
-  if (
-    text.length >= 35 &&
-    /(조금\s*개선|더\s*나은\s*선택|최적\s*선택|대체|유통|마트|쇼핑|라벨)/.test(text)
-  ) {
-    return text;
-  }
-  if (text.length >= 120) return text;
-
-  return null;
+  const { text } = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
+  return text;
 }
