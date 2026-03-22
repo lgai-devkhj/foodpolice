@@ -65,6 +65,59 @@ export function computeDailyPercentages(n: NutritionFactsInput): NutritionDailyP
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/** 맞춤 열량 안내 아래 붙이는 짧은 설명(키·몸무게 기반 추정일 때만 API에서 채움) */
+export const PERSONALIZED_INTAKE_KCAL_FOOTNOTE =
+  '기초대사량에 보통 활동을 반영해 하루 필요 열량을 추정한 참고값이에요.';
+
+function ageYearsFromBirthDate(isoDate: string): number | null {
+  const m = String(isoDate).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  const d = parseInt(m[3], 10);
+  const birth = new Date(y, mo, d);
+  if (Number.isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const md = today.getMonth() - birth.getMonth();
+  if (md < 0 || (md === 0 && today.getDate() < birth.getDate())) age -= 1;
+  if (age < 5 || age > 120) return null;
+  return age;
+}
+
+/**
+ * Mifflin–St Jeor BMR × 활동계수(1.45, 보통). 나이·성별 없으면 보수적 기본값 사용.
+ * 의료·영양 상담 대체 아님.
+ */
+export function estimateDailyKcalFromProfile(
+  heightCm: number,
+  weightKg: number,
+  opts?: { gender?: string | null; birthDate?: string | null }
+): number | null {
+  if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) return null;
+  const fromBirth = opts?.birthDate ? ageYearsFromBirthDate(opts.birthDate) : null;
+  const age = fromBirth ?? 17;
+  const g = (opts?.gender || '').toLowerCase();
+  let bmr: number;
+  if (g === 'female' || g === 'f') {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+  } else if (g === 'male' || g === 'm') {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+  } else {
+    bmr = 10 * weightKg + 6.25 * heightCm - 5 * age - 78;
+  }
+  if (!Number.isFinite(bmr) || bmr < 400) return null;
+  const tdee = Math.round(bmr * 1.45);
+  return Math.min(3200, Math.max(1300, tdee));
+}
+
+export interface ProfileForKcalNote {
+  heightCm: number;
+  weightKg: number;
+  birthDate?: string | null;
+  gender?: string | null;
+}
+
 /** 대략적 하루 열량 참고(맞춤 안내 문장용, 의학적 권고 아님) */
 function roughDailyKcalTarget(bmi: number | null, category: string | null): number {
   if (bmi == null || !category) return DAILY_REFERENCE.caloriesKcal;
@@ -194,9 +247,19 @@ export function buildPersonalizedIntakeNote(
   caloriesKcal: number | null,
   servingSizeText?: string | null,
   basisIsPerServing?: boolean | null,
-  extras?: PersonalizedIntakeNoteExtras | null
+  extras?: PersonalizedIntakeNoteExtras | null,
+  profileForKcal?: ProfileForKcalNote | null
 ): string | null {
-  const target = roughDailyKcalTarget(bmi, bmiCategory);
+  const fromProfile =
+    profileForKcal &&
+    profileForKcal.heightCm > 0 &&
+    profileForKcal.weightKg > 0
+      ? estimateDailyKcalFromProfile(profileForKcal.heightCm, profileForKcal.weightKg, {
+          birthDate: profileForKcal.birthDate ?? null,
+          gender: profileForKcal.gender ?? null,
+        })
+      : null;
+  const target = fromProfile ?? roughDailyKcalTarget(bmi, bmiCategory);
   if (target <= 0) return null;
   const budgetKcal = dailyKcalBudgetForThisFood(target);
 

@@ -35,4 +35,8 @@ export const NOVA_SUBGROUP_HINTS: Record<string, string> = {
 
 export const PHOTO_GUIDE_EXAMPLE_URL = '/images/photo-guide-example.jpg';
 
+/** 촬영 단계 안내 팝업용 예시 (public/images/) */
+export const CAPTURE_GUIDE_INGREDIENT_URL = '/images/ingredient.jpg';
+export const CAPTURE_GUIDE_NUTRIENT_URL = '/images/nutrient.jpg';
+
 export const STORE_PREFIX = 'fp_state_v1_';

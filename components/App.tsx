@@ -26,6 +26,8 @@ import {
   NOVA_SUBGROUP_NAMES,
   NOVA_SUBGROUP_HINTS,
   PHOTO_GUIDE_EXAMPLE_URL,
+  CAPTURE_GUIDE_INGREDIENT_URL,
+  CAPTURE_GUIDE_NUTRIENT_URL,
 } from '@/lib/constants';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
@@ -452,6 +454,8 @@ export default function App() {
   const [capturedPreviewDataUrl, setCapturedPreviewDataUrl] = useState<string | null>(null);
   const [capturedPreviewMimeType, setCapturedPreviewMimeType] = useState<string>('image/jpeg');
   const [captureStep, setCaptureStep] = useState<1 | 2>(1);
+  const [captureStepGuide, setCaptureStepGuide] = useState<null | 1 | 2>(null);
+  const [cameraStepChipPulse, setCameraStepChipPulse] = useState(false);
   const [rawImageBase64, setRawImageBase64] = useState<string | null>(null);
   const [rawImageMimeType, setRawImageMimeType] = useState<string>('image/jpeg');
   const [nutritionImageBase64, setNutritionImageBase64] = useState<string | null>(null);
@@ -512,6 +516,22 @@ export default function App() {
   }, [captureStep]);
 
   useEffect(() => {
+    if (captureStep !== 2) {
+      setCameraStepChipPulse(false);
+      return;
+    }
+    setCameraStepChipPulse(true);
+    const t = window.setTimeout(() => setCameraStepChipPulse(false), 720);
+    return () => clearTimeout(t);
+  }, [captureStep]);
+
+  useEffect(() => {
+    if (captureStepGuide == null) return;
+    const t = window.setTimeout(() => setCaptureStepGuide(null), 3400);
+    return () => clearTimeout(t);
+  }, [captureStepGuide]);
+
+  useEffect(() => {
     rawImageBase64Ref.current = rawImageBase64;
   }, [rawImageBase64]);
   useEffect(() => {
@@ -566,7 +586,12 @@ export default function App() {
         const p = getProfileWithLatestMeasurement(profile);
         const profilePayload =
           p.heightCm != null && p.weightKg != null && p.heightCm > 0 && p.weightKg > 0
-            ? { heightCm: p.heightCm, weightKg: p.weightKg }
+            ? {
+                heightCm: p.heightCm,
+                weightKg: p.weightKg,
+                ...(p.birthDate ? { birthDate: p.birthDate } : {}),
+                ...(p.gender ? { gender: p.gender } : {}),
+              }
             : undefined;
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -670,7 +695,12 @@ export default function App() {
         const p = getProfileWithLatestMeasurement(profile);
         const profilePayload =
           p.heightCm != null && p.weightKg != null && p.heightCm > 0 && p.weightKg > 0
-            ? { heightCm: p.heightCm, weightKg: p.weightKg }
+            ? {
+                heightCm: p.heightCm,
+                weightKg: p.weightKg,
+                ...(p.birthDate ? { birthDate: p.birthDate } : {}),
+                ...(p.gender ? { gender: p.gender } : {}),
+              }
             : undefined;
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -779,6 +809,7 @@ export default function App() {
       const concerns = result.concernIngredients || [];
       const advice = result.consumptionAdvice || '';
       const personalizedIntakeNote = (result.personalizedIntakeNote || '').trim();
+      const personalizedIntakeFootnote = (result.personalizedIntakeFootnote || '').trim();
       const altText = (result.alternativeFoodText || '').trim();
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
@@ -844,6 +875,10 @@ export default function App() {
           '<div class="advice-box advice-box--with-leading"><span class="advice-leading advice-leading--target-mask" aria-hidden="true"></span><span class="advice-text">' +
           escapeHtml(personalizedIntakeNote) +
           '</span></div>';
+        if (personalizedIntakeFootnote) {
+          html +=
+            '<p class="advice-kcal-footnote">' + escapeHtml(personalizedIntakeFootnote) + '</p>';
+        }
       } else if (advice) {
         html +=
           '<div class="advice-box advice-box--with-leading"><span class="advice-leading advice-leading--utensil-mask" aria-hidden="true"></span><span class="advice-text">' +
@@ -942,6 +977,9 @@ export default function App() {
       .then((stream) => {
         cameraStreamRef.current = stream;
         setShowCamera(true);
+        if (captureStepRef.current === 1) {
+          setCaptureStepGuide(1);
+        }
       })
       .catch(() => fileInputRef.current?.click());
     return true;
@@ -952,6 +990,7 @@ export default function App() {
     setError('');
     // 홈 FAB(촬영): 항상 새 제품 스캔 — 1/2(원재료)부터. 분석 직후 captureStep=2·이전 원재료가 남아 있어도 여기서 초기화.
     setCaptureStep(1);
+    captureStepRef.current = 1;
     setRawImageBase64(null);
     setNutritionImageBase64(null);
     setUploadSource('camera');
@@ -1056,6 +1095,7 @@ export default function App() {
       setRawImageMimeType(mime);
       setCaptureStep(2);
       captureStepRef.current = 2;
+      setCaptureStepGuide(2);
       startCamera();
       return;
     }
@@ -1105,6 +1145,7 @@ export default function App() {
           setRawImageMimeType(normalizedMime);
           setCaptureStep(2);
           captureStepRef.current = 2;
+          setCaptureStepGuide(2);
           // 다음 단계(2/2)를 이어서 진행: 카메라로 가지 않고, 선택한 소스(앨범/촬영)에서 계속 진행
           if (uploadSource === 'gallery') {
             setCapturedPreviewDataUrl(null);
@@ -1276,7 +1317,10 @@ export default function App() {
                 </span>
               </div>
             </div>
-            <div className="camera-step-chip" aria-live="polite">
+            <div
+              className={`camera-step-chip${cameraStepChipPulse ? ' camera-step-chip-pulse' : ''}`}
+              aria-live="polite"
+            >
               <span className={`step-dot ${captureStep === 1 ? 'active' : ''}`}>1</span>
               <span className="step-sep">/</span>
               <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
@@ -1329,6 +1373,67 @@ export default function App() {
               {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양정보 표 촬영'}
             </p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
+          </div>
+        </div>
+      )}
+
+      {captureStepGuide != null && (
+        <div
+          className="capture-step-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={
+            captureStepGuide === 1 ? 'capture-step-overlay-title-1' : 'capture-step-overlay-title-2'
+          }
+          onClick={() => setCaptureStepGuide(null)}
+        >
+          <div
+            className="capture-step-overlay-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="capture-step-overlay-badge" aria-hidden>
+              {captureStepGuide === 1 ? '1 / 2' : '2 / 2'}
+            </p>
+            {captureStepGuide === 1 ? (
+              <>
+                <h2 id="capture-step-overlay-title-1" className="capture-step-overlay-title">
+                  원재료 촬영
+                </h2>
+                <img
+                  className="capture-step-overlay-example"
+                  src={CAPTURE_GUIDE_INGREDIENT_URL}
+                  alt="포장 뒷면 원재료 표기가 잘 보이게 찍은 예시"
+                  decoding="async"
+                />
+                <p className="capture-step-overlay-caption">촬영 예시 · 원재료</p>
+                <p className="capture-step-overlay-body">
+                  포장 뒷면의 원재료명이 잘 보이게 한 화면에 담아 찍어주세요. 글자가 흐리지 않게 맞춤을 잡아 주세요.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 id="capture-step-overlay-title-2" className="capture-step-overlay-title">
+                  영양정보 표 촬영
+                </h2>
+                <img
+                  className="capture-step-overlay-example"
+                  src={CAPTURE_GUIDE_NUTRIENT_URL}
+                  alt="영양정보 표가 한 화면에 들어오게 찍은 예시"
+                  decoding="async"
+                />
+                <p className="capture-step-overlay-caption">촬영 예시 · 영양정보 표</p>
+                <p className="capture-step-overlay-body">
+                  원재료 사진은 저장됐어요. 이제 포장의 영양정보 표가 한 화면에 들어오게 찍어주세요.
+                </p>
+              </>
+            )}
+            <button
+              type="button"
+              className="capture-step-overlay-btn"
+              onClick={() => setCaptureStepGuide(null)}
+            >
+              확인
+            </button>
           </div>
         </div>
       )}
@@ -2084,9 +2189,14 @@ export default function App() {
                 <IconHeart size={48} />
               </div>
             </div>
-            <p style={{ margin: '0 0 16px', color: 'var(--text2)', fontSize: '1.15rem', lineHeight: 1.6 }}>
-              한국형 NOVA 분류를 기준으로, 원재료와 가공 정도를 보고 그룹을 판정해요.
-            </p>
+            <div className="info-knova-intro">
+              <p className="info-knova-intro-line">
+                한국형 <strong>K-NOVA</strong>는 가공이 얼마나 강한지에 따라 식품을 1~4그룹으로 나눠요.
+              </p>
+              <p className="info-knova-intro-line">
+                첨가물이 몇 개인지보다, 가공 방식과 원재료가 원래 모습에서 얼마나 달라졌는지를 더 중요하게 봐요.
+              </p>
+            </div>
             {[1, 2, 3, 4].map((n) => (
               <div key={n} className={`info-category info-category-nova info-category-nova-${n}`}>
                 <h4>

@@ -10,8 +10,10 @@ import {
   computeBmiServer,
   bmiCategoryKo,
   computeDailyPercentages,
+  PERSONALIZED_INTAKE_KCAL_FOOTNOTE,
   type NutritionDailyPercent,
   type NutritionFactsInput,
+  type ProfileForKcalNote,
 } from '@/lib/nutrition-daily';
 import {
 } from '@/lib/gemini-alternative-search';
@@ -28,8 +30,13 @@ interface AnalyzeBody {
   rawMimeType?: string;
   nutritionImageBase64?: string;
   nutritionMimeType?: string;
-  /** BMI 맞춤 영양 안내용 (선택). 키·몸무게만 사용. */
-  profile?: { heightCm?: number; weightKg?: number };
+  /** BMI·맞춤 열량 안내용 (선택). 키·몸무게·생년월일·성별 */
+  profile?: {
+    heightCm?: number;
+    weightKg?: number;
+    birthDate?: string | null;
+    gender?: string | null;
+  };
 }
 
 function requireClientId(clientId: string): void {
@@ -238,6 +245,16 @@ export async function POST(request: NextRequest) {
 
     const foodCategory = normalizeFoodCategory(parsed.foodCategory);
 
+    let profileForKcal: ProfileForKcalNote | null = null;
+    if (h != null && w != null && h > 0 && w > 0) {
+      profileForKcal = {
+        heightCm: Number(h),
+        weightKg: Number(w),
+        birthDate: profile?.birthDate != null ? String(profile.birthDate).trim() || null : null,
+        gender: profile?.gender != null ? String(profile.gender).trim() || null : null,
+      };
+    }
+
     const personalizedIntakeNote = nutritionParsed
       ? buildPersonalizedIntakeNote(
           bmi,
@@ -249,9 +266,17 @@ export async function POST(request: NextRequest) {
             foodCategory,
             sugarG: nutritionParsed.sugarG ?? null,
             productName: product.productName || null,
-          }
+          },
+          profileForKcal
         )
       : null;
+
+    const personalizedIntakeFootnote =
+      profileForKcal &&
+      personalizedIntakeNote &&
+      !personalizedIntakeNote.includes('계산을 생략')
+        ? PERSONALIZED_INTAKE_KCAL_FOOTNOTE
+        : null;
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
     // 대체 식품은 별도 /api/alternatives에서 비동기로 처리
@@ -270,6 +295,7 @@ export async function POST(request: NextRequest) {
       nutrition: nutritionParsed,
       nutritionDailyPercent,
       personalizedIntakeNote,
+      personalizedIntakeFootnote,
       alternativeFoodText,
       alternativeFoodFromWebSearch,
     };
