@@ -120,6 +120,36 @@ const TUTORIAL_COACH_PHASES = new Set<TutorialPhase>([
   'preview_analyze',
 ]);
 
+/** 미리보기 안내는 촬영 화면이 아닐 때·미리보기가 실제로 떴을 때만 (phase만으로 코치 켜지면 문구가 어긋남) */
+function shouldShowTutorialCoach(
+  phase: TutorialPhase,
+  opts: {
+    showCamera: boolean;
+    capturedPreviewDataUrl: string | null;
+    captureStep: 1 | 2;
+  },
+): boolean {
+  if (!TUTORIAL_COACH_PHASES.has(phase)) return false;
+  if (phase === 'fab') {
+    return !opts.showCamera && !opts.capturedPreviewDataUrl;
+  }
+  if (phase === 'preview_ingredient') {
+    return (
+      !!opts.capturedPreviewDataUrl &&
+      opts.captureStep === 1 &&
+      !opts.showCamera
+    );
+  }
+  if (phase === 'preview_analyze') {
+    return (
+      !!opts.capturedPreviewDataUrl &&
+      opts.captureStep === 2 &&
+      !opts.showCamera
+    );
+  }
+  return false;
+}
+
 function tutorialPhaseIndex(phase: TutorialPhase): number {
   return TUTORIAL_PHASE_SEQUENCE.indexOf(phase);
 }
@@ -785,7 +815,13 @@ export default function App() {
   }, [showTutorial, tutorialPhase]);
 
   const TUTORIAL_STEP_TOTAL = TUTORIAL_PHASE_SEQUENCE.length;
-  const tutorialCoachActive = showTutorial && TUTORIAL_COACH_PHASES.has(tutorialPhase);
+  const tutorialCoachActive =
+    showTutorial &&
+    shouldShowTutorialCoach(tutorialPhase, {
+      showCamera,
+      capturedPreviewDataUrl,
+      captureStep,
+    });
   const tutorialMessage = tutorialCoachActive ? tutorialCoachMessage(tutorialPhase, isLikelyDesktop) : '';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
