@@ -27,10 +27,11 @@ interface AnalyzeBody {
   rawMimeType?: string;
   nutritionImageBase64?: string;
   nutritionMimeType?: string;
-  /** BMI·맞춤 열량 안내용 (선택). 키·몸무게·생년월일·성별 */
+  /** BMI·맞춤 열량 안내용 (선택). 키·몸무게·출생연도/생년월일·성별 */
   profile?: {
     heightCm?: number;
     weightKg?: number;
+    birthYear?: number | null;
     birthDate?: string | null;
     gender?: string | null;
   };
@@ -271,9 +272,14 @@ export async function POST(request: NextRequest) {
 
     let profileForKcal: ProfileForKcalNote | null = null;
     if (h != null && w != null && h > 0 && w > 0) {
+      const by =
+        profile?.birthYear != null && Number.isFinite(Number(profile.birthYear))
+          ? Math.round(Number(profile.birthYear))
+          : null;
       profileForKcal = {
         heightCm: Number(h),
         weightKg: Number(w),
+        birthYear: by,
         birthDate: profile?.birthDate != null ? String(profile.birthDate).trim() || null : null,
         gender: profile?.gender != null ? String(profile.gender).trim() || null : null,
       };

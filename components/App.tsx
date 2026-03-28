@@ -42,7 +42,6 @@ import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
 import {
   IconLeaf,
-  IconSearch,
   IconHeart,
   IconCamera,
   IconImage,
@@ -102,10 +101,16 @@ function stripMarkdownBold(s: string): string {
 
 type CoachRect = { top: number; left: number; width: number; height: number };
 
-/** Apple Watch 스타일: 스포트라이트 + 실제 컨트롤 탭 유도 */
+type TutorialFocusDecoration =
+  | { kind: 'arrow'; rect: CoachRect }
+  | { kind: 'ring'; rect: CoachRect }
+  | null;
+
+/** 화살표·말풍선만 (스포트라이트 딤 없음) */
 function TutorialCoachOverlay({
   active,
   holeRect,
+  focusDecoration,
   message,
   stepIndex,
   stepTotal,
@@ -113,6 +118,8 @@ function TutorialCoachOverlay({
 }: {
   active: boolean;
   holeRect: CoachRect | null;
+  /** 셔터: 화살표 | null: 추가 강조 없음(확인 버튼 등) */
+  focusDecoration: TutorialFocusDecoration;
   message: string;
   stepIndex: number;
   stepTotal: number;
@@ -123,16 +130,6 @@ function TutorialCoachOverlay({
   const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
   const pad = 10;
-  let clipPath: string;
-  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
-    const l = Math.max(0, holeRect.left - pad);
-    const t = Math.max(0, holeRect.top - pad);
-    const r = Math.min(vw, holeRect.left + holeRect.width + pad);
-    const b = Math.min(vh, holeRect.top + holeRect.height + pad);
-    clipPath = `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
-  } else {
-    clipPath = 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
-  }
 
   const gap = 14;
   const safeTop = 12;
@@ -141,15 +138,24 @@ function TutorialCoachOverlay({
   const bubbleW = Math.min(420, Math.max(16, vw - 32));
   const halfW = bubbleW / 2;
 
+  const deco = focusDecoration;
+  const arrowRect =
+    deco?.kind === 'arrow' && deco.rect.width > 0 && deco.rect.height > 0
+      ? deco.rect
+      : null;
+  const bubbleAnchor: CoachRect | null =
+    arrowRect ??
+    (holeRect && holeRect.width > 0 && holeRect.height > 0 ? holeRect : null);
+
   let bubbleClass = 'tutorial-coach-bubble';
   let bubbleStyle: CSSProperties = {};
 
-  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
-    const holeTop = Math.max(0, holeRect.top - pad);
-    const holeBottom = Math.min(vh, holeRect.top + holeRect.height + pad);
+  if (bubbleAnchor) {
+    const holeTop = Math.max(0, bubbleAnchor.top - pad);
+    const holeBottom = Math.min(vh, bubbleAnchor.top + bubbleAnchor.height + pad);
     const spaceBelow = vh - holeBottom - safeBottom;
     const spaceAbove = holeTop - safeTop;
-    const midY = holeRect.top + holeRect.height / 2;
+    const midY = bubbleAnchor.top + bubbleAnchor.height / 2;
     let placeBelow = midY < vh * 0.52;
     if (spaceBelow < estBubbleH && spaceAbove > spaceBelow) {
       placeBelow = false;
@@ -157,7 +163,7 @@ function TutorialCoachOverlay({
     if (spaceAbove < estBubbleH && spaceBelow > spaceAbove) {
       placeBelow = true;
     }
-    const cx = holeRect.left + holeRect.width / 2;
+    const cx = bubbleAnchor.left + bubbleAnchor.width / 2;
     const clampedCx = Math.min(Math.max(cx, halfW + 16), vw - halfW - 16);
 
     bubbleClass += ' tutorial-coach-bubble--near';
@@ -177,33 +183,53 @@ function TutorialCoachOverlay({
     bubbleClass += ' tutorial-coach-bubble--dock';
   }
 
+  const showRing =
+    deco?.kind === 'ring' &&
+    deco.rect.width > 0 &&
+    deco.rect.height > 0;
+  const showArrow =
+    deco?.kind === 'arrow' &&
+    deco.rect.width > 0 &&
+    deco.rect.height > 0;
+  const arrowTarget = showArrow ? deco.rect : null;
+  const ringTarget = showRing ? deco.rect : null;
+
   return (
     <div className="tutorial-coach-root" aria-live="polite">
-      <div
-        className="tutorial-coach-dim"
-        style={{
-          clipPath,
-          WebkitClipPath: clipPath,
-        }}
-        aria-hidden
-      />
-      {holeRect && holeRect.width > 0 && holeRect.height > 0 && (
+      {showRing && ringTarget && (
         <div
           className="tutorial-coach-ring"
           style={{
-            top: holeRect.top - pad,
-            left: holeRect.left - pad,
-            width: holeRect.width + pad * 2,
-            height: holeRect.height + pad * 2,
+            top: ringTarget.top - pad,
+            left: ringTarget.left - pad,
+            width: ringTarget.width + pad * 2,
+            height: ringTarget.height + pad * 2,
           }}
           aria-hidden
         />
+      )}
+      {showArrow && arrowTarget && (
+        <div
+          className="tutorial-coach-arrow"
+          style={{
+            left: arrowTarget.left + arrowTarget.width / 2,
+            top: arrowTarget.top - 6,
+          }}
+          aria-hidden
+        >
+          <svg width="36" height="44" viewBox="0 0 36 44" className="tutorial-coach-arrow-svg">
+            <path
+              className="tutorial-coach-arrow-shape"
+              d="M18 42 L5 14 L31 14 Z"
+            />
+          </svg>
+        </div>
       )}
       <div className={bubbleClass} style={bubbleStyle}>
         <p className="tutorial-coach-step">
           {stepIndex + 1} / {stepTotal}
         </p>
-        <p className="tutorial-coach-msg">{message}</p>
+        {message.trim() !== '' && <p className="tutorial-coach-msg">{message}</p>}
         <button type="button" className="tutorial-coach-skip" onClick={onSkip}>
           건너뛰기
         </button>
@@ -426,6 +452,10 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 const ALT_NOVA_1_2_NOTICE =
   '이 제품은 NOVA 1~2단계(비가공·최소 가공 또는 조리용 재료)로 분류됐어요. 이미 가공도가 낮은 편이라, 앱에서 “더 건강한 대체 식품” 추천은 제공하지 않아요. 채소·과일·통곡물·콩류 등 다양한 식재료를 골고루 드시면 좋아요.';
 
+/** 결과 카드 상단·기준 시트에서 공통으로 쓰는 NOVA(분류) 자체 설명 */
+const NOVA_CLASSIFICATION_INTRO =
+  '한국형 NOVA는 식품을 가공 정도에 따라 네 단계(그룹 1~4)로 나눈 분류예요. 첨가물 개수만으로 판단하지 않고, 원재료가 얼마나 변형·가공되어 원래 특성이 유지되는지를 중심으로 봅니다. 단계가 높을수록 보통 산업적 가공이 강한 편에 가깝다고 이해하면 돼요.';
+
 function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
   const g = raw.novaGroup;
   if (g === 1 || g === 2) {
@@ -577,16 +607,6 @@ function formatRelativeTime(iso: string): string {
   return d.toLocaleDateString('ko-KR');
 }
 
-function computeAgeFullYears(birthDateStr: string): number | null {
-  if (!birthDateStr) return null;
-  const birth = new Date(birthDateStr);
-  if (isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) age -= 1;
-  return age;
-}
-
 function computeBmi(heightCm: number, weightKg: number): number | null {
   if (!heightCm || !weightKg) return null;
   return weightKg / ((heightCm / 100) ** 2);
@@ -602,108 +622,53 @@ function displayName(item: HistoryItem | null): string {
   return (item?.customProductName || item?.productName || '').trim() || '';
 }
 
-function birthDisplay(birthDateStr: string): string {
-  if (!birthDateStr) return '—';
-  const d = new Date(birthDateStr);
-  if (isNaN(d.getTime())) return '—';
-  const year = d.getFullYear();
-  const now = new Date();
-  let age = now.getFullYear() - year;
-  const m = now.getMonth(), day = now.getDate();
-  const bm = d.getMonth(), bd = d.getDate();
-  if (m < bm || (m === bm && day < bd)) age -= 1;
-  return year + '년생 (만 ' + age + '세)';
+function getBirthYearFromProfile(p: Profile): number | null {
+  if (p.birthYear != null && Number.isFinite(p.birthYear)) {
+    const y = Math.round(Number(p.birthYear));
+    const cy = new Date().getFullYear();
+    if (y >= 1900 && y <= cy) return y;
+  }
+  if (p.birthDate) {
+    const m = String(p.birthDate).match(/^(\d{4})/);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
 }
 
-function daysInMonth(year: number, month: number): number {
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return 31;
-  return new Date(year, month, 0).getDate();
+/** 출생연도 + 세는 나이(현재연도 − 출생연도 + 1) */
+function birthYearDisplayFromProfile(p: Profile): string {
+  const y = getBirthYearFromProfile(p);
+  if (y == null) return '—';
+  const cy = new Date().getFullYear();
+  const age = cy - y + 1;
+  if (age < 1 || age > 130) return `${y}년생`;
+  return `${y}년생 (세는 ${age}세)`;
 }
 
-function parseIsoDate(value: string): { year: number; month: number; day: number } | null {
-  const m = (value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  return { year, month, day };
-}
-
-function toIsoDate(year: number, month: number, day: number): string {
-  const maxDay = daysInMonth(year, month);
-  const safeDay = Math.min(Math.max(1, day), maxDay);
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
-}
-
-function clampIsoDate(value: string, min: string, max: string): string {
-  if (value < min) return min;
-  if (value > max) return max;
-  return value;
-}
-
-function YmdDateSelect({
+function BirthYearSelect({
   value,
   onChange,
-  min,
-  max,
+  minYear = 1900,
 }: {
-  value: string;
-  onChange: (next: string) => void;
-  min: string;
-  max: string;
+  value: number;
+  onChange: (y: number) => void;
+  minYear?: number;
 }) {
-  const minParts = parseIsoDate(min);
-  const maxParts = parseIsoDate(max);
-  const parsed = parseIsoDate(value) || maxParts || { year: 2000, month: 1, day: 1 };
-  const minYear = minParts?.year ?? 1900;
-  const maxYear = maxParts?.year ?? new Date().getFullYear();
+  const maxYear = new Date().getFullYear();
   const years = Array.from({ length: maxYear - minYear + 1 }, (_, i) => maxYear - i);
-  const months = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) => {
-    if (parsed.year === minYear && minParts && m < minParts.month) return false;
-    if (parsed.year === maxYear && maxParts && m > maxParts.month) return false;
-    return true;
-  });
-  const maxDay = daysInMonth(parsed.year, parsed.month);
-  const days = Array.from({ length: maxDay }, (_, i) => i + 1).filter((d) => {
-    if (minParts && parsed.year === minParts.year && parsed.month === minParts.month && d < minParts.day) return false;
-    if (maxParts && parsed.year === maxParts.year && parsed.month === maxParts.month && d > maxParts.day) return false;
-    return true;
-  });
-
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
-      <select
-        value={parsed.year}
-        onChange={(e) => onChange(clampIsoDate(toIsoDate(Number(e.target.value), parsed.month, parsed.day), min, max))}
-      >
-        {years.map((y) => (
-          <option key={y} value={y}>
-            {y}년
-          </option>
-        ))}
-      </select>
-      <select
-        value={parsed.month}
-        onChange={(e) => onChange(clampIsoDate(toIsoDate(parsed.year, Number(e.target.value), parsed.day), min, max))}
-      >
-        {months.map((m) => (
-          <option key={m} value={m}>
-            {m}월
-          </option>
-        ))}
-      </select>
-      <select
-        value={Math.min(parsed.day, maxDay)}
-        onChange={(e) => onChange(clampIsoDate(toIsoDate(parsed.year, parsed.month, Number(e.target.value)), min, max))}
-      >
-        {days.map((d) => (
-          <option key={d} value={d}>
-            {d}일
-          </option>
-        ))}
-      </select>
-    </div>
+    <select
+      id="obBirthYear"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      aria-label="출생연도"
+    >
+      {years.map((y) => (
+        <option key={y} value={y}>
+          {y}년
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -732,22 +697,21 @@ export default function App() {
   const [lastAnalysisForId, setLastAnalysisForId] = useState<string | null>(null);
   const [resultContentHtml, setResultContentHtml] = useState('');
   const [showDeleteArea, setShowDeleteArea] = useState(false);
-  const todayDate = new Date().toISOString().slice(0, 10);
   const [profileGender, setProfileGender] = useState('male');
   const [profileHeight, setProfileHeight] = useState('');
   const [profileWeight, setProfileWeight] = useState('');
   const [obStep, setObStep] = useState(0);
-  const [obBirth, setObBirth] = useState(() => {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  });
+  const [obBirthYear, setObBirthYear] = useState(() => Math.max(1900, new Date().getFullYear() - 15));
   const [obGender, setObGender] = useState('male');
+  const [obPrivacyAgreed, setObPrivacyAgreed] = useState(false);
   const [obHeight, setObHeight] = useState('');
   const [obWeight, setObWeight] = useState('');
   const [obSummaryBirth, setObSummaryBirth] = useState('—');
   const [obSummaryGender, setObSummaryGender] = useState('—');
   const [obSummaryHeight, setObSummaryHeight] = useState('—');
   const [obSummaryWeight, setObSummaryWeight] = useState('—');
+  const [showPrivacyConsentGate, setShowPrivacyConsentGate] = useState(false);
+  const [privacyGateChecked, setPrivacyGateChecked] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [showAddMeasurement, setShowAddMeasurement] = useState(false);
@@ -767,6 +731,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
+  const [tutorialFocusDecoration, setTutorialFocusDecoration] = useState<TutorialFocusDecoration>(null);
   const showTutorialRef = useRef(false);
   const tutorialStepRef = useRef(0);
   useEffect(() => {
@@ -785,16 +750,20 @@ export default function App() {
           ? '아래 버튼으로 사진 두 장(원재료 → 영양표)을 골라 실제로 분석해 봐요.'
           : '아래 버튼으로 촬영을 시작해 원재료와 영양표를 실제로 찍어 보세요.';
       case 1:
+        if (captureStepGuide === 1) return '';
         if (desk) return '먼저 원재료가 잘 보이는 첫 번째 사진을 골라 주세요.';
-        return '안내를 확인한 뒤, 가운데 셔터로 원재료를 찍어 보세요.';
+        return '가운데 셔터로 원재료를 찍어 보세요.';
       case 2:
+        if (capturedPreviewDataUrl && captureStep === 1) return '';
         return '미리보기가 괜찮으면 다음으로 넘어가 영양표 촬영을 이어가요.';
       case 3:
+        if (captureStepGuide === 2) return '';
         if (desk) return '이제 영양정보 표가 잘 보이는 두 번째 사진을 골라 주세요.';
-        return '영양표 안내를 확인한 뒤, 셔터로 표를 찍어 주세요.';
+        return '셔터로 영양정보 표를 찍어 주세요.';
       case 4:
         return desk ? '두 번째 사진으로 영양정보 표가 잘 보이게 골라 주세요.' : '가운데 셔터로 영양정보 표를 찍어 주세요.';
       case 5:
+        if (capturedPreviewDataUrl && captureStep === 2) return '';
         return '분석하기를 누르면 분석이 시작돼요. 끝나면 결과에서 NOVA 등을 볼 수 있어요.';
       default:
         return '';
@@ -846,6 +815,10 @@ export default function App() {
     setHistoryList(state.history || []);
     setOnboardingCompleted(state.onboardingCompleted);
     setShowOnboarding(!state.onboardingCompleted);
+    setShowPrivacyConsentGate(
+      !!(state.onboardingCompleted && state.profile?.privacyConsentAccepted !== true),
+    );
+    setPrivacyGateChecked(false);
   }, [clientId]);
 
   useEffect(() => {
@@ -932,7 +905,8 @@ export default function App() {
             ? {
                 heightCm: p.heightCm,
                 weightKg: p.weightKg,
-                ...(p.birthDate ? { birthDate: p.birthDate } : {}),
+                ...(p.birthYear != null ? { birthYear: p.birthYear } : {}),
+                ...(!p.birthYear && p.birthDate ? { birthDate: p.birthDate } : {}),
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
@@ -1007,7 +981,8 @@ export default function App() {
             ? {
                 heightCm: p.heightCm,
                 weightKg: p.weightKg,
-                ...(p.birthDate ? { birthDate: p.birthDate } : {}),
+                ...(p.birthYear != null ? { birthYear: p.birthYear } : {}),
+                ...(!p.birthYear && p.birthDate ? { birthDate: p.birthDate } : {}),
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
@@ -1126,7 +1101,10 @@ export default function App() {
         '<div class="nova-result-title-row">' +
         '<div class="card-title nova-result-title">한국형 NOVA 분류</div>' +
         '<button type="button" class="nova-help-btn" id="novaCriteriaHelpBtn" aria-label="한국형 NOVA 기준 안내" title="기준 안내">?</button>' +
-        '</div>';
+        '</div>' +
+        '<p class="nova-result-intro">' +
+        escapeHtml(NOVA_CLASSIFICATION_INTRO) +
+        '</p>';
       html +=
         '<span class="nova-badge nova-' +
         nova +
@@ -1178,7 +1156,12 @@ export default function App() {
       html += '</div>';
 
       if (concerns.length > 0) {
-        html += '<div class="card"><div class="card-title">주의 원재료</div>';
+        html += '<div class="card card-concern-ingredients">';
+        html +=
+          '<div class="nova-result-title-row">' +
+          '<div class="card-title concern-ingredient-heading">주의 원재료</div>' +
+          '<button type="button" class="nova-help-btn ingredient-help-btn" id="concernIngredientHelpBtn" aria-label="어떤 성분을 주의해서 보는지 안내" title="성분 안내">?</button>' +
+          '</div>';
         html += '<div class="concern-panel">';
         concerns.forEach((c) => {
           html +=
@@ -1360,6 +1343,15 @@ export default function App() {
       cleanups.push(() => novaHelpBtn.removeEventListener('click', openNovaHelp));
     }
 
+    const concernIngredientHelpBtn = container.querySelector('#concernIngredientHelpBtn');
+    if (concernIngredientHelpBtn) {
+      const openIngredientHelp = () => setShowInfoIngredient(true);
+      concernIngredientHelpBtn.addEventListener('click', openIngredientHelp);
+      cleanups.push(() =>
+        concernIngredientHelpBtn.removeEventListener('click', openIngredientHelp),
+      );
+    }
+
     return () => {
       cleanups.forEach((fn) => fn());
     };
@@ -1424,59 +1416,107 @@ export default function App() {
     setShowTutorial(false);
     setTutorialStep(0);
     setTutorialHoleRect(null);
+    setTutorialFocusDecoration(null);
   }, []);
 
   useLayoutEffect(() => {
     if (!showTutorial) {
       setTutorialHoleRect(null);
+      setTutorialFocusDecoration(null);
       return;
     }
     const measure = () => {
-      let el: HTMLElement | null = null;
+      let hole: CoachRect | null = null;
+      let decoration: TutorialFocusDecoration = null;
+
+      const setFromEl = (node: HTMLElement | null, deco: TutorialFocusDecoration = null) => {
+        if (!node) return;
+        const r = node.getBoundingClientRect();
+        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+        decoration = deco;
+      };
+
+      const setCameraHoleAndShutterArrow = (): boolean => {
+        const cam = document.getElementById('tutorial-camera-view');
+        const shut = document.getElementById('tutorial-camera-shutter');
+        if (!cam || !shut) return false;
+        const cr = cam.getBoundingClientRect();
+        const sr = shut.getBoundingClientRect();
+        hole = { top: cr.top, left: cr.left, width: cr.width, height: cr.height };
+        decoration = {
+          kind: 'arrow',
+          rect: { top: sr.top, left: sr.left, width: sr.width, height: sr.height },
+        };
+        return true;
+      };
+
+      const setShutterOnlyHoleArrow = () => {
+        const shut = document.getElementById('tutorial-camera-shutter');
+        if (!shut) return;
+        const r = shut.getBoundingClientRect();
+        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+        decoration = { kind: 'arrow', rect: hole };
+      };
+
       switch (tutorialStep) {
-        case 0:
-          el = document.getElementById('fabUpload');
+        case 0: {
+          const el = document.getElementById('fabUpload');
+          if (el) {
+            const r = el.getBoundingClientRect();
+            hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+            decoration = { kind: 'arrow', rect: hole };
+          }
           break;
+        }
         case 1:
           if (captureStepGuide === 1) {
-            el = document.getElementById('tutorial-capture-overlay-confirm');
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
+            }
           }
           break;
         case 2:
           if (capturedPreviewDataUrl && captureStep === 1) {
-            el = document.getElementById('tutorial-capture-preview-confirm');
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
+            }
           }
           break;
         case 3:
           if (captureStepGuide === 2) {
-            el = document.getElementById('tutorial-capture-overlay-confirm');
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
           } else if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
+            }
           }
           break;
         case 4:
           if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
+            }
           }
           break;
         case 5:
           if (capturedPreviewDataUrl && captureStep === 2) {
-            el = document.getElementById('tutorial-capture-preview-confirm');
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           }
           break;
         default:
           break;
       }
-      if (!el) {
+      if (!hole) {
         setTutorialHoleRect(null);
+        setTutorialFocusDecoration(null);
         return;
       }
-      const r = el.getBoundingClientRect();
-      setTutorialHoleRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setTutorialHoleRect(hole);
+      setTutorialFocusDecoration(decoration);
     };
     measure();
     const raf = requestAnimationFrame(measure);
@@ -1729,16 +1769,53 @@ export default function App() {
         ? '다크 모드'
         : '시스템 설정';
 
-  const settingsProfileSubtitle = (() => {
-    if (profile.birthDate) {
-      const year = profile.birthDate.substring(0, 4);
-      const age = computeAgeFullYears(profile.birthDate);
-      return age != null ? year + '년생 (만 ' + age + '세)' : year + '년생';
-    }
-    return '설정되지 않음';
-  })();
+  const settingsProfileSubtitle =
+    getBirthYearFromProfile(profile) != null
+      ? birthYearDisplayFromProfile(profile)
+      : '설정되지 않음';
 
   if (!clientId) return null;
+
+  if (showPrivacyConsentGate) {
+    return (
+      <div className="privacy-consent-gate" role="dialog" aria-modal="true" aria-labelledby="privacy-gate-title">
+        <div className="privacy-consent-panel">
+          <h2 id="privacy-gate-title" className="privacy-gate-title">
+            개인정보 수집·이용 동의
+          </h2>
+          <p className="privacy-gate-body">
+            서비스 이용을 위해 출생연도·성별·키·몸무게 등 프로필 정보가 이 기기(로컬)에만 저장됩니다. 해당 정보는 맞춤
+            참고·BMI 계산 등 앱 기능에만 사용되며, 제3자 제공·판매를 하지 않습니다. 동의하지 않으면 서비스를 이용할 수
+            없습니다.
+          </p>
+          <label className="ob-privacy-check privacy-gate-check">
+            <input
+              type="checkbox"
+              checked={privacyGateChecked}
+              onChange={(e) => setPrivacyGateChecked(e.target.checked)}
+            />
+            <span>위 내용을 확인하였으며 개인정보 수집·이용에 동의합니다.</span>
+          </label>
+          <button
+            type="button"
+            className="btn btn-primary btn-full"
+            disabled={!privacyGateChecked || !clientId}
+            onClick={() => {
+              if (!clientId || !privacyGateChecked) return;
+              const cur = getProfile(clientId);
+              const next = { ...cur, privacyConsentAccepted: true };
+              saveProfile(clientId, next);
+              setProfileState(next);
+              setShowPrivacyConsentGate(false);
+              setPrivacyGateChecked(false);
+            }}
+          >
+            동의하고 계속하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1811,7 +1888,11 @@ export default function App() {
       )}
 
       {showCamera && (
-        <div className="camera-view" aria-label="촬영">
+        <div
+          id="tutorial-camera-view"
+          className="camera-view"
+          aria-label="촬영"
+        >
           <video
             ref={cameraVideoRef}
             className="camera-video"
@@ -2039,8 +2120,8 @@ export default function App() {
                   <p className="ob-lead">맞춤 참고에만 써요</p>
                 </div>
                 <div className="form-group">
-                  <label>생년월일</label>
-                  <YmdDateSelect value={obBirth} min="1900-01-01" max={todayDate} onChange={setObBirth} />
+                  <label>출생연도</label>
+                  <BirthYearSelect value={obBirthYear} onChange={setObBirthYear} />
                 </div>
                 <div className="form-group">
                   <label>성별</label>
@@ -2063,11 +2144,17 @@ export default function App() {
                     type="button"
                     className="btn btn-primary btn-full"
                     onClick={() => {
-                      if (!obBirth) {
-                        alert('생년월일을 선택해 주세요');
+                      const cy = new Date().getFullYear();
+                      if (!Number.isFinite(obBirthYear) || obBirthYear < 1900 || obBirthYear > cy) {
+                        alert('출생연도를 선택해 주세요');
                         return;
                       }
-                      const nextProfile = { ...profile, birthDate: obBirth, gender: obGender };
+                      const nextProfile = {
+                        ...profile,
+                        birthYear: obBirthYear,
+                        birthDate: null,
+                        gender: obGender,
+                      };
                       setProfileState(nextProfile);
                       if (clientId) saveProfile(clientId, nextProfile);
                       setObStep(2);
@@ -2130,7 +2217,12 @@ export default function App() {
                         alert('키와 몸무게를 입력해 주세요');
                         return;
                       }
-                      setObSummaryBirth(birthDisplay(profile.birthDate || obBirth));
+                      setObSummaryBirth(
+                        birthYearDisplayFromProfile({
+                          ...profile,
+                          birthYear: profile.birthYear ?? obBirthYear,
+                        }),
+                      );
                       const nextProfile = { ...profile, heightCm: h, weightKg: w };
                       setProfileState(nextProfile);
                       if (clientId) saveProfile(clientId, nextProfile);
@@ -2150,7 +2242,7 @@ export default function App() {
                 <h2 className="ob-confirm-title">입력한 정보가 맞나요?</h2>
                 <div className="ob-summary-card">
                   <div className="ob-summary-row">
-                    <span className="label">생년월일</span>
+                    <span className="label">출생연도</span>
                     <span className="value">{obSummaryBirth}</span>
                   </div>
                   <div className="ob-summary-row">
@@ -2166,7 +2258,18 @@ export default function App() {
                     <span className="value">{obSummaryWeight}</span>
                   </div>
                 </div>
-                <p className="ob-confirm-note">생년월일·성별은 이후 변경이 어려워요. 키·몸무게는 설정에서 수정 가능해요</p>
+                <p className="ob-confirm-note">출생연도·성별은 이후 변경이 어려워요. 키·몸무게는 설정에서 수정 가능해요</p>
+                <label className="ob-privacy-check">
+                  <input
+                    type="checkbox"
+                    checked={obPrivacyAgreed}
+                    onChange={(e) => setObPrivacyAgreed(e.target.checked)}
+                  />
+                  <span>
+                    개인정보 수집·이용에 동의합니다. 본 서비스는 맞춤 영양 참고 등을 위해 출생연도·성별·키·몸무게 정보를
+                    기기(로컬)에만 저장하며, 제3자에게 판매·제공하지 않습니다. 동의하지 않으면 서비스를 이용할 수 없습니다.
+                  </span>
+                </label>
                 <p className="ob-safety">
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
@@ -2180,12 +2283,24 @@ export default function App() {
                   <button
                     type="button"
                     className="btn btn-primary btn-full"
+                    disabled={!obPrivacyAgreed}
                     onClick={() => {
-                      setProfileState((p) => ({ ...p, onboardingLocked: true }));
-                      saveProfile(clientId, { ...profile, onboardingLocked: true });
+                      if (!obPrivacyAgreed) {
+                        alert('개인정보 수집·이용에 동의해 주세요.');
+                        return;
+                      }
+                      if (!clientId) return;
+                      const finalized = {
+                        ...profile,
+                        onboardingLocked: true,
+                        privacyConsentAccepted: true,
+                      };
+                      setProfileState(finalized);
+                      saveProfile(clientId, finalized);
                       setOnboardingCompleted(true);
                       setShowOnboarding(false);
                       setShowOnboardingCompleteModal(true);
+                      setShowPrivacyConsentGate(false);
                       refreshHistory();
                       /* 토스트(약 2.2초) 이후 코치 튜토리얼 자동 시작 */
                       window.setTimeout(() => {
@@ -2259,22 +2374,6 @@ export default function App() {
                 <br />
                 원재료·NOVA·영양 비율을 알려줄게요
               </h2>
-            </div>
-            <div className="info-cards-wrap">
-              <button type="button" className="info-card" aria-label="이런 성분을 분석해요" onClick={() => setShowInfoIngredient(true)}>
-                <span className="icon-wrap" aria-hidden>
-                  <IconSearch size={32} />
-                </span>
-                <span className="label">이런 성분을 분석해요</span>
-                <span className="chevron" aria-hidden>›</span>
-              </button>
-              <button type="button" className="info-card" aria-label="이렇게 촬영해요" onClick={() => setShowInfoPhoto(true)}>
-                <span className="icon-wrap" aria-hidden>
-                  <IconCamera size={32} />
-                </span>
-                <span className="label">이렇게 촬영해요</span>
-                <span className="chevron" aria-hidden>›</span>
-              </button>
             </div>
             {loading && (
               <div className="loading-callout-wrap">
@@ -2513,9 +2612,9 @@ export default function App() {
                     setShowDeleteArea(false);
                     setCurrentHistoryId(null);
                     setCurrentResult(null);
-                    const today = new Date();
                     setObStep(0);
-                    setObBirth(today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0'));
+                    setObBirthYear(Math.max(1900, new Date().getFullYear() - 15));
+                    setObPrivacyAgreed(false);
                     setObGender('male');
                     setObHeight('');
                     setObWeight('');
@@ -2593,8 +2692,8 @@ export default function App() {
                 </div>
                 <h2>개인 맞춤화</h2>
                 <div className="form-group settings-readonly-row">
-                  <span className="label">생년월일</span>
-                  <span className="value">{birthDisplay(profile.birthDate || '')}</span>
+                  <span className="label">출생연도</span>
+                  <span className="value">{birthYearDisplayFromProfile(profile)}</span>
                 </div>
                 {profile.onboardingLocked ? (
                   <div className="form-group settings-readonly-row">
@@ -2762,7 +2861,13 @@ export default function App() {
             </div>
             <div className="info-knova-intro">
               <p className="info-knova-intro-line">
-                K-NOVA는 가공 강도로 1~4그룹을 나눠요. 첨가물 개수보다 원재료가 얼마나 변했는지가 중요해요.
+                NOVA는 식품이 얼마나 가공되었는지를 단계로 나눈 분류 개념이에요. 한국형 NOVA(K-NOVA)는 국내 식품 표기와 섭취 환경에 맞게 이를 적용합니다.
+              </p>
+              <p className="info-knova-intro-line">
+                {NOVA_CLASSIFICATION_INTRO}
+              </p>
+              <p className="info-knova-intro-line info-knova-intro-line--muted">
+                아래는 그룹별로 자주 쓰이는 설명이에요. 세부 기준은 학술·정책 문서와 다를 수 있어요.
               </p>
             </div>
             {[1, 2, 3, 4].map((n) => (
@@ -2879,9 +2984,19 @@ export default function App() {
         />
       )}
 
+      {/* 캡처 안내·미리보기·분석 확인: 앱 UI만 보이게 코치(딤/말풍선) 숨김 */}
       <TutorialCoachOverlay
-        active={showTutorial}
+        active={
+          showTutorial &&
+          !(
+            (tutorialStep === 1 && captureStepGuide === 1) ||
+            (tutorialStep === 2 && !!capturedPreviewDataUrl && captureStep === 1) ||
+            (tutorialStep === 3 && captureStepGuide === 2) ||
+            (tutorialStep === 5 && !!capturedPreviewDataUrl && captureStep === 2)
+          )
+        }
         holeRect={tutorialHoleRect}
+        focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
         stepIndex={tutorialStep}
         stepTotal={TUTORIAL_STEP_TOTAL}

@@ -7,6 +7,9 @@ export interface BodyMeasurement {
 }
 
 export interface Profile {
+  /** 출생연도(연 나이·맞춤 열량 계산에 사용) */
+  birthYear?: number | null;
+  /** @deprecated 이전 버전.data. `birthYear`로 이전됨 */
   birthDate?: string | null;
   gender?: string;
   heightCm?: number | null;
@@ -14,6 +17,26 @@ export interface Profile {
   bodyMeasurements?: BodyMeasurement[];
   appearanceMode?: string;
   onboardingLocked?: boolean;
+  /** 개인정보 수집·이용 동의(미동의 시 서비스 이용 불가) */
+  privacyConsentAccepted?: boolean;
+}
+
+/** 생년월일(legacy) 또는 출생연도 */
+export function profileHasBirth(profile: Profile): boolean {
+  const y = profile.birthYear;
+  const cy = new Date().getFullYear();
+  if (y != null && typeof y === 'number' && Number.isFinite(y) && y >= 1900 && y <= cy) return true;
+  const bd = profile.birthDate;
+  return !!(bd && String(bd).trim().length >= 4);
+}
+
+export function normalizeProfileFields(profile: Profile): Profile {
+  const p = { ...profile };
+  if ((p.birthYear == null || !Number.isFinite(p.birthYear)) && p.birthDate) {
+    const m = String(p.birthDate).match(/^(\d{4})/);
+    if (m) p.birthYear = parseInt(m[1], 10);
+  }
+  return p;
 }
 
 export interface HistoryItem {
@@ -109,7 +132,7 @@ export function loadState(clientId: string): AppState {
   if (!json) return { onboardingCompleted: false, profile: {}, history: [] };
   try {
     const parsed = JSON.parse(json);
-    const profile = parsed.profile || {};
+    const profile = normalizeProfileFields(parsed.profile || {});
     const hasHw =
       profile.heightCm != null &&
       profile.weightKg != null &&
@@ -119,8 +142,8 @@ export function loadState(clientId: string): AppState {
       profile.bodyMeasurements = [
         {
           date: new Date().toISOString(),
-          heightCm: profile.heightCm,
-          weightKg: profile.weightKg,
+          heightCm: Number(profile.heightCm),
+          weightKg: Number(profile.weightKg),
         },
       ];
     }
@@ -133,8 +156,8 @@ export function loadState(clientId: string): AppState {
       profile.bodyMeasurements = [
         {
           date: new Date().toISOString(),
-          heightCm: profile.heightCm,
-          weightKg: profile.weightKg,
+          heightCm: Number(profile.heightCm),
+          weightKg: Number(profile.weightKg),
         },
       ];
     }
@@ -161,7 +184,7 @@ export function getProfile(clientId: string): Profile {
 
 export function setProfile(clientId: string, profile: Profile): void {
   const state = loadState(clientId);
-  let p = profile || {};
+  let p = normalizeProfileFields(profile || {});
   if (
     p.heightCm != null &&
     p.weightKg != null &&
@@ -177,7 +200,7 @@ export function setProfile(clientId: string, profile: Profile): void {
   state.profile = p;
   const pr = state.profile;
   state.onboardingCompleted = !!(
-    pr.birthDate &&
+    profileHasBirth(pr) &&
     pr.gender &&
     pr.heightCm != null &&
     pr.weightKg != null
@@ -278,7 +301,7 @@ export function addBodyMeasurement(
   };
   const pr = state.profile;
   state.onboardingCompleted = !!(
-    pr.birthDate &&
+    profileHasBirth(pr) &&
     pr.gender &&
     pr.heightCm != null &&
     pr.weightKg != null
@@ -308,7 +331,7 @@ export function removeBodyMeasurement(clientId: string, index: number): void {
   };
   const pr = state.profile;
   state.onboardingCompleted = !!(
-    pr.birthDate &&
+    profileHasBirth(pr) &&
     pr.gender &&
     pr.heightCm != null &&
     pr.weightKg != null

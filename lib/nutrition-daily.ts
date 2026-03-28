@@ -102,6 +102,27 @@ function ageYearsFromBirthDate(isoDate: string): number | null {
   return age;
 }
 
+/** 출생연도만 있을 때 세는 나이(연 나이): 현재연도 − 출생연도 + 1 */
+function ageKoreanFromBirthYear(birthYear: number): number | null {
+  if (!Number.isFinite(birthYear)) return null;
+  const cy = new Date().getFullYear();
+  const age = cy - birthYear + 1;
+  if (age < 5 || age > 120) return null;
+  return age;
+}
+
+function ageYearsForBmr(opts?: {
+  birthYear?: number | null;
+  birthDate?: string | null;
+}): number | null {
+  if (opts?.birthYear != null && Number.isFinite(opts.birthYear)) {
+    const k = ageKoreanFromBirthYear(opts.birthYear);
+    if (k != null) return k;
+  }
+  if (opts?.birthDate) return ageYearsFromBirthDate(opts.birthDate);
+  return null;
+}
+
 /**
  * Mifflin–St Jeor BMR × 활동계수(1.45, 보통). 나이·성별 없으면 보수적 기본값 사용.
  * 의료·영양 상담 대체 아님.
@@ -109,10 +130,13 @@ function ageYearsFromBirthDate(isoDate: string): number | null {
 export function estimateDailyKcalFromProfile(
   heightCm: number,
   weightKg: number,
-  opts?: { gender?: string | null; birthDate?: string | null }
+  opts?: { gender?: string | null; birthDate?: string | null; birthYear?: number | null }
 ): number | null {
   if (!heightCm || !weightKg || heightCm <= 0 || weightKg <= 0) return null;
-  const fromBirth = opts?.birthDate ? ageYearsFromBirthDate(opts.birthDate) : null;
+  const fromBirth = ageYearsForBmr({
+    birthYear: opts?.birthYear ?? null,
+    birthDate: opts?.birthDate ?? null,
+  });
   const age = fromBirth ?? 17;
   const g = (opts?.gender || '').toLowerCase();
   let bmr: number;
@@ -131,6 +155,7 @@ export function estimateDailyKcalFromProfile(
 export interface ProfileForKcalNote {
   heightCm: number;
   weightKg: number;
+  birthYear?: number | null;
   birthDate?: string | null;
   gender?: string | null;
 }
@@ -481,6 +506,7 @@ export function buildPersonalizedIntakeNote(
     profileForKcal.heightCm > 0 &&
     profileForKcal.weightKg > 0
       ? estimateDailyKcalFromProfile(profileForKcal.heightCm, profileForKcal.weightKg, {
+          birthYear: profileForKcal.birthYear ?? null,
           birthDate: profileForKcal.birthDate ?? null,
           gender: profileForKcal.gender ?? null,
         })
