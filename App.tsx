@@ -102,11 +102,16 @@ function stripMarkdownBold(s: string): string {
 
 type CoachRect = { top: number; left: number; width: number; height: number };
 
+type TutorialFocusDecoration =
+  | { kind: 'arrow'; rect: CoachRect }
+  | { kind: 'ring'; rect: CoachRect }
+  | null;
+
 /** Apple Watch 스타일: 스포트라이트 + 실제 컨트롤 탭 유도 */
 function TutorialCoachOverlay({
   active,
   holeRect,
-  pulseRingRect,
+  focusDecoration,
   message,
   stepIndex,
   stepTotal,
@@ -114,8 +119,8 @@ function TutorialCoachOverlay({
 }: {
   active: boolean;
   holeRect: CoachRect | null;
-  /** undefined: 링을 hole과 동일 | CoachRect: 셔터 등 별도 강조 | null: 링 숨김 */
-  pulseRingRect?: CoachRect | null;
+  /** 셔터: 화살표 | null: 추가 강조 없음(확인 버튼 등) */
+  focusDecoration: TutorialFocusDecoration;
   message: string;
   stepIndex: number;
   stepTotal: number;
@@ -180,10 +185,17 @@ function TutorialCoachOverlay({
     bubbleClass += ' tutorial-coach-bubble--dock';
   }
 
-  const ringTarget =
-    pulseRingRect === undefined ? holeRect : pulseRingRect;
+  const deco = focusDecoration;
   const showRing =
-    ringTarget != null && ringTarget.width > 0 && ringTarget.height > 0;
+    deco?.kind === 'ring' &&
+    deco.rect.width > 0 &&
+    deco.rect.height > 0;
+  const showArrow =
+    deco?.kind === 'arrow' &&
+    deco.rect.width > 0 &&
+    deco.rect.height > 0;
+  const arrowTarget = showArrow ? deco.rect : null;
+  const ringTarget = showRing ? deco.rect : null;
 
   return (
     <div className="tutorial-coach-root" aria-live="polite">
@@ -195,7 +207,7 @@ function TutorialCoachOverlay({
         }}
         aria-hidden
       />
-      {showRing && (
+      {showRing && ringTarget && (
         <div
           className="tutorial-coach-ring"
           style={{
@@ -207,11 +219,28 @@ function TutorialCoachOverlay({
           aria-hidden
         />
       )}
+      {showArrow && arrowTarget && (
+        <div
+          className="tutorial-coach-arrow"
+          style={{
+            left: arrowTarget.left + arrowTarget.width / 2,
+            top: arrowTarget.top - 6,
+          }}
+          aria-hidden
+        >
+          <svg width="36" height="44" viewBox="0 0 36 44" className="tutorial-coach-arrow-svg">
+            <path
+              className="tutorial-coach-arrow-shape"
+              d="M18 42 L5 14 L31 14 Z"
+            />
+          </svg>
+        </div>
+      )}
       <div className={bubbleClass} style={bubbleStyle}>
         <p className="tutorial-coach-step">
           {stepIndex + 1} / {stepTotal}
         </p>
-        <p className="tutorial-coach-msg">{message}</p>
+        {message.trim() !== '' && <p className="tutorial-coach-msg">{message}</p>}
         <button type="button" className="tutorial-coach-skip" onClick={onSkip}>
           건너뛰기
         </button>
@@ -775,9 +804,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
-  const [tutorialPulseRingRect, setTutorialPulseRingRect] = useState<CoachRect | null | undefined>(
-    undefined,
-  );
+  const [tutorialFocusDecoration, setTutorialFocusDecoration] = useState<TutorialFocusDecoration>(null);
   const showTutorialRef = useRef(false);
   const tutorialStepRef = useRef(0);
   useEffect(() => {
@@ -796,16 +823,20 @@ export default function App() {
           ? '아래 버튼으로 사진 두 장(원재료 → 영양표)을 골라 실제로 분석해 봐요.'
           : '아래 버튼으로 촬영을 시작해 원재료와 영양표를 실제로 찍어 보세요.';
       case 1:
+        if (captureStepGuide === 1) return '';
         if (desk) return '먼저 원재료가 잘 보이는 첫 번째 사진을 골라 주세요.';
-        return '안내를 확인한 뒤, 가운데 셔터로 원재료를 찍어 보세요.';
+        return '가운데 셔터로 원재료를 찍어 보세요.';
       case 2:
+        if (capturedPreviewDataUrl && captureStep === 1) return '';
         return '미리보기가 괜찮으면 다음으로 넘어가 영양표 촬영을 이어가요.';
       case 3:
+        if (captureStepGuide === 2) return '';
         if (desk) return '이제 영양정보 표가 잘 보이는 두 번째 사진을 골라 주세요.';
-        return '영양표 안내를 확인한 뒤, 셔터로 표를 찍어 주세요.';
+        return '셔터로 영양정보 표를 찍어 주세요.';
       case 4:
         return desk ? '두 번째 사진으로 영양정보 표가 잘 보이게 골라 주세요.' : '가운데 셔터로 영양정보 표를 찍어 주세요.';
       case 5:
+        if (capturedPreviewDataUrl && captureStep === 2) return '';
         return '분석하기를 누르면 분석이 시작돼요. 끝나면 결과에서 NOVA 등을 볼 수 있어요.';
       default:
         return '';
@@ -1435,78 +1466,95 @@ export default function App() {
     setShowTutorial(false);
     setTutorialStep(0);
     setTutorialHoleRect(null);
-    setTutorialPulseRingRect(undefined);
+    setTutorialFocusDecoration(null);
   }, []);
 
   useLayoutEffect(() => {
     if (!showTutorial) {
       setTutorialHoleRect(null);
-      setTutorialPulseRingRect(undefined);
+      setTutorialFocusDecoration(null);
       return;
     }
     const measure = () => {
       let hole: CoachRect | null = null;
-      let pulse: CoachRect | null | undefined = undefined;
+      let decoration: TutorialFocusDecoration = null;
 
-      const setFromEl = (node: HTMLElement | null) => {
+      const setFromEl = (node: HTMLElement | null, deco: TutorialFocusDecoration = null) => {
         if (!node) return;
         const r = node.getBoundingClientRect();
         hole = { top: r.top, left: r.left, width: r.width, height: r.height };
-        pulse = undefined;
+        decoration = deco;
       };
 
-      const setCameraHoleAndShutterRing = (): boolean => {
+      const setCameraHoleAndShutterArrow = (): boolean => {
         const cam = document.getElementById('tutorial-camera-view');
         const shut = document.getElementById('tutorial-camera-shutter');
         if (!cam || !shut) return false;
         const cr = cam.getBoundingClientRect();
         const sr = shut.getBoundingClientRect();
         hole = { top: cr.top, left: cr.left, width: cr.width, height: cr.height };
-        pulse = { top: sr.top, left: sr.left, width: sr.width, height: sr.height };
+        decoration = {
+          kind: 'arrow',
+          rect: { top: sr.top, left: sr.left, width: sr.width, height: sr.height },
+        };
         return true;
       };
 
+      const setShutterOnlyHoleArrow = () => {
+        const shut = document.getElementById('tutorial-camera-shutter');
+        if (!shut) return;
+        const r = shut.getBoundingClientRect();
+        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+        decoration = { kind: 'arrow', rect: hole };
+      };
+
       switch (tutorialStep) {
-        case 0:
-          setFromEl(document.getElementById('fabUpload'));
+        case 0: {
+          const el = document.getElementById('fabUpload');
+          if (el) {
+            const r = el.getBoundingClientRect();
+            hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+            decoration = { kind: 'arrow', rect: hole };
+          }
           break;
+        }
         case 1:
           if (captureStepGuide === 1) {
-            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'));
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterRing()) {
-              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
             }
           }
           break;
         case 2:
           if (capturedPreviewDataUrl && captureStep === 1) {
-            setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterRing()) {
-              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
             }
           }
           break;
         case 3:
           if (captureStepGuide === 2) {
-            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'));
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
           } else if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterRing()) {
-              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
             }
           }
           break;
         case 4:
           if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterRing()) {
-              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            if (!setCameraHoleAndShutterArrow()) {
+              setShutterOnlyHoleArrow();
             }
           }
           break;
         case 5:
           if (capturedPreviewDataUrl && captureStep === 2) {
-            setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           }
           break;
         default:
@@ -1514,11 +1562,11 @@ export default function App() {
       }
       if (!hole) {
         setTutorialHoleRect(null);
-        setTutorialPulseRingRect(undefined);
+        setTutorialFocusDecoration(null);
         return;
       }
       setTutorialHoleRect(hole);
-      setTutorialPulseRingRect(pulse);
+      setTutorialFocusDecoration(decoration);
     };
     measure();
     const raf = requestAnimationFrame(measure);
@@ -2928,7 +2976,7 @@ export default function App() {
       <TutorialCoachOverlay
         active={showTutorial}
         holeRect={tutorialHoleRect}
-        pulseRingRect={tutorialPulseRingRect}
+        focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
         stepIndex={tutorialStep}
         stepTotal={TUTORIAL_STEP_TOTAL}
