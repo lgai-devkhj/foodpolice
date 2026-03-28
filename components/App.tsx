@@ -7,6 +7,7 @@ import {
   useRef,
   useCallback,
   type MutableRefObject,
+  type CSSProperties,
 } from 'react';
 import { getClientId } from '@/lib/clientId';
 import {
@@ -133,6 +134,49 @@ function TutorialCoachOverlay({
     clipPath = 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
   }
 
+  const gap = 14;
+  const safeTop = 12;
+  const safeBottom = Math.max(20, 12);
+  const estBubbleH = 200;
+  const bubbleW = Math.min(420, Math.max(16, vw - 32));
+  const halfW = bubbleW / 2;
+
+  let bubbleClass = 'tutorial-coach-bubble';
+  let bubbleStyle: CSSProperties = {};
+
+  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
+    const holeTop = Math.max(0, holeRect.top - pad);
+    const holeBottom = Math.min(vh, holeRect.top + holeRect.height + pad);
+    const spaceBelow = vh - holeBottom - safeBottom;
+    const spaceAbove = holeTop - safeTop;
+    const midY = holeRect.top + holeRect.height / 2;
+    let placeBelow = midY < vh * 0.52;
+    if (spaceBelow < estBubbleH && spaceAbove > spaceBelow) {
+      placeBelow = false;
+    }
+    if (spaceAbove < estBubbleH && spaceBelow > spaceAbove) {
+      placeBelow = true;
+    }
+    const cx = holeRect.left + holeRect.width / 2;
+    const clampedCx = Math.min(Math.max(cx, halfW + 16), vw - halfW - 16);
+
+    bubbleClass += ' tutorial-coach-bubble--near';
+    bubbleStyle = {
+      width: bubbleW,
+      left: clampedCx,
+      transform: 'translateX(-50%)',
+    };
+    if (placeBelow) {
+      bubbleStyle.top = holeBottom + gap;
+      bubbleStyle.bottom = 'auto';
+    } else {
+      bubbleStyle.bottom = vh - holeTop + gap;
+      bubbleStyle.top = 'auto';
+    }
+  } else {
+    bubbleClass += ' tutorial-coach-bubble--dock';
+  }
+
   return (
     <div className="tutorial-coach-root" aria-live="polite">
       <div
@@ -155,7 +199,7 @@ function TutorialCoachOverlay({
           aria-hidden
         />
       )}
-      <div className="tutorial-coach-bubble">
+      <div className={bubbleClass} style={bubbleStyle}>
         <p className="tutorial-coach-step">
           {stepIndex + 1} / {stepTotal}
         </p>
@@ -723,22 +767,35 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
+  const showTutorialRef = useRef(false);
+  const tutorialStepRef = useRef(0);
+  useEffect(() => {
+    showTutorialRef.current = showTutorial;
+    tutorialStepRef.current = tutorialStep;
+  }, [showTutorial, tutorialStep]);
 
-  const TUTORIAL_STEP_TOTAL = 5;
+  /** 실제 촬영·선택·미리보기·분석 플로우 (0~5) */
+  const TUTORIAL_STEP_TOTAL = 6;
   const tutorialMessage = (() => {
     if (!showTutorial) return '';
     const desk = isLikelyDesktop;
     switch (tutorialStep) {
       case 0:
-        return '촬영 안내 카드를 눌러 주세요.';
+        return desk
+          ? '아래 버튼으로 사진 두 장(원재료 → 영양표)을 골라 실제로 분석해 봐요.'
+          : '아래 버튼으로 촬영을 시작해 원재료와 영양표를 실제로 찍어 보세요.';
       case 1:
-        return '내용을 확인한 뒤 닫기(×)를 눌러 주세요.';
+        if (desk) return '먼저 원재료가 잘 보이는 첫 번째 사진을 골라 주세요.';
+        return '안내를 확인한 뒤, 가운데 셔터로 원재료를 찍어 보세요.';
       case 2:
-        return desk ? '여기를 눌러 사진을 고르고 분석을 시작해 보세요.' : '여기를 눌러 촬영·분석을 시작해 보세요.';
+        return '미리보기가 괜찮으면 다음으로 넘어가 영양표 촬영을 이어가요.';
       case 3:
-        return '촬영·업로드를 그만두면 홈으로 돌아와요. 이어서 설정(톱니)을 눌러 주세요.';
+        if (desk) return '이제 영양정보 표가 잘 보이는 두 번째 사진을 골라 주세요.';
+        return '영양표 안내를 확인한 뒤, 셔터로 표를 찍어 주세요.';
       case 4:
-        return '설정을 닫으면 안내가 끝나요. × 또는 바깥을 눌러 주세요.';
+        return desk ? '두 번째 사진으로 영양정보 표가 잘 보이게 골라 주세요.' : '가운데 셔터로 영양정보 표를 찍어 주세요.';
+      case 5:
+        return '분석하기를 누르면 분석이 시작돼요. 끝나면 결과에서 NOVA 등을 볼 수 있어요.';
       default:
         return '';
     }
@@ -1331,8 +1388,8 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
-    if (showTutorial && tutorialStep === 2) {
-      setTutorialStep(3);
+    if (showTutorial && tutorialStep === 0) {
+      setTutorialStep(1);
     }
     setCapturedPreviewDataUrl(null);
     setError('');
@@ -1376,26 +1433,43 @@ export default function App() {
     }
     const measure = () => {
       let el: HTMLElement | null = null;
-      if (tutorialStep === 0) el = document.getElementById('tutorial-target-capture-card');
-      else if (tutorialStep === 1) el = document.getElementById('tutorial-target-photo-close');
-      else if (tutorialStep === 2) el = document.getElementById('fabUpload');
-      else if (tutorialStep === 3) el = document.getElementById('tutorial-target-settings');
-      else if (tutorialStep === 4) {
-        const ids = [
-          'tutorial-target-settings-close',
-          'tutorial-target-settings-close-profile',
-          'tutorial-target-settings-back-display',
-        ];
-        for (const id of ids) {
-          const e = document.getElementById(id);
-          if (e) {
-            const r = e.getBoundingClientRect();
-            if (r.width > 2 && r.height > 2) {
-              el = e;
-              break;
-            }
+      switch (tutorialStep) {
+        case 0:
+          el = document.getElementById('fabUpload');
+          break;
+        case 1:
+          if (captureStepGuide === 1) {
+            el = document.getElementById('tutorial-capture-overlay-confirm');
+          } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
+            el = document.getElementById('tutorial-camera-shutter');
           }
-        }
+          break;
+        case 2:
+          if (capturedPreviewDataUrl && captureStep === 1) {
+            el = document.getElementById('tutorial-capture-preview-confirm');
+          } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
+            el = document.getElementById('tutorial-camera-shutter');
+          }
+          break;
+        case 3:
+          if (captureStepGuide === 2) {
+            el = document.getElementById('tutorial-capture-overlay-confirm');
+          } else if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
+            el = document.getElementById('tutorial-camera-shutter');
+          }
+          break;
+        case 4:
+          if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
+            el = document.getElementById('tutorial-camera-shutter');
+          }
+          break;
+        case 5:
+          if (capturedPreviewDataUrl && captureStep === 2) {
+            el = document.getElementById('tutorial-capture-preview-confirm');
+          }
+          break;
+        default:
+          break;
       }
       if (!el) {
         setTutorialHoleRect(null);
@@ -1416,23 +1490,28 @@ export default function App() {
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure, true);
     };
-  }, [showTutorial, tutorialStep, showInfoPhoto, showSettings, settingsPage, showHome]);
+  }, [
+    showTutorial,
+    tutorialStep,
+    showCamera,
+    captureStep,
+    captureStepGuide,
+    capturedPreviewDataUrl,
+  ]);
 
   useEffect(() => {
-    if (!showTutorial || tutorialStep !== 0 || !showInfoPhoto) return;
-    setTutorialStep(1);
-  }, [showTutorial, tutorialStep, showInfoPhoto]);
-
-  useEffect(() => {
-    if (!showTutorial || tutorialStep !== 1 || showInfoPhoto) return;
-    setTutorialStep(2);
-  }, [showTutorial, tutorialStep, showInfoPhoto]);
+    if (!showTutorial || tutorialStep !== 1) return;
+    if (capturedPreviewDataUrl && captureStep === 1) {
+      setTutorialStep(2);
+    }
+  }, [showTutorial, tutorialStep, capturedPreviewDataUrl, captureStep]);
 
   useEffect(() => {
     if (!showTutorial || tutorialStep !== 4) return;
-    if (showSettings) return;
-    finishTutorial();
-  }, [showTutorial, tutorialStep, showSettings, finishTutorial]);
+    if (capturedPreviewDataUrl && captureStep === 2) {
+      setTutorialStep(5);
+    }
+  }, [showTutorial, tutorialStep, capturedPreviewDataUrl, captureStep]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1526,6 +1605,9 @@ export default function App() {
       setRawImageBase64(base64 || '');
       rawImageBase64Ref.current = base64 || '';
       setRawImageMimeType(mime);
+      if (showTutorial && tutorialStep === 2) {
+        setTutorialStep(3);
+      }
       setCaptureStep(2);
       captureStepRef.current = 2;
       setCaptureStepGuide(2);
@@ -1536,6 +1618,9 @@ export default function App() {
       setError('원재료 사진을 먼저 선택해 주세요');
       return;
     }
+    if (showTutorial) {
+      finishTutorial();
+    }
     runAnalyzeTwoImages(rawImageBase64, rawImageMimeType, base64 || '', mime);
   }, [
     capturedPreviewDataUrl,
@@ -1545,6 +1630,9 @@ export default function App() {
     rawImageMimeType,
     runAnalyzeTwoImages,
     startCamera,
+    showTutorial,
+    tutorialStep,
+    finishTutorial,
   ]);
 
   const retakePhoto = useCallback(() => {
@@ -1558,8 +1646,11 @@ export default function App() {
       return;
     }
     stopCamera();
+    if (showTutorial) {
+      finishTutorial();
+    }
     runAnalyze(rawImageBase64Ref.current, rawImageMimeType);
-  }, [rawImageMimeType, runAnalyze, stopCamera]);
+  }, [rawImageMimeType, runAnalyze, stopCamera, showTutorial, finishTutorial]);
 
   const onFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1576,6 +1667,9 @@ export default function App() {
           setRawImageBase64(base64 || '');
           rawImageBase64Ref.current = base64 || '';
           setRawImageMimeType(normalizedMime);
+          if (showTutorialRef.current && tutorialStepRef.current === 1) {
+            setTutorialStep(3);
+          }
           setCaptureStep(2);
           captureStepRef.current = 2;
           setCaptureStepGuide(2);
@@ -1600,6 +1694,9 @@ export default function App() {
           stopCamera();
           setNutritionImageBase64(base64 || '');
           setNutritionImageMimeType(normalizedMime);
+          if (showTutorialRef.current) {
+            finishTutorial();
+          }
           runAnalyzeTwoImages(rawImageBase64Ref.current, rawImageMimeType, base64 || '', normalizedMime);
         }
       };
@@ -1613,6 +1710,7 @@ export default function App() {
       runAnalyzeTwoImages,
       stopCamera,
       startCamera,
+      finishTutorial,
     ]
   );
 
@@ -1622,7 +1720,6 @@ export default function App() {
     setProfileWeight(profile.weightKg != null ? String(profile.weightKg) : '');
     setSettingsPage('list');
     setShowSettings(true);
-    setTutorialStep((prev) => (prev === 3 ? 4 : prev));
   }, [profile]);
 
   const settingsDisplaySubtitle =
@@ -1725,7 +1822,9 @@ export default function App() {
           <div className="camera-ui">
             <div className="camera-top-bar">
               <span style={{ width: 44, height: 44 }} aria-hidden />
-              <button type="button" className="camera-x" aria-label="닫기" onClick={stopCamera}>×</button>
+              <button type="button" className="camera-x" aria-label="닫기" onClick={stopCamera}>
+                ×
+              </button>
             </div>
             <div className="camera-guide-wrap">
               <div
@@ -1758,7 +1857,13 @@ export default function App() {
                 <span className="camera-orient-icon" aria-hidden>▭</span>
                 가로
               </button>
-              <button type="button" className="camera-shutter" onClick={captureFromCamera} aria-label="촬영" />
+              <button
+                type="button"
+                id="tutorial-camera-shutter"
+                className="camera-shutter"
+                onClick={captureFromCamera}
+                aria-label="촬영"
+              />
               <button
                 type="button"
                 className={`camera-orient-btn ${cameraOrientation === 'portrait' ? 'active' : ''}`}
@@ -1846,8 +1951,17 @@ export default function App() {
             )}
             <button
               type="button"
+              id="tutorial-capture-overlay-confirm"
               className="capture-step-overlay-btn"
-              onClick={() => setCaptureStepGuide(null)}
+              onClick={() => {
+                if (showTutorial && captureStepGuide === 1 && tutorialStep === 1) {
+                  setTutorialStep(2);
+                }
+                if (showTutorial && captureStepGuide === 2 && tutorialStep === 3) {
+                  setTutorialStep(4);
+                }
+                setCaptureStepGuide(null);
+              }}
             >
               확인
             </button>
@@ -1865,7 +1979,12 @@ export default function App() {
             <button type="button" className="capture-preview-btn retake" onClick={retakePhoto}>
               다시 촬영
             </button>
-            <button type="button" className="capture-preview-btn confirm" onClick={confirmCapturedImage}>
+            <button
+              type="button"
+              id="tutorial-capture-preview-confirm"
+              className="capture-preview-btn confirm"
+              onClick={confirmCapturedImage}
+            >
               {captureStep === 1 ? '다음(영양정보 표)' : '분석하기'}
             </button>
           </div>
@@ -2149,13 +2268,7 @@ export default function App() {
                 <span className="label">이런 성분을 분석해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
-              <button
-                type="button"
-                id="tutorial-target-capture-card"
-                className="info-card"
-                aria-label="이렇게 촬영해요"
-                onClick={() => setShowInfoPhoto(true)}
-              >
+              <button type="button" className="info-card" aria-label="이렇게 촬영해요" onClick={() => setShowInfoPhoto(true)}>
                 <span className="icon-wrap" aria-hidden>
                   <IconCamera size={32} />
                 </span>
@@ -2686,13 +2799,7 @@ export default function App() {
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 className="sheet-title">이렇게 촬영해요</h2>
-              <button
-                type="button"
-                id="tutorial-target-photo-close"
-                className="sheet-close-x"
-                aria-label="닫기"
-                onClick={() => setShowInfoPhoto(false)}
-              >
+              <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoPhoto(false)}>
                 ×
               </button>
             </div>
