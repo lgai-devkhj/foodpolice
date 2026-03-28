@@ -657,7 +657,6 @@ export default function App() {
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
-  const tutorialAutoOfferedRef = useRef(false);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -1254,31 +1253,9 @@ export default function App() {
   }, []);
 
   const finishTutorial = useCallback(() => {
-    try {
-      localStorage.setItem('fp_tutorial_v1', '1');
-    } catch {
-      /* ignore */
-    }
     setShowTutorial(false);
     setTutorialStep(0);
   }, []);
-
-  useEffect(() => {
-    if (tutorialAutoOfferedRef.current) return;
-    if (!clientId || !onboardingCompleted || showOnboarding) return;
-    if (!showHome || showResult || showCamera) return;
-    try {
-      if (localStorage.getItem('fp_tutorial_v1') === '1') return;
-    } catch {
-      return;
-    }
-    const t = window.setTimeout(() => {
-      tutorialAutoOfferedRef.current = true;
-      setTutorialStep(0);
-      setShowTutorial(true);
-    }, 500);
-    return () => clearTimeout(t);
-  }, [clientId, onboardingCompleted, showOnboarding, showHome, showResult, showCamera]);
 
   useEffect(() => {
     if (!showCamera) return;
