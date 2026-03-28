@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type MutableRefObject } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  type MutableRefObject,
+} from 'react';
 import { getClientId } from '@/lib/clientId';
 import {
   loadState,
@@ -86,6 +93,81 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
+/** API·생성 문구에 남은 ** 표기 제거 */
+function stripMarkdownBold(s: string): string {
+  if (!s) return '';
+  return s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '');
+}
+
+type CoachRect = { top: number; left: number; width: number; height: number };
+
+/** Apple Watch 스타일: 스포트라이트 + 실제 컨트롤 탭 유도 */
+function TutorialCoachOverlay({
+  active,
+  holeRect,
+  message,
+  stepIndex,
+  stepTotal,
+  onSkip,
+}: {
+  active: boolean;
+  holeRect: CoachRect | null;
+  message: string;
+  stepIndex: number;
+  stepTotal: number;
+  onSkip: () => void;
+}) {
+  if (!active) return null;
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+  const pad = 10;
+  let clipPath: string;
+  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
+    const l = Math.max(0, holeRect.left - pad);
+    const t = Math.max(0, holeRect.top - pad);
+    const r = Math.min(vw, holeRect.left + holeRect.width + pad);
+    const b = Math.min(vh, holeRect.top + holeRect.height + pad);
+    clipPath = `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+  } else {
+    clipPath = 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
+  }
+
+  return (
+    <div className="tutorial-coach-root" aria-live="polite">
+      <div
+        className="tutorial-coach-dim"
+        style={{
+          clipPath,
+          WebkitClipPath: clipPath,
+        }}
+        aria-hidden
+      />
+      {holeRect && holeRect.width > 0 && holeRect.height > 0 && (
+        <div
+          className="tutorial-coach-ring"
+          style={{
+            top: holeRect.top - pad,
+            left: holeRect.left - pad,
+            width: holeRect.width + pad * 2,
+            height: holeRect.height + pad * 2,
+          }}
+          aria-hidden
+        />
+      )}
+      <div className="tutorial-coach-bubble">
+        <p className="tutorial-coach-step">
+          {stepIndex + 1} / {stepTotal}
+        </p>
+        <p className="tutorial-coach-msg">{message}</p>
+        <button type="button" className="tutorial-coach-skip" onClick={onSkip}>
+          건너뛰기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function nutritionPctBarClass(pct: number): string {
   if (pct >= 40) return 'nutrition-pct-fill high';
   if (pct >= 20) return 'nutrition-pct-fill warn';
@@ -96,24 +178,14 @@ function buildNutritionResultHtml(
   nutrition: NutritionFacts | null | undefined,
   daily: NutritionDailyPercent | null | undefined
 ): string {
-  const hasNums =
-    nutrition &&
-    (nutrition.servingSizeText ||
-      nutrition.caloriesKcal != null ||
-      nutrition.sodiumMg != null ||
-      nutrition.carbsG != null ||
-      nutrition.sugarG != null ||
-      nutrition.proteinG != null ||
-      nutrition.fatG != null ||
-      nutrition.saturatedFatG != null ||
-      nutrition.transFatG != null ||
-      nutrition.cholesterolMg != null);
   const hasDaily = daily && Object.keys(daily).length > 0;
-  if (!hasNums && !hasDaily) return '';
+  const hasServingLine = !!(nutrition?.servingSizeText);
+  /* 표 대신 막대만: 일일 비율 또는 제공량 문구가 있을 때만 섹션 표시 */
+  if (!hasDaily && !hasServingLine) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
   html +=
-    '<p class="meta" style="margin:0 0 10px;line-height:1.5;">표에 나온 분량을 기준으로, 하루 참고치(2000kcal) 대비 %를 보여드려요.</p>';
+    '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -130,11 +202,13 @@ function buildNutritionResultHtml(
     { key: 'calories', label: '열량', unit: '%', dv: DAILY_REFERENCE.caloriesKcal },
     { key: 'sodium', label: '나트륨', unit: '%', dv: DAILY_REFERENCE.sodiumMg },
     { key: 'carbs', label: '탄수화물', unit: '%', dv: DAILY_REFERENCE.carbsG },
-    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
     { key: 'sugar', label: '당류', unit: '%', dv: DAILY_REFERENCE.sugarG },
-    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
+    { key: 'fat', label: '지방', unit: '%', dv: DAILY_REFERENCE.fatG },
     { key: 'saturatedFat', label: '포화지방', unit: '%', dv: DAILY_REFERENCE.saturatedFatG },
+    { key: 'transFat', label: '트랜스지방', unit: '%', dv: DAILY_REFERENCE.transFatG },
     { key: 'cholesterol', label: '콜레스테롤', unit: '%', dv: DAILY_REFERENCE.cholesterolMg },
+    { key: 'protein', label: '단백질', unit: '%', dv: DAILY_REFERENCE.proteinG },
+    { key: 'dietaryFiber', label: '식이섬유', unit: '%', dv: DAILY_REFERENCE.dietaryFiberG },
   ];
 
   const nutritionAmountPrefix = (r: Row, n: NutritionFacts | null | undefined): string => {
@@ -154,6 +228,9 @@ function buildNutritionResultHtml(
     if (r.key === 'sugar' && n.sugarG != null && Number.isFinite(n.sugarG)) {
       return escapeHtml(String(n.sugarG)) + 'g · ';
     }
+    if (r.key === 'fat' && n.fatG != null && Number.isFinite(n.fatG)) {
+      return escapeHtml(String(n.fatG)) + 'g · ';
+    }
     if (r.key === 'transFat' && n.transFatG != null && Number.isFinite(n.transFatG)) {
       return escapeHtml(String(n.transFatG)) + 'g · ';
     }
@@ -163,10 +240,14 @@ function buildNutritionResultHtml(
     if (r.key === 'cholesterol' && n.cholesterolMg != null && Number.isFinite(n.cholesterolMg)) {
       return escapeHtml(String(n.cholesterolMg)) + 'mg · ';
     }
+    if (r.key === 'dietaryFiber' && n.dietaryFiberG != null && Number.isFinite(n.dietaryFiberG)) {
+      return escapeHtml(String(n.dietaryFiberG)) + 'g · ';
+    }
     return '';
   };
 
   if (hasDaily && daily) {
+    html += '<p class="nutrition-daily-heading">일일 참고치 대비</p>';
     rows.forEach((r) => {
       const pct = daily[r.key];
       if (pct == null || !Number.isFinite(pct)) return;
@@ -639,6 +720,29 @@ export default function App() {
   const [nutritionImageBase64, setNutritionImageBase64] = useState<string | null>(null);
   const [nutritionImageMimeType, setNutritionImageMimeType] = useState<string>('image/jpeg');
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
+
+  const TUTORIAL_STEP_TOTAL = 5;
+  const tutorialMessage = (() => {
+    if (!showTutorial) return '';
+    const desk = isLikelyDesktop;
+    switch (tutorialStep) {
+      case 0:
+        return '촬영 안내 카드를 눌러 주세요.';
+      case 1:
+        return '내용을 확인한 뒤 닫기(×)를 눌러 주세요.';
+      case 2:
+        return desk ? '여기를 눌러 사진을 고르고 분석을 시작해 보세요.' : '여기를 눌러 촬영·분석을 시작해 보세요.';
+      case 3:
+        return '설정(톱니)을 눌러 주세요.';
+      case 4:
+        return '설정을 닫으면 안내가 끝나요. × 또는 바깥을 눌러 주세요.';
+      default:
+        return '';
+    }
+  })();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -669,14 +773,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isLikelyDesktop || !clientId || !onboardingCompleted) return;
+    if (!isLikelyDesktop || !clientId) return;
     try {
       if (sessionStorage.getItem('fp_desktopRecommendDismissed') === '1') return;
     } catch {
       /* 비공개 창 등 */
     }
     setShowDesktopRecommendModal(true);
-  }, [isLikelyDesktop, clientId, onboardingCompleted]);
+  }, [isLikelyDesktop, clientId]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -919,11 +1023,15 @@ export default function App() {
       const nova = result.novaGroup || 4;
       const sub = (result.novaSubgroup || '').trim().toUpperCase();
       const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
-      const reason = result.judgmentReason || '';
-      const concerns = result.concernIngredients || [];
-      const advice = result.consumptionAdvice || '';
-      const personalizedIntakeNote = (result.personalizedIntakeNote || '').trim();
-      const personalizedIntakeFootnote = (result.personalizedIntakeFootnote || '').trim();
+      const reason = stripMarkdownBold(result.judgmentReason || '');
+      const concerns = (result.concernIngredients || []).map((c) => ({
+        ...c,
+        explanation: stripMarkdownBold(c.explanation || ''),
+        name: stripMarkdownBold(c.name || ''),
+      }));
+      const advice = stripMarkdownBold(result.consumptionAdvice || '');
+      const personalizedIntakeNote = stripMarkdownBold((result.personalizedIntakeNote || '').trim());
+      const personalizedIntakeFootnote = stripMarkdownBold((result.personalizedIntakeFootnote || '').trim());
       const altText = (result.alternativeFoodText || '').trim();
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
@@ -957,7 +1065,11 @@ export default function App() {
 
       html += '<div class="card card-nova card-nova-' + nova + '">';
       html += '<div class="nova-result-slab">';
-      html += '<div class="card-title nova-result-title">한국형 NOVA 분류</div>';
+      html +=
+        '<div class="nova-result-title-row">' +
+        '<div class="card-title nova-result-title">한국형 NOVA 분류</div>' +
+        '<button type="button" class="nova-help-btn" id="novaCriteriaHelpBtn" aria-label="한국형 NOVA 기준 안내" title="기준 안내">?</button>' +
+        '</div>';
       html +=
         '<span class="nova-badge nova-' +
         nova +
@@ -1184,6 +1296,13 @@ export default function App() {
       cleanups.push(() => altBtn.removeEventListener('click', handleAltForceFetch));
     }
 
+    const novaHelpBtn = container.querySelector('#novaCriteriaHelpBtn');
+    if (novaHelpBtn) {
+      const openNovaHelp = () => setShowInfoCriteria(true);
+      novaHelpBtn.addEventListener('click', openNovaHelp);
+      cleanups.push(() => novaHelpBtn.removeEventListener('click', openNovaHelp));
+    }
+
     return () => {
       cleanups.forEach((fn) => fn());
     };
@@ -1212,6 +1331,10 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
+    if (showTutorial && tutorialStep === 2) {
+      setTutorialStep(3);
+      return;
+    }
     setCapturedPreviewDataUrl(null);
     setError('');
     // 홈 FAB(촬영): 항상 새 제품 스캔 — 1/2(원재료)부터. 분석 직후 captureStep=2·이전 원재료가 남아 있어도 여기서 초기화.
@@ -1230,22 +1353,87 @@ export default function App() {
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, isLikelyDesktop]);
+  }, [startCamera, isLikelyDesktop, showTutorial, tutorialStep]);
 
-  const dismissDesktopRecommend = useCallback(
-    (andOpenUpload: boolean) => {
-      try {
-        sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
-      } catch {
-        /* ignore */
+  const dismissDesktopRecommend = useCallback(() => {
+    try {
+      sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
+    } catch {
+      /* ignore */
+    }
+    setShowDesktopRecommendModal(false);
+  }, []);
+
+  const finishTutorial = useCallback(() => {
+    setShowTutorial(false);
+    setTutorialStep(0);
+    setTutorialHoleRect(null);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!showTutorial) {
+      setTutorialHoleRect(null);
+      return;
+    }
+    const measure = () => {
+      let el: HTMLElement | null = null;
+      if (tutorialStep === 0) el = document.getElementById('tutorial-target-capture-card');
+      else if (tutorialStep === 1) el = document.getElementById('tutorial-target-photo-close');
+      else if (tutorialStep === 2) el = document.getElementById('fabUpload');
+      else if (tutorialStep === 3) el = document.getElementById('tutorial-target-settings');
+      else if (tutorialStep === 4) {
+        const ids = [
+          'tutorial-target-settings-close',
+          'tutorial-target-settings-close-profile',
+          'tutorial-target-settings-back-display',
+        ];
+        for (const id of ids) {
+          const e = document.getElementById(id);
+          if (e) {
+            const r = e.getBoundingClientRect();
+            if (r.width > 2 && r.height > 2) {
+              el = e;
+              break;
+            }
+          }
+        }
       }
-      setShowDesktopRecommendModal(false);
-      if (andOpenUpload) {
-        window.setTimeout(() => triggerUpload(), 0);
+      if (!el) {
+        setTutorialHoleRect(null);
+        return;
       }
-    },
-    [triggerUpload]
-  );
+      const r = el.getBoundingClientRect();
+      setTutorialHoleRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(document.body);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [showTutorial, tutorialStep, showInfoPhoto, showSettings, settingsPage, showHome]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 0 || !showInfoPhoto) return;
+    setTutorialStep(1);
+  }, [showTutorial, tutorialStep, showInfoPhoto]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 1 || showInfoPhoto) return;
+    setTutorialStep(2);
+  }, [showTutorial, tutorialStep, showInfoPhoto]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 4) return;
+    if (showSettings) return;
+    finishTutorial();
+  }, [showTutorial, tutorialStep, showSettings, finishTutorial]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1435,6 +1623,7 @@ export default function App() {
     setProfileWeight(profile.weightKg != null ? String(profile.weightKg) : '');
     setSettingsPage('list');
     setShowSettings(true);
+    setTutorialStep((prev) => (prev === 3 ? 4 : prev));
   }, [profile]);
 
   const settingsDisplaySubtitle =
@@ -1479,18 +1668,18 @@ export default function App() {
           role="dialog"
           aria-labelledby="desktop-recommend-title"
           aria-modal="true"
-          onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend(false)}
+          onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend()}
         >
           <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 id="desktop-recommend-title" className="sheet-title" style={{ textAlign: 'left' }}>
-                스마트폰 사용을 추천해요
+                폰에서 쓰면 더 편해요
               </h2>
               <button
                 type="button"
                 className="sheet-close-x"
                 aria-label="닫기"
-                onClick={() => dismissDesktopRecommend(false)}
+                onClick={() => dismissDesktopRecommend()}
               >
                 ×
               </button>
@@ -1504,7 +1693,7 @@ export default function App() {
                 textAlign: 'left',
               }}
             >
-              촬영과 글자 인식은 휴대폰에서 더 잘 맞아요. 아래 QR로 같은 페이지를 열거나, PC에서는 사진 파일을 올려 분석할 수 있어요.
+              QR로 이 페이지를 열고 촬영하거나, PC에서는 화면 아래 업로드로 사진을 고르세요.
             </p>
             <img
               src="/images/qrcode.png"
@@ -1518,20 +1707,8 @@ export default function App() {
                 borderRadius: 16,
               }}
             />
-            <button
-              type="button"
-              className="btn btn-full"
-              onClick={() => dismissDesktopRecommend(true)}
-            >
-              사진 업로드로 계속
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-full"
-              style={{ marginTop: 10 }}
-              onClick={() => dismissDesktopRecommend(false)}
-            >
-              닫기
+            <button type="button" className="btn btn-full" onClick={() => dismissDesktopRecommend()}>
+              확인
             </button>
           </div>
         </div>
@@ -1708,28 +1885,28 @@ export default function App() {
                 </div>
                 <h2 className="ob-welcome-title">FoodPolice</h2>
                 <p className="ob-welcome-desc">
-                  포장만 찍으면 원재료와 NOVA 등급을
+                  원재료명과 NOVA를
                   <br />
-                  바로 알려줄게요
+                  사진 두 장으로 분석해요
                 </p>
                 <div className="ob-welcome-features">
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconCamera size={22} />
                     </span>{' '}
-                    원재료·NOVA 한 번에
+                    ① 원재료 ② 영양표 순 촬영
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconUser size={22} />
                     </span>{' '}
-                    키·몸무게로 BMI·비만 여부
+                    키·몸무게로 맞춤 참고
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconAlert size={22} />
                     </span>{' '}
-                    비만일 땐 초가공 경고 강하게
+                    비만이면 초가공 안내 강화
                   </div>
                 </div>
                 <button type="button" className="btn btn-primary btn-full" onClick={() => setObStep(1)}>
@@ -1740,8 +1917,8 @@ export default function App() {
             {obStep === 1 && (
               <div id="onboardingStep1" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
-                  <h2>몇 가지만 알려주세요</h2>
-                  <p className="ob-lead">나이·성별에 맞는 안내를 드리려고 해요</p>
+                  <h2>프로필</h2>
+                  <p className="ob-lead">맞춤 참고에만 써요</p>
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
@@ -1786,8 +1963,8 @@ export default function App() {
             {obStep === 2 && (
               <div id="onboardingStep2" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
-                  <h2>키와 몸무게를 알려주세요</h2>
-                  <p className="ob-lead">BMI·비만 여부 판단에 쓸게요. 나중에 설정에서 수정할 수 있어요</p>
+                  <h2>키·몸무게</h2>
+                  <p className="ob-lead">BMI·맞춤 참고용. 나중에 설정에서 바꿀 수 있어요</p>
                 </div>
                 {/* 키·몸무게 입력란 너비 동일하게 (form-group-wide → CSS min-width) */}
                 <div className="form-group form-group-wide">
@@ -1871,9 +2048,7 @@ export default function App() {
                     <span className="value">{obSummaryWeight}</span>
                   </div>
                 </div>
-                <p className="ob-confirm-note">
-                  생년월일·성별은 한 번 설정하면 바꿀 수 없어요. 키·몸무게는 설정에서 수정할 수 있어요
-                </p>
+                <p className="ob-confirm-note">생년월일·성별은 이후 변경이 어려워요. 키·몸무게는 설정에서 수정 가능해요</p>
                 <p className="ob-safety">
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
@@ -1923,13 +2098,29 @@ export default function App() {
               !capturedPreviewDataUrl &&
               !showSettings &&
               !showInfoIngredient &&
-              !showInfoCriteria &&
               !showInfoPhoto &&
               !showAddMeasurement &&
               !showMeasurementHistory &&
               !showBmiGraph && (
                 <div className="home-top-bar">
-                  <button type="button" className="btn-settings-home" title="설정" aria-label="설정" onClick={openSettings}>
+                  <button
+                    type="button"
+                    className="btn-tutorial-text"
+                    onClick={() => {
+                      setTutorialStep(0);
+                      setShowTutorial(true);
+                    }}
+                  >
+                    사용법
+                  </button>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings"
+                    className="btn-settings-home"
+                    title="설정"
+                    aria-label="설정"
+                    onClick={openSettings}
+                  >
                     <IconSettings size={22} />
                   </button>
                 </div>
@@ -1943,7 +2134,7 @@ export default function App() {
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
-                원재료·NOVA·영양표까지 알려줄게요
+                원재료·NOVA·영양 비율을 알려줄게요
               </h2>
             </div>
             <div className="info-cards-wrap">
@@ -1954,14 +2145,13 @@ export default function App() {
                 <span className="label">이런 성분을 분석해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
-              <button type="button" className="info-card" aria-label="내 건강에 맞게 판단해요" onClick={() => setShowInfoCriteria(true)}>
-                <span className="icon-wrap" aria-hidden>
-                  <IconHeart size={32} />
-                </span>
-                <span className="label">내 건강에 맞게 판단해요</span>
-                <span className="chevron" aria-hidden>›</span>
-              </button>
-              <button type="button" className="info-card" aria-label="이렇게 촬영해요" onClick={() => setShowInfoPhoto(true)}>
+              <button
+                type="button"
+                id="tutorial-target-capture-card"
+                className="info-card"
+                aria-label="이렇게 촬영해요"
+                onClick={() => setShowInfoPhoto(true)}
+              >
                 <span className="icon-wrap" aria-hidden>
                   <IconCamera size={32} />
                 </span>
@@ -2157,7 +2347,13 @@ export default function App() {
               <div id="settingsListPage" className="settings-page visible">
                 <div className="settings-list-header">
                   <h2>설정</h2>
-                  <button type="button" className="settings-close-x" aria-label="닫기" onClick={() => setShowSettings(false)}>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings-close"
+                    className="settings-close-x"
+                    aria-label="닫기"
+                    onClick={() => setShowSettings(false)}
+                  >
                     ×
                   </button>
                 </div>
@@ -2225,7 +2421,12 @@ export default function App() {
             )}
             {settingsPage === 'display' && (
               <div id="settingsDisplayPage" className="settings-page visible">
-                <button type="button" className="settings-back" onClick={() => setSettingsPage('list')}>
+                <button
+                  type="button"
+                  id="tutorial-target-settings-back-display"
+                  className="settings-back"
+                  onClick={() => setSettingsPage('list')}
+                >
                   ‹ 설정
                 </button>
                 <h2>화면 설정</h2>
@@ -2263,7 +2464,13 @@ export default function App() {
                   <button type="button" className="settings-back" onClick={() => setSettingsPage('list')}>
                     ‹ 설정
                   </button>
-                  <button type="button" className="settings-close-x" aria-label="닫기" onClick={() => setShowSettings(false)}>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings-close-profile"
+                    className="settings-close-x"
+                    aria-label="닫기"
+                    onClick={() => setShowSettings(false)}
+                  >
                     ×
                   </button>
                 </div>
@@ -2423,12 +2630,12 @@ export default function App() {
         <div
           className="modal info-sheet visible"
           role="dialog"
-          aria-label="내 건강에 맞게 판단해요"
+          aria-label="한국형 NOVA 기준 안내"
           onClick={(e) => e.target === e.currentTarget && setShowInfoCriteria(false)}
         >
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
-              <h2 className="sheet-title">내 건강에 맞게 판단해요</h2>
+              <h2 className="sheet-title">한국형 NOVA 기준</h2>
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoCriteria(false)}>×</button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
@@ -2438,10 +2645,7 @@ export default function App() {
             </div>
             <div className="info-knova-intro">
               <p className="info-knova-intro-line">
-                한국형 <strong>K-NOVA</strong>는 가공이 얼마나 강한지에 따라 식품을 1~4그룹으로 나눠요.
-              </p>
-              <p className="info-knova-intro-line">
-                첨가물이 몇 개인지보다, 가공 방식과 원재료가 원래 모습에서 얼마나 달라졌는지를 더 중요하게 봐요.
+                K-NOVA는 가공 강도로 1~4그룹을 나눠요. 첨가물 개수보다 원재료가 얼마나 변했는지가 중요해요.
               </p>
             </div>
             {[1, 2, 3, 4].map((n) => (
@@ -2455,20 +2659,14 @@ export default function App() {
                     {n === 1 && '자연 그대로에 가깝고, 원재료 구조를 유지해요.'}
                     {n === 2 && '조리용 소금, 설탕, 기름처럼 요리에 쓰는 재료예요.'}
                     {n === 3 && '원재료 특성을 많이 유지한 가공 식품이에요.'}
-                    {n === 4 && (
-                      <>
-                        원재료 구조가 사라지고, 산업적 첨가물이 많이 들어간 식품이에요.{" "}
-                        초가공(Group IV)은 분석 시 <strong>4A</strong>(경계형 초가공),{' '}
-                        <strong>4B</strong>(명확한 초가공), <strong>4C</strong>(고도 초가공)로
-                        더 나누어 볼 수 있어요.
-                      </>
-                    )}
+                    {n === 4 &&
+                      '원재료 형태가 많이 사라진 초가공이에요. 세부는 4A·4B·4C로 나눠요.'}
                   </li>
                 </ul>
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              프로필(키·몸무게 등)이 있으면 하루 열량을 참고해 맞춤 참고를 짧게 보여 드려요. 나트륨·당 등은 아래 영양 표에서 확인하세요.
+              프로필이 있으면 맞춤 참고가 붙어요. 나트륨·당 비율은 결과의 영양 막대에서 보세요.
             </p>
           </div>
         </div>
@@ -2484,7 +2682,15 @@ export default function App() {
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 className="sheet-title">이렇게 촬영해요</h2>
-              <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoPhoto(false)}>×</button>
+              <button
+                type="button"
+                id="tutorial-target-photo-close"
+                className="sheet-close-x"
+                aria-label="닫기"
+                onClick={() => setShowInfoPhoto(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
               <div className="sheet-icon">
@@ -2493,21 +2699,19 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">1</span>
-              <span className="txt">포장 뒷면의 원재료명이 보이게 해 주세요.</span>
+              <span className="txt">뒷면 원재료명이 보이게.</span>
             </div>
             <div className="guide-step">
               <span className="num">2</span>
-              <span className="txt">글자가 선명하게 보이도록 <strong>가까이</strong> 찍어 주세요.</span>
+              <span className="txt">글자 선명하게, 가까이.</span>
             </div>
             <div className="guide-step">
               <span className="num">3</span>
-              <span className="txt">다음 단계에서 <strong>영양정보 표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
+              <span className="txt">이어서 영양표만 따로 한 장.</span>
             </div>
             <div className="guide-step">
               <span className="num">4</span>
-              <span className="txt">
-                글자가 흐리지 않게, <strong>그림자가 지지 않게</strong> 밝은 곳에서 찍어 주세요.
-              </span>
+              <span className="txt">밝은 곳, 그림자 피하기.</span>
             </div>
             <div className="photo-guide-example-wrap">
               <div className="photo-guide-example-title">촬영 예시</div>
@@ -2563,6 +2767,15 @@ export default function App() {
           onClose={() => setShowBmiGraph(false)}
         />
       )}
+
+      <TutorialCoachOverlay
+        active={showTutorial}
+        holeRect={tutorialHoleRect}
+        message={tutorialMessage}
+        stepIndex={tutorialStep}
+        stepTotal={TUTORIAL_STEP_TOTAL}
+        onSkip={finishTutorial}
+      />
     </>
   );
 }

@@ -82,7 +82,22 @@
       display: flex;
       justify-content: flex-end;
       align-items: center;
+      gap: 8px;
       padding: calc(8px + var(--safe-top)) 0 4px;
+    }
+    .btn-tutorial-text {
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+      border-radius: 12px;
+      transition: background 0.2s var(--btn-ease);
+    }
+    .btn-tutorial-text:active {
+      background: rgba(46, 125, 50, 0.12);
     }
     .btn-settings-home svg {
       display: block;
@@ -954,6 +969,56 @@
       margin-bottom: 14px !important;
       letter-spacing: -0.02em;
     }
+    .nova-result-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .nova-result-title-row .nova-result-title {
+      margin-bottom: 0 !important;
+      flex: 1;
+      min-width: 0;
+    }
+    .nova-help-btn {
+      flex-shrink: 0;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 2px solid rgba(0, 0, 0, 0.2);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.55);
+      color: rgba(0, 0, 0, 0.72);
+      font-size: 1.15rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.15s ease;
+    }
+    .nova-help-btn:active {
+      transform: scale(0.94);
+    }
+    .card-nova-1 .nova-help-btn {
+      border-color: rgba(27, 94, 32, 0.35);
+      color: #1b5e20;
+      background: rgba(255, 255, 255, 0.65);
+    }
+    .card-nova-2 .nova-help-btn {
+      border-color: rgba(93, 64, 55, 0.35);
+      color: #5d4037;
+      background: rgba(255, 255, 255, 0.65);
+    }
+    .card-nova-3 .nova-help-btn {
+      border-color: rgba(191, 54, 12, 0.35);
+      color: #bf360c;
+      background: rgba(255, 255, 255, 0.65);
+    }
+    .card-nova-4 .nova-help-btn {
+      border-color: rgba(74, 20, 20, 0.4);
+      color: #4a1414;
+      background: rgba(255, 255, 255, 0.72);
+    }
     .card-nova-1 .nova-result-slab {
       background: linear-gradient(155deg, #7cb342 0%, #aed581 38%, #dcedc8 100%);
     }
@@ -1208,6 +1273,38 @@
       -webkit-mask-repeat: no-repeat;
       mask-repeat: no-repeat;
     }
+    .nutrition-intro-meta { margin: 0 0 10px; line-height: 1.5; }
+    .nutrition-label-heading,
+    .nutrition-daily-heading {
+      margin: 14px 0 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .nutrition-label-heading { margin-top: 4px; }
+    .nutrition-label-table {
+      border-radius: 12px;
+      border: 1px solid var(--card-stroke);
+      background: rgba(0, 0, 0, 0.03);
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+    [data-theme="dark"] .nutrition-label-table,
+    html:not([data-theme="light"]) .nutrition-label-table {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .nutrition-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 10px 14px;
+      font-size: 0.98rem;
+      border-bottom: 1px solid var(--card-stroke);
+    }
+    .nutrition-label-row:last-child { border-bottom: none; }
+    .nutrition-label-name { color: var(--text2); font-weight: 500; }
+    .nutrition-label-value { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .edit-name-btn-inner {
       display: inline-flex;
       align-items: center;
@@ -1374,6 +1471,97 @@
       line-height: 1.55;
       margin-top: 6px;
       word-break: keep-all;
+    }
+
+    /* 튜토리얼 코치마크 (스포트라이트 + 하단 안내) */
+    .tutorial-coach-root {
+      position: fixed;
+      inset: 0;
+      z-index: 320;
+      pointer-events: none;
+    }
+    .tutorial-coach-dim {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.58);
+      pointer-events: auto;
+    }
+    .tutorial-coach-ring {
+      position: fixed;
+      border-radius: 18px;
+      border: 3px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.45), 0 0 24px rgba(255, 255, 255, 0.35);
+      pointer-events: none;
+      z-index: 1;
+      animation: tutorial-coach-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes tutorial-coach-pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.45), 0 0 18px rgba(255, 255, 255, 0.25);
+      }
+      50% {
+        box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.65), 0 0 28px rgba(255, 255, 255, 0.5);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tutorial-coach-ring {
+        animation: none;
+      }
+    }
+    .tutorial-coach-bubble {
+      position: fixed;
+      left: max(16px, var(--safe-left));
+      right: max(16px, var(--safe-right));
+      bottom: max(20px, calc(12px + var(--safe-bottom)));
+      padding: 18px 18px 16px;
+      border-radius: 20px;
+      background: var(--card);
+      border: 1px solid var(--card-stroke);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+      pointer-events: auto;
+      z-index: 2;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    [data-theme="dark"] .tutorial-coach-bubble,
+    html:not([data-theme="light"]) .tutorial-coach-bubble {
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    }
+    .tutorial-coach-step {
+      margin: 0 0 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .tutorial-coach-msg {
+      margin: 0 0 14px;
+      font-size: 1.12rem;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .tutorial-coach-skip {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--text2);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    [data-theme="dark"] .tutorial-coach-skip,
+    html:not([data-theme="light"]) .tutorial-coach-skip {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .tutorial-coach-skip:active {
+      opacity: 0.85;
     }
 
     .modal {
@@ -1662,6 +1850,30 @@
     }
     [data-theme="dark"] .card-nova-4 .nova-result-title,
     html:not([data-theme="light"]) .card-nova-4 .nova-result-title { color: #ffebee !important; }
+    [data-theme="dark"] .card-nova-1 .nova-help-btn,
+    html:not([data-theme="light"]) .card-nova-1 .nova-help-btn {
+      border-color: rgba(232, 245, 233, 0.45);
+      color: #e8f5e9;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    [data-theme="dark"] .card-nova-2 .nova-help-btn,
+    html:not([data-theme="light"]) .card-nova-2 .nova-help-btn {
+      border-color: rgba(255, 248, 225, 0.45);
+      color: #fff8e1;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    [data-theme="dark"] .card-nova-3 .nova-help-btn,
+    html:not([data-theme="light"]) .card-nova-3 .nova-help-btn {
+      border-color: rgba(255, 224, 178, 0.45);
+      color: #ffe0b2;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    [data-theme="dark"] .card-nova-4 .nova-help-btn,
+    html:not([data-theme="light"]) .card-nova-4 .nova-help-btn {
+      border-color: rgba(255, 235, 238, 0.45);
+      color: #ffebee;
+      background: rgba(0, 0, 0, 0.28);
+    }
     [data-theme="dark"] .card-nova .nova-badge,
     html:not([data-theme="light"]) .card-nova .nova-badge {
       background: rgba(0,0,0,0.35);
