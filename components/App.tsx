@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, type MutableRefObject } from 'react';
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+  type MutableRefObject,
+} from 'react';
 import { getClientId } from '@/lib/clientId';
 import {
   loadState,
@@ -90,6 +97,75 @@ function escapeHtml(s: string): string {
 function stripMarkdownBold(s: string): string {
   if (!s) return '';
   return s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '');
+}
+
+type CoachRect = { top: number; left: number; width: number; height: number };
+
+/** Apple Watch 스타일: 스포트라이트 + 실제 컨트롤 탭 유도 */
+function TutorialCoachOverlay({
+  active,
+  holeRect,
+  message,
+  stepIndex,
+  stepTotal,
+  onSkip,
+}: {
+  active: boolean;
+  holeRect: CoachRect | null;
+  message: string;
+  stepIndex: number;
+  stepTotal: number;
+  onSkip: () => void;
+}) {
+  if (!active) return null;
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+  const pad = 10;
+  let clipPath: string;
+  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
+    const l = Math.max(0, holeRect.left - pad);
+    const t = Math.max(0, holeRect.top - pad);
+    const r = Math.min(vw, holeRect.left + holeRect.width + pad);
+    const b = Math.min(vh, holeRect.top + holeRect.height + pad);
+    clipPath = `polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px ${t}px)`;
+  } else {
+    clipPath = 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)';
+  }
+
+  return (
+    <div className="tutorial-coach-root" aria-live="polite">
+      <div
+        className="tutorial-coach-dim"
+        style={{
+          clipPath,
+          WebkitClipPath: clipPath,
+        }}
+        aria-hidden
+      />
+      {holeRect && holeRect.width > 0 && holeRect.height > 0 && (
+        <div
+          className="tutorial-coach-ring"
+          style={{
+            top: holeRect.top - pad,
+            left: holeRect.left - pad,
+            width: holeRect.width + pad * 2,
+            height: holeRect.height + pad * 2,
+          }}
+          aria-hidden
+        />
+      )}
+      <div className="tutorial-coach-bubble">
+        <p className="tutorial-coach-step">
+          {stepIndex + 1} / {stepTotal}
+        </p>
+        <p className="tutorial-coach-msg">{message}</p>
+        <button type="button" className="tutorial-coach-skip" onClick={onSkip}>
+          건너뛰기
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function nutritionPctBarClass(pct: number): string {
@@ -646,6 +722,27 @@ export default function App() {
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
+
+  const TUTORIAL_STEP_TOTAL = 5;
+  const tutorialMessage = (() => {
+    if (!showTutorial) return '';
+    const desk = isLikelyDesktop;
+    switch (tutorialStep) {
+      case 0:
+        return '촬영 안내 카드를 눌러 주세요.';
+      case 1:
+        return '내용을 확인한 뒤 닫기(×)를 눌러 주세요.';
+      case 2:
+        return desk ? '여기를 눌러 사진을 고르고 분석을 시작해 보세요.' : '여기를 눌러 촬영·분석을 시작해 보세요.';
+      case 3:
+        return '촬영·업로드를 그만두면 홈으로 돌아와요. 이어서 설정(톱니)을 눌러 주세요.';
+      case 4:
+        return '설정을 닫으면 안내가 끝나요. × 또는 바깥을 눌러 주세요.';
+      default:
+        return '';
+    }
+  })();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -968,7 +1065,11 @@ export default function App() {
 
       html += '<div class="card card-nova card-nova-' + nova + '">';
       html += '<div class="nova-result-slab">';
-      html += '<div class="card-title nova-result-title">한국형 NOVA 분류</div>';
+      html +=
+        '<div class="nova-result-title-row">' +
+        '<div class="card-title nova-result-title">한국형 NOVA 분류</div>' +
+        '<button type="button" class="nova-help-btn" id="novaCriteriaHelpBtn" aria-label="한국형 NOVA 기준 안내" title="기준 안내">?</button>' +
+        '</div>';
       html +=
         '<span class="nova-badge nova-' +
         nova +
@@ -1195,6 +1296,13 @@ export default function App() {
       cleanups.push(() => altBtn.removeEventListener('click', handleAltForceFetch));
     }
 
+    const novaHelpBtn = container.querySelector('#novaCriteriaHelpBtn');
+    if (novaHelpBtn) {
+      const openNovaHelp = () => setShowInfoCriteria(true);
+      novaHelpBtn.addEventListener('click', openNovaHelp);
+      cleanups.push(() => novaHelpBtn.removeEventListener('click', openNovaHelp));
+    }
+
     return () => {
       cleanups.forEach((fn) => fn());
     };
@@ -1223,6 +1331,9 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
+    if (showTutorial && tutorialStep === 2) {
+      setTutorialStep(3);
+    }
     setCapturedPreviewDataUrl(null);
     setError('');
     // 홈 FAB(촬영): 항상 새 제품 스캔 — 1/2(원재료)부터. 분석 직후 captureStep=2·이전 원재료가 남아 있어도 여기서 초기화.
@@ -1241,7 +1352,7 @@ export default function App() {
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, isLikelyDesktop]);
+  }, [startCamera, isLikelyDesktop, showTutorial, tutorialStep]);
 
   const dismissDesktopRecommend = useCallback(() => {
     try {
@@ -1255,7 +1366,73 @@ export default function App() {
   const finishTutorial = useCallback(() => {
     setShowTutorial(false);
     setTutorialStep(0);
+    setTutorialHoleRect(null);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!showTutorial) {
+      setTutorialHoleRect(null);
+      return;
+    }
+    const measure = () => {
+      let el: HTMLElement | null = null;
+      if (tutorialStep === 0) el = document.getElementById('tutorial-target-capture-card');
+      else if (tutorialStep === 1) el = document.getElementById('tutorial-target-photo-close');
+      else if (tutorialStep === 2) el = document.getElementById('fabUpload');
+      else if (tutorialStep === 3) el = document.getElementById('tutorial-target-settings');
+      else if (tutorialStep === 4) {
+        const ids = [
+          'tutorial-target-settings-close',
+          'tutorial-target-settings-close-profile',
+          'tutorial-target-settings-back-display',
+        ];
+        for (const id of ids) {
+          const e = document.getElementById(id);
+          if (e) {
+            const r = e.getBoundingClientRect();
+            if (r.width > 2 && r.height > 2) {
+              el = e;
+              break;
+            }
+          }
+        }
+      }
+      if (!el) {
+        setTutorialHoleRect(null);
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      setTutorialHoleRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(document.body);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [showTutorial, tutorialStep, showInfoPhoto, showSettings, settingsPage, showHome]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 0 || !showInfoPhoto) return;
+    setTutorialStep(1);
+  }, [showTutorial, tutorialStep, showInfoPhoto]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 1 || showInfoPhoto) return;
+    setTutorialStep(2);
+  }, [showTutorial, tutorialStep, showInfoPhoto]);
+
+  useEffect(() => {
+    if (!showTutorial || tutorialStep !== 4) return;
+    if (showSettings) return;
+    finishTutorial();
+  }, [showTutorial, tutorialStep, showSettings, finishTutorial]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1445,6 +1622,7 @@ export default function App() {
     setProfileWeight(profile.weightKg != null ? String(profile.weightKg) : '');
     setSettingsPage('list');
     setShowSettings(true);
+    setTutorialStep((prev) => (prev === 3 ? 4 : prev));
   }, [profile]);
 
   const settingsDisplaySubtitle =
@@ -1530,77 +1708,6 @@ export default function App() {
             />
             <button type="button" className="btn btn-full" onClick={() => dismissDesktopRecommend()}>
               확인
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showTutorial && (
-        <div
-          className="modal modal--center-dialog visible"
-          role="dialog"
-          aria-labelledby="tutorial-title"
-          aria-modal="true"
-          onClick={(e) => e.target === e.currentTarget && finishTutorial()}
-        >
-          <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="sheet-header">
-              <h2 id="tutorial-title" className="sheet-title" style={{ textAlign: 'left' }}>
-                사용법 ({tutorialStep + 1}/4)
-              </h2>
-              <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => finishTutorial()}>
-                ×
-              </button>
-            </div>
-            <div style={{ marginBottom: 18, color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.55, textAlign: 'left' }}>
-              {tutorialStep === 0 && (
-                <>
-                  <strong style={{ color: 'var(--text)' }}>① 원재료</strong> → <strong style={{ color: 'var(--text)' }}>② 영양표</strong> 순으로 각각
-                  한 장씩 찍거나 고르세요.
-                </>
-              )}
-              {tutorialStep === 1 && <>결과에서 NOVA 등급, 맞춤 참고, 영양 막대를 확인하세요.</>}
-              {tutorialStep === 2 &&
-                (isLikelyDesktop ? (
-                  <>PC는 아래 업로드로 두 장을 순서대로 선택하세요. (촬영은 QR로 폰에서)</>
-                ) : (
-                  <>하단 큰 버튼으로 촬영·앨범을 쓰면 됩니다.</>
-                ))}
-              {tutorialStep === 3 && <>설정에서 화면·프로필을 바꾸고, 최근 기록을 다시 열 수 있어요.</>}
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {tutorialStep > 0 && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-full"
-                  style={{ flex: '1 1 100px' }}
-                  onClick={() => setTutorialStep((s) => s - 1)}
-                >
-                  이전
-                </button>
-              )}
-              {tutorialStep < 3 ? (
-                <button
-                  type="button"
-                  className="btn btn-full"
-                  style={{ flex: '1 1 120px' }}
-                  onClick={() => setTutorialStep((s) => s + 1)}
-                >
-                  다음
-                </button>
-              ) : (
-                <button type="button" className="btn btn-full" style={{ flex: '1 1 120px' }} onClick={() => finishTutorial()}>
-                  시작하기
-                </button>
-              )}
-            </div>
-            <button
-              type="button"
-              className="btn btn-ghost btn-full"
-              style={{ marginTop: 10 }}
-              onClick={() => finishTutorial()}
-            >
-              건너뛰기
             </button>
           </div>
         </div>
@@ -1961,6 +2068,11 @@ export default function App() {
                       setShowOnboarding(false);
                       setShowOnboardingCompleteModal(true);
                       refreshHistory();
+                      /* 토스트(약 2.2초) 이후 코치 튜토리얼 자동 시작 */
+                      window.setTimeout(() => {
+                        setTutorialStep(0);
+                        setShowTutorial(true);
+                      }, 2350);
                     }}
                   >
                     완료
@@ -1990,7 +2102,6 @@ export default function App() {
               !capturedPreviewDataUrl &&
               !showSettings &&
               !showInfoIngredient &&
-              !showInfoCriteria &&
               !showInfoPhoto &&
               !showAddMeasurement &&
               !showMeasurementHistory &&
@@ -2006,7 +2117,14 @@ export default function App() {
                   >
                     사용법
                   </button>
-                  <button type="button" className="btn-settings-home" title="설정" aria-label="설정" onClick={openSettings}>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings"
+                    className="btn-settings-home"
+                    title="설정"
+                    aria-label="설정"
+                    onClick={openSettings}
+                  >
                     <IconSettings size={22} />
                   </button>
                 </div>
@@ -2031,14 +2149,13 @@ export default function App() {
                 <span className="label">이런 성분을 분석해요</span>
                 <span className="chevron" aria-hidden>›</span>
               </button>
-              <button type="button" className="info-card" aria-label="내 건강에 맞게 판단해요" onClick={() => setShowInfoCriteria(true)}>
-                <span className="icon-wrap" aria-hidden>
-                  <IconHeart size={32} />
-                </span>
-                <span className="label">내 건강에 맞게 판단해요</span>
-                <span className="chevron" aria-hidden>›</span>
-              </button>
-              <button type="button" className="info-card" aria-label="이렇게 촬영해요" onClick={() => setShowInfoPhoto(true)}>
+              <button
+                type="button"
+                id="tutorial-target-capture-card"
+                className="info-card"
+                aria-label="이렇게 촬영해요"
+                onClick={() => setShowInfoPhoto(true)}
+              >
                 <span className="icon-wrap" aria-hidden>
                   <IconCamera size={32} />
                 </span>
@@ -2234,7 +2351,13 @@ export default function App() {
               <div id="settingsListPage" className="settings-page visible">
                 <div className="settings-list-header">
                   <h2>설정</h2>
-                  <button type="button" className="settings-close-x" aria-label="닫기" onClick={() => setShowSettings(false)}>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings-close"
+                    className="settings-close-x"
+                    aria-label="닫기"
+                    onClick={() => setShowSettings(false)}
+                  >
                     ×
                   </button>
                 </div>
@@ -2302,7 +2425,12 @@ export default function App() {
             )}
             {settingsPage === 'display' && (
               <div id="settingsDisplayPage" className="settings-page visible">
-                <button type="button" className="settings-back" onClick={() => setSettingsPage('list')}>
+                <button
+                  type="button"
+                  id="tutorial-target-settings-back-display"
+                  className="settings-back"
+                  onClick={() => setSettingsPage('list')}
+                >
                   ‹ 설정
                 </button>
                 <h2>화면 설정</h2>
@@ -2340,7 +2468,13 @@ export default function App() {
                   <button type="button" className="settings-back" onClick={() => setSettingsPage('list')}>
                     ‹ 설정
                   </button>
-                  <button type="button" className="settings-close-x" aria-label="닫기" onClick={() => setShowSettings(false)}>
+                  <button
+                    type="button"
+                    id="tutorial-target-settings-close-profile"
+                    className="settings-close-x"
+                    aria-label="닫기"
+                    onClick={() => setShowSettings(false)}
+                  >
                     ×
                   </button>
                 </div>
@@ -2500,12 +2634,12 @@ export default function App() {
         <div
           className="modal info-sheet visible"
           role="dialog"
-          aria-label="내 건강에 맞게 판단해요"
+          aria-label="한국형 NOVA 기준 안내"
           onClick={(e) => e.target === e.currentTarget && setShowInfoCriteria(false)}
         >
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
-              <h2 className="sheet-title">내 건강에 맞게 판단해요</h2>
+              <h2 className="sheet-title">한국형 NOVA 기준</h2>
               <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoCriteria(false)}>×</button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
@@ -2552,7 +2686,15 @@ export default function App() {
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 className="sheet-title">이렇게 촬영해요</h2>
-              <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => setShowInfoPhoto(false)}>×</button>
+              <button
+                type="button"
+                id="tutorial-target-photo-close"
+                className="sheet-close-x"
+                aria-label="닫기"
+                onClick={() => setShowInfoPhoto(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="sheet-icon-wrap" aria-hidden>
               <div className="sheet-icon">
@@ -2629,6 +2771,15 @@ export default function App() {
           onClose={() => setShowBmiGraph(false)}
         />
       )}
+
+      <TutorialCoachOverlay
+        active={showTutorial}
+        holeRect={tutorialHoleRect}
+        message={tutorialMessage}
+        stepIndex={tutorialStep}
+        stepTotal={TUTORIAL_STEP_TOTAL}
+        onSkip={finishTutorial}
+      />
     </>
   );
 }
