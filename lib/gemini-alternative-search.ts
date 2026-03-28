@@ -4,7 +4,10 @@
  * @see https://ai.google.dev/gemini-api/docs/google-search
  */
 
-import { normalizeAlternativeFoodOutput } from '@/lib/alternative-food-normalize';
+import {
+  normalizeAlternativeFoodOutput,
+  ALT_FOOD_OPTION_LINE_RE,
+} from '@/lib/alternative-food-normalize';
 import { SEARCH_MODEL } from '@/lib/gemini-models';
 import { generateContentWithGoogleSearch } from '@/lib/gemini-grounding';
 
@@ -92,6 +95,8 @@ function acceptAlternativeModelText(text: string, grounded: boolean): boolean {
   if (!t) return false;
 
   if (/현재 식품\s*:/i.test(t) && /(👉\s*)?더\s*나은\s*선택/i.test(t)) return true;
+  const lines = t.split(/\r?\n/).map((l) => l.trim());
+  if (lines.some((line) => ALT_FOOD_OPTION_LINE_RE.test(line))) return true;
   if (
     t.length >= 35 &&
     /(조금\s*개선|더\s*나은\s*선택|최적\s*선택|대체|유통|마트|쇼핑|라벨|네이버|쇼핑)/.test(t)

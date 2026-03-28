@@ -178,7 +178,20 @@ export async function POST(request: NextRequest) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    const prompt = hasTwoImages ? getTwoImagePackagePrompt() : getPackageImagePrompt();
+    const basePrompt = hasTwoImages ? getTwoImagePackagePrompt() : getPackageImagePrompt();
+    let profileHint = '';
+    const ph = profile?.heightCm;
+    const pw = profile?.weightKg;
+    if (ph != null && pw != null && Number(ph) > 0 && Number(pw) > 0) {
+      const bmiPre = computeBmiServer(Number(ph), Number(pw));
+      if (bmiPre != null) {
+        const catPre = bmiCategoryKo(bmiPre);
+        profileHint =
+          '[사용자 프로필 — 종합 평가 단계 5에만 반영. 의학 진단이 아님]\n' +
+          `BMI 약 ${bmiPre.toFixed(1)} (${catPre}). 과체중·비만이면 당류·지방·초가공에 더 엄격히, 저체중·정상은 일반 기준으로 평가.\n\n`;
+      }
+    }
+    const prompt = profileHint + basePrompt;
 
     const res = await fetch(url, {
       method: 'POST',

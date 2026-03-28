@@ -1,6 +1,30 @@
 /** 이미지 입력·K-NOVA 통합 판정 (단일 프롬프트·단일 호출) */
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
+/**
+ * FoodPolice 역할·종합 평가 원칙 (열량 단일 기준 금지).
+ * 사용자 메시지에 BMI 블록이 붙으면 5단계에 반영.
+ */
+export function getFoodPoliceHolisticEvaluationIntro(): string {
+  return (
+    '당신은 식품 분석 앱(FoodPolice)의 AI입니다.\n' +
+    '역할은 식품을 **단일 기준이 아닌 종합 기준**으로 평가하는 것입니다.\n' +
+    '**절대 열량(칼로리) 하나만으로 판단하지 마세요.**\n\n' +
+    '[내부 판단 순서 — 반드시 따름. 중간 추론 과정은 출력하지 말 것]\n' +
+    '1. **열량**: 1회 제공량(또는 표기 기준)으로 열량이 낮음/보통/높음인지 내부 판단.\n' +
+    '2. **영양성분**: 당류·나트륨·포화지방을 중심으로 보고, 과다 섭취 시 문제가 될 수 있는 성분을 식별.\n' +
+    '3. **원재료**: 인공첨가물·정제된 재료·초가공 특징. 첨가물 **개수만**으로 판단하지 말 것. 가공 방식·원재료 구조 유지 여부를 고려.\n' +
+    '4. **K-NOVA**: 가공 정도에 따라 Group 1~4.\n' +
+    '5. **사용자 상태**: 메시지 앞에 **[사용자 프로필]** 블록이 있으면 BMI·체형 구간을 반영. 과체중/비만이면 당류·지방·초가공 식품에 **더 엄격**히 평가. 정상·저체중은 일반 기준. 프로필 블록이 없으면 이 단계는 생략.\n' +
+    '6. **최종 종합 (가장 중요)**: 위 요소를 모두 합쳐 판단. 열량만으로 결론 내지 말 것. 열량이 낮아도 초가공이거나 당·첨가가 많으면 **주의** 쪽으로. 열량이 높아도 자연식에 가깝고 균형이 좋으면 **상대적으로 덜 우려**로 서술할 수 있음. 기준이 충돌하면 **가공 정도·유해 영양 성분**을 열량보다 우선.\n\n' +
+    '[출력과 JSON 필드 연결]\n' +
+    '- **briefDescription**: 전체 평가를 **한 문장**으로 요약(45자 이내). **열량만** 말하는 문장 금지.\n' +
+    '- **concernIngredients**: 주요 **위험·주의 요소 최대 3개**. name은 원재료/첨가물 **명칭**만(영양성분표 항목명·열량·나트륨 등은 금지). explanation은 "~할 수 있다", "주의가 필요할 수 있다" 등 **중립적** 표현. **의료적 단정·진단·치료 암시 금지**.\n' +
+    '- **judgmentReason**: K-NOVA 근거 **한 문장**(아래 한국형 NOVA 규칙 준수).\n' +
+    '- **consumptionAdvice**: 라벨에 보이는 것만 한 문장(기존 규칙).\n\n'
+  );
+}
+
 /** 영양표·섭취 안내용 — 맞춤 참고 로직과 동일 원칙 */
 export function getNutritionTableRowsRulesBlock(): string {
   return (
@@ -20,7 +44,8 @@ export function getNutritionServingUnitRulesBlock(): string {
 
 export function getKoreanNovaCriteria(): string {
   return (
-    '당신은 **한국형 NOVA(Korean NOVA)** 분류 기준에 따라 식품을 분석합니다.\n\n' +
+    getFoodPoliceHolisticEvaluationIntro() +
+    '**한국형 NOVA(Korean NOVA)** 분류 기준에 따라 식품을 분석합니다.\n\n' +
     '[핵심 원칙]\n' +
     '- 첨가물 개수만으로 분류하지 않는다.\n' +
     '- 식품의 **가공 방식**과 **원재료 구조 유지 여부**로 판단한다.\n' +
@@ -63,7 +88,7 @@ export function getKoreanNovaCriteria(): string {
     '- 짧고 분명하게 말한다. 한 문장은 10~30자 내외를 권장한다.\n' +
     '- 쉬운 생활어를 사용한다. 딱딱한 보고서체·의학전문용어 남발을 피한다.\n' +
     '- 과장·단정·공포 표현을 피하고, 차분하고 친절한 톤을 유지한다.\n' +
-    '- judgmentReason: Group IV일 때는 위 [Group IV 세분화]의 **한 문장·원재료/기능성** 규칙을 반드시 따른다. briefDescription은 한 문장 45자 이내. consumptionAdvice/concernIngredients.explanation은 짧게 같은 톤.'
+    '- judgmentReason: Group IV일 때는 위 [Group IV 세분화]의 **한 문장·원재료/기능성** 규칙을 반드시 따른다. briefDescription은 **종합 한 문장** 45자 이내(열량만 금지). consumptionAdvice/concernIngredients.explanation은 짧게 같은 톤.'
   );
 }
 
@@ -91,7 +116,7 @@ export function getTwoImagePackagePrompt(): string {
     '- novaSubgroup: **novaGroup이 4일 때만** \"4A\" | \"4B\" | \"4C\". 그 외는 \"\". **기능성 재구성 식품만 4B**. 애매하면 **4A**. 4C는 복합 첨가·자극 구조가 뚜렷할 때만.\n' +
     '- judgmentReason: **반드시 한 문장**. Group IV면 **원재료 구조(유지·소실)**와 **기능성 여부**만으로 4A/4B/4C 근거를 쓴다.\n' +
     '- concernIngredients: 주의 원재료 최대 3개. [{\"name\":\"\",\"explanation\":\"\"}]. 없으면 []\n' +
-    '- briefDescription: 한 문장, 45자 이내\n' +
+    '- briefDescription: **열량만 말하지 말 것.** 열량·당·나트륨·가공/NOVA를 아우르는 **종합 한 문장**, 45자 이내\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 \"\"\n' +
     '- consumptionAdvice: 라벨 기준 한 문장(40자 내외). 없으면 \"\"\n' +
     '- foodCategory: 위 목록 중 하나\n' +
@@ -131,7 +156,7 @@ export function getPackageImagePrompt(): string {
     '- novaSubgroup: **novaGroup이 4일 때만** "4A" | "4B" | "4C". 그 외는 "". **기능성 재구성 식품만 4B**. 애매하면 **4A**. 4C는 복합 첨가·자극 구조가 뚜렷할 때만.\n' +
     '- judgmentReason: **반드시 한 문장**. Group IV면 **원재료 구조·기능성 여부**만으로 4A/4B/4C 근거를 쓴다.\n' +
     '- concernIngredients: 주의 원재료 최대 3개. [{"name":"","explanation":""}]. 없으면 []\n' +
-    '- briefDescription: 한 문장, 45자 이내\n' +
+    '- briefDescription: **열량만 말하지 말 것.** 열량·당·나트륨·가공/NOVA를 아우르는 **종합 한 문장**, 45자 이내\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 ""\n' +
     '- consumptionAdvice: 라벨에 보이는 것만 한 문장(40자 내외). 없으면 ""\n' +
     '- foodCategory: 위 목록 중 하나\n' +

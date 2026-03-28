@@ -37,7 +37,12 @@ import {
   CAPTURE_GUIDE_INGREDIENT_URL,
   CAPTURE_GUIDE_NUTRIENT_URL,
 } from '@/lib/constants';
-import { ALTERNATIVE_NOT_FOUND_MESSAGE, normalizeAlternativeFoodOutput } from '@/lib/alternative-food-normalize';
+import {
+  ALTERNATIVE_NOT_FOUND_MESSAGE,
+  ALT_FOOD_OPTION_LINE_RE,
+  ALT_FOOD_REASON_LINE_RE,
+  normalizeAlternativeFoodOutput,
+} from '@/lib/alternative-food-normalize';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
 import {
@@ -439,8 +444,8 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
   const currentFood = currentFoodLine.replace(/^현재 식품\s*:\s*/, '').trim();
   const stage = stageLine.replace(/^가공 단계\s*:\s*/, '').trim();
 
-  const optionRe = /^(\d+)\.\s*(조금 개선|더 나은 선택|최적 선택)\s*:\s*(.*)$/;
-  const reasonRe = /^-\s*이유\s*:\s*(.*)$/;
+  const optionRe = ALT_FOOD_OPTION_LINE_RE;
+  const reasonRe = ALT_FOOD_REASON_LINE_RE;
 
   type Item = { label: string; product: string; reason: string };
   const items: Item[] = [];
