@@ -82,7 +82,22 @@
       display: flex;
       justify-content: flex-end;
       align-items: center;
+      gap: 8px;
       padding: calc(8px + var(--safe-top)) 0 4px;
+    }
+    .btn-tutorial-text {
+      border: none;
+      background: transparent;
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+      border-radius: 12px;
+      transition: background 0.2s var(--btn-ease);
+    }
+    .btn-tutorial-text:active {
+      background: rgba(46, 125, 50, 0.12);
     }
     .btn-settings-home svg {
       display: block;

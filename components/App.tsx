@@ -86,6 +86,12 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
+/** API·생성 문구에 남은 ** 표기 제거 */
+function stripMarkdownBold(s: string): string {
+  if (!s) return '';
+  return s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '');
+}
+
 function nutritionPctBarClass(pct: number): string {
   if (pct >= 40) return 'nutrition-pct-fill high';
   if (pct >= 20) return 'nutrition-pct-fill warn';
@@ -96,47 +102,14 @@ function buildNutritionResultHtml(
   nutrition: NutritionFacts | null | undefined,
   daily: NutritionDailyPercent | null | undefined
 ): string {
-  const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
-  const hasTableRows = tableRows.length > 0;
-  const hasNums =
-    nutrition &&
-    (hasTableRows ||
-      nutrition.servingSizeText ||
-      nutrition.caloriesKcal != null ||
-      nutrition.sodiumMg != null ||
-      nutrition.carbsG != null ||
-      nutrition.sugarG != null ||
-      nutrition.proteinG != null ||
-      nutrition.fatG != null ||
-      nutrition.saturatedFatG != null ||
-      nutrition.transFatG != null ||
-      nutrition.cholesterolMg != null ||
-      nutrition.dietaryFiberG != null);
   const hasDaily = daily && Object.keys(daily).length > 0;
-  if (!hasNums && !hasDaily) return '';
-
-  const labelDefs: Array<{ label: string; unit: string; pick: (n: NutritionFacts) => number | null | undefined }> = [
-    { label: '열량', unit: 'kcal', pick: (n) => n.caloriesKcal },
-    { label: '나트륨', unit: 'mg', pick: (n) => n.sodiumMg },
-    { label: '탄수화물', unit: 'g', pick: (n) => n.carbsG },
-    { label: '당류', unit: 'g', pick: (n) => n.sugarG },
-    { label: '지방', unit: 'g', pick: (n) => n.fatG },
-    { label: '포화지방', unit: 'g', pick: (n) => n.saturatedFatG },
-    { label: '트랜스지방', unit: 'g', pick: (n) => n.transFatG },
-    { label: '콜레스테롤', unit: 'mg', pick: (n) => n.cholesterolMg },
-    { label: '단백질', unit: 'g', pick: (n) => n.proteinG },
-    { label: '식이섬유', unit: 'g', pick: (n) => n.dietaryFiberG },
-  ];
-  const labelRows =
-    nutrition &&
-    labelDefs.filter((d) => {
-      const v = d.pick(nutrition);
-      return v != null && Number.isFinite(v);
-    });
+  const hasServingLine = !!(nutrition?.servingSizeText);
+  /* 표 대신 막대만: 일일 비율 또는 제공량 문구가 있을 때만 섹션 표시 */
+  if (!hasDaily && !hasServingLine) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
   html +=
-    '<p class="meta nutrition-intro-meta">표에서 읽은 영양성분을 아래에 모두 적었어요. 막대는 하루 참고치(2000kcal) 대비 비율이에요.</p>';
+    '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -146,35 +119,6 @@ function buildNutritionResultHtml(
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
       '</span></div>';
-  }
-
-  if (hasTableRows) {
-    html += '<p class="nutrition-label-heading">표기 영양성분</p>';
-    html += '<div class="nutrition-label-table" role="list">';
-    tableRows.forEach((row) => {
-      html +=
-        '<div class="nutrition-label-row" role="listitem"><span class="nutrition-label-name">' +
-        escapeHtml(row.name) +
-        '</span><span class="nutrition-label-value">' +
-        escapeHtml(row.amount) +
-        '</span></div>';
-    });
-    html += '</div>';
-  } else if (labelRows && labelRows.length > 0) {
-    html += '<p class="nutrition-label-heading">표기 영양성분</p>';
-    html += '<div class="nutrition-label-table" role="list">';
-    labelRows.forEach((d) => {
-      const v = d.pick(nutrition!);
-      html +=
-        '<div class="nutrition-label-row" role="listitem"><span class="nutrition-label-name">' +
-        escapeHtml(d.label) +
-        '</span><span class="nutrition-label-value">' +
-        escapeHtml(String(v)) +
-        ' ' +
-        escapeHtml(d.unit) +
-        '</span></div>';
-    });
-    html += '</div>';
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
@@ -700,6 +644,8 @@ export default function App() {
   const [nutritionImageBase64, setNutritionImageBase64] = useState<string | null>(null);
   const [nutritionImageMimeType, setNutritionImageMimeType] = useState<string>('image/jpeg');
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -711,6 +657,7 @@ export default function App() {
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
+  const tutorialAutoOfferedRef = useRef(false);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -730,14 +677,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isLikelyDesktop || !clientId || !onboardingCompleted) return;
+    if (!isLikelyDesktop || !clientId) return;
     try {
       if (sessionStorage.getItem('fp_desktopRecommendDismissed') === '1') return;
     } catch {
       /* 비공개 창 등 */
     }
     setShowDesktopRecommendModal(true);
-  }, [isLikelyDesktop, clientId, onboardingCompleted]);
+  }, [isLikelyDesktop, clientId]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -980,11 +927,15 @@ export default function App() {
       const nova = result.novaGroup || 4;
       const sub = (result.novaSubgroup || '').trim().toUpperCase();
       const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
-      const reason = result.judgmentReason || '';
-      const concerns = result.concernIngredients || [];
-      const advice = result.consumptionAdvice || '';
-      const personalizedIntakeNote = (result.personalizedIntakeNote || '').trim();
-      const personalizedIntakeFootnote = (result.personalizedIntakeFootnote || '').trim();
+      const reason = stripMarkdownBold(result.judgmentReason || '');
+      const concerns = (result.concernIngredients || []).map((c) => ({
+        ...c,
+        explanation: stripMarkdownBold(c.explanation || ''),
+        name: stripMarkdownBold(c.name || ''),
+      }));
+      const advice = stripMarkdownBold(result.consumptionAdvice || '');
+      const personalizedIntakeNote = stripMarkdownBold((result.personalizedIntakeNote || '').trim());
+      const personalizedIntakeFootnote = stripMarkdownBold((result.personalizedIntakeFootnote || '').trim());
       const altText = (result.alternativeFoodText || '').trim();
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
@@ -1293,20 +1244,41 @@ export default function App() {
     }
   }, [startCamera, isLikelyDesktop]);
 
-  const dismissDesktopRecommend = useCallback(
-    (andOpenUpload: boolean) => {
-      try {
-        sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
-      } catch {
-        /* ignore */
-      }
-      setShowDesktopRecommendModal(false);
-      if (andOpenUpload) {
-        window.setTimeout(() => triggerUpload(), 0);
-      }
-    },
-    [triggerUpload]
-  );
+  const dismissDesktopRecommend = useCallback(() => {
+    try {
+      sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
+    } catch {
+      /* ignore */
+    }
+    setShowDesktopRecommendModal(false);
+  }, []);
+
+  const finishTutorial = useCallback(() => {
+    try {
+      localStorage.setItem('fp_tutorial_v1', '1');
+    } catch {
+      /* ignore */
+    }
+    setShowTutorial(false);
+    setTutorialStep(0);
+  }, []);
+
+  useEffect(() => {
+    if (tutorialAutoOfferedRef.current) return;
+    if (!clientId || !onboardingCompleted || showOnboarding) return;
+    if (!showHome || showResult || showCamera) return;
+    try {
+      if (localStorage.getItem('fp_tutorial_v1') === '1') return;
+    } catch {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      tutorialAutoOfferedRef.current = true;
+      setTutorialStep(0);
+      setShowTutorial(true);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [clientId, onboardingCompleted, showOnboarding, showHome, showResult, showCamera]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1540,18 +1512,18 @@ export default function App() {
           role="dialog"
           aria-labelledby="desktop-recommend-title"
           aria-modal="true"
-          onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend(false)}
+          onClick={(e) => e.target === e.currentTarget && dismissDesktopRecommend()}
         >
           <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 id="desktop-recommend-title" className="sheet-title" style={{ textAlign: 'left' }}>
-                스마트폰 사용을 추천해요
+                폰에서 쓰면 더 편해요
               </h2>
               <button
                 type="button"
                 className="sheet-close-x"
                 aria-label="닫기"
-                onClick={() => dismissDesktopRecommend(false)}
+                onClick={() => dismissDesktopRecommend()}
               >
                 ×
               </button>
@@ -1565,7 +1537,7 @@ export default function App() {
                 textAlign: 'left',
               }}
             >
-              촬영과 글자 인식은 휴대폰에서 더 잘 맞아요. 아래 QR로 같은 페이지를 열거나, PC에서는 사진 파일을 올려 분석할 수 있어요.
+              QR로 이 페이지를 열고 촬영하거나, PC에서는 화면 아래 업로드로 사진을 고르세요.
             </p>
             <img
               src="/images/qrcode.png"
@@ -1579,20 +1551,79 @@ export default function App() {
                 borderRadius: 16,
               }}
             />
-            <button
-              type="button"
-              className="btn btn-full"
-              onClick={() => dismissDesktopRecommend(true)}
-            >
-              사진 업로드로 계속
+            <button type="button" className="btn btn-full" onClick={() => dismissDesktopRecommend()}>
+              확인
             </button>
+          </div>
+        </div>
+      )}
+
+      {showTutorial && (
+        <div
+          className="modal modal--center-dialog visible"
+          role="dialog"
+          aria-labelledby="tutorial-title"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && finishTutorial()}
+        >
+          <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-header">
+              <h2 id="tutorial-title" className="sheet-title" style={{ textAlign: 'left' }}>
+                사용법 ({tutorialStep + 1}/4)
+              </h2>
+              <button type="button" className="sheet-close-x" aria-label="닫기" onClick={() => finishTutorial()}>
+                ×
+              </button>
+            </div>
+            <div style={{ marginBottom: 18, color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.55, textAlign: 'left' }}>
+              {tutorialStep === 0 && (
+                <>
+                  <strong style={{ color: 'var(--text)' }}>① 원재료</strong> → <strong style={{ color: 'var(--text)' }}>② 영양표</strong> 순으로 각각
+                  한 장씩 찍거나 고르세요.
+                </>
+              )}
+              {tutorialStep === 1 && <>결과에서 NOVA 등급, 맞춤 참고, 영양 막대를 확인하세요.</>}
+              {tutorialStep === 2 &&
+                (isLikelyDesktop ? (
+                  <>PC는 아래 업로드로 두 장을 순서대로 선택하세요. (촬영은 QR로 폰에서)</>
+                ) : (
+                  <>하단 큰 버튼으로 촬영·앨범을 쓰면 됩니다.</>
+                ))}
+              {tutorialStep === 3 && <>설정에서 화면·프로필을 바꾸고, 최근 기록을 다시 열 수 있어요.</>}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {tutorialStep > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-full"
+                  style={{ flex: '1 1 100px' }}
+                  onClick={() => setTutorialStep((s) => s - 1)}
+                >
+                  이전
+                </button>
+              )}
+              {tutorialStep < 3 ? (
+                <button
+                  type="button"
+                  className="btn btn-full"
+                  style={{ flex: '1 1 120px' }}
+                  onClick={() => setTutorialStep((s) => s + 1)}
+                >
+                  다음
+                </button>
+              ) : (
+                <button type="button" className="btn btn-full" style={{ flex: '1 1 120px' }} onClick={() => finishTutorial()}>
+                  시작하기
+                </button>
+              )}
+            </div>
             <button
               type="button"
               className="btn btn-ghost btn-full"
               style={{ marginTop: 10 }}
-              onClick={() => dismissDesktopRecommend(false)}
+              onClick={() => finishTutorial()}
             >
-              닫기
+              건너뛰기
             </button>
           </div>
         </div>
@@ -1769,28 +1800,28 @@ export default function App() {
                 </div>
                 <h2 className="ob-welcome-title">FoodPolice</h2>
                 <p className="ob-welcome-desc">
-                  포장만 찍으면 원재료와 NOVA 등급을
+                  원재료명과 NOVA를
                   <br />
-                  바로 알려줄게요
+                  사진 두 장으로 분석해요
                 </p>
                 <div className="ob-welcome-features">
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconCamera size={22} />
                     </span>{' '}
-                    원재료·NOVA 한 번에
+                    ① 원재료 ② 영양표 순 촬영
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconUser size={22} />
                     </span>{' '}
-                    키·몸무게로 BMI·비만 여부
+                    키·몸무게로 맞춤 참고
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconAlert size={22} />
                     </span>{' '}
-                    비만일 땐 초가공 경고 강하게
+                    비만이면 초가공 안내 강화
                   </div>
                 </div>
                 <button type="button" className="btn btn-primary btn-full" onClick={() => setObStep(1)}>
@@ -1801,8 +1832,8 @@ export default function App() {
             {obStep === 1 && (
               <div id="onboardingStep1" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
-                  <h2>몇 가지만 알려주세요</h2>
-                  <p className="ob-lead">나이·성별에 맞는 안내를 드리려고 해요</p>
+                  <h2>프로필</h2>
+                  <p className="ob-lead">맞춤 참고에만 써요</p>
                 </div>
                 <div className="form-group">
                   <label>생년월일</label>
@@ -1847,8 +1878,8 @@ export default function App() {
             {obStep === 2 && (
               <div id="onboardingStep2" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
-                  <h2>키와 몸무게를 알려주세요</h2>
-                  <p className="ob-lead">BMI·비만 여부 판단에 쓸게요. 나중에 설정에서 수정할 수 있어요</p>
+                  <h2>키·몸무게</h2>
+                  <p className="ob-lead">BMI·맞춤 참고용. 나중에 설정에서 바꿀 수 있어요</p>
                 </div>
                 {/* 키·몸무게 입력란 너비 동일하게 (form-group-wide → CSS min-width) */}
                 <div className="form-group form-group-wide">
@@ -1932,9 +1963,7 @@ export default function App() {
                     <span className="value">{obSummaryWeight}</span>
                   </div>
                 </div>
-                <p className="ob-confirm-note">
-                  생년월일·성별은 한 번 설정하면 바꿀 수 없어요. 키·몸무게는 설정에서 수정할 수 있어요
-                </p>
+                <p className="ob-confirm-note">생년월일·성별은 이후 변경이 어려워요. 키·몸무게는 설정에서 수정 가능해요</p>
                 <p className="ob-safety">
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
@@ -1990,6 +2019,16 @@ export default function App() {
               !showMeasurementHistory &&
               !showBmiGraph && (
                 <div className="home-top-bar">
+                  <button
+                    type="button"
+                    className="btn-tutorial-text"
+                    onClick={() => {
+                      setTutorialStep(0);
+                      setShowTutorial(true);
+                    }}
+                  >
+                    사용법
+                  </button>
                   <button type="button" className="btn-settings-home" title="설정" aria-label="설정" onClick={openSettings}>
                     <IconSettings size={22} />
                   </button>
@@ -2004,7 +2043,7 @@ export default function App() {
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
-                원재료·NOVA·영양표까지 알려줄게요
+                원재료·NOVA·영양 비율을 알려줄게요
               </h2>
             </div>
             <div className="info-cards-wrap">
@@ -2499,10 +2538,7 @@ export default function App() {
             </div>
             <div className="info-knova-intro">
               <p className="info-knova-intro-line">
-                한국형 <strong>K-NOVA</strong>는 가공이 얼마나 강한지에 따라 식품을 1~4그룹으로 나눠요.
-              </p>
-              <p className="info-knova-intro-line">
-                첨가물이 몇 개인지보다, 가공 방식과 원재료가 원래 모습에서 얼마나 달라졌는지를 더 중요하게 봐요.
+                K-NOVA는 가공 강도로 1~4그룹을 나눠요. 첨가물 개수보다 원재료가 얼마나 변했는지가 중요해요.
               </p>
             </div>
             {[1, 2, 3, 4].map((n) => (
@@ -2516,20 +2552,14 @@ export default function App() {
                     {n === 1 && '자연 그대로에 가깝고, 원재료 구조를 유지해요.'}
                     {n === 2 && '조리용 소금, 설탕, 기름처럼 요리에 쓰는 재료예요.'}
                     {n === 3 && '원재료 특성을 많이 유지한 가공 식품이에요.'}
-                    {n === 4 && (
-                      <>
-                        원재료 구조가 사라지고, 산업적 첨가물이 많이 들어간 식품이에요.{" "}
-                        초가공(Group IV)은 분석 시 <strong>4A</strong>(경계형 초가공),{' '}
-                        <strong>4B</strong>(명확한 초가공), <strong>4C</strong>(고도 초가공)로
-                        더 나누어 볼 수 있어요.
-                      </>
-                    )}
+                    {n === 4 &&
+                      '원재료 형태가 많이 사라진 초가공이에요. 세부는 4A·4B·4C로 나눠요.'}
                   </li>
                 </ul>
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              프로필(키·몸무게 등)이 있으면 하루 열량을 참고해 맞춤 참고를 짧게 보여 드려요. 나트륨·당 등은 아래 영양 표에서 확인하세요.
+              프로필이 있으면 맞춤 참고가 붙어요. 나트륨·당 비율은 결과의 영양 막대에서 보세요.
             </p>
           </div>
         </div>
@@ -2554,21 +2584,19 @@ export default function App() {
             </div>
             <div className="guide-step">
               <span className="num">1</span>
-              <span className="txt">포장 뒷면의 원재료명이 보이게 해 주세요.</span>
+              <span className="txt">뒷면 원재료명이 보이게.</span>
             </div>
             <div className="guide-step">
               <span className="num">2</span>
-              <span className="txt">글자가 선명하게 보이도록 <strong>가까이</strong> 찍어 주세요.</span>
+              <span className="txt">글자 선명하게, 가까이.</span>
             </div>
             <div className="guide-step">
               <span className="num">3</span>
-              <span className="txt">다음 단계에서 <strong>영양정보 표</strong>를 <strong>따로</strong> 찍어 주세요.</span>
+              <span className="txt">이어서 영양표만 따로 한 장.</span>
             </div>
             <div className="guide-step">
               <span className="num">4</span>
-              <span className="txt">
-                글자가 흐리지 않게, <strong>그림자가 지지 않게</strong> 밝은 곳에서 찍어 주세요.
-              </span>
+              <span className="txt">밝은 곳, 그림자 피하기.</span>
             </div>
             <div className="photo-guide-example-wrap">
               <div className="photo-guide-example-title">촬영 예시</div>

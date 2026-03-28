@@ -58,12 +58,12 @@ export function getKoreanNovaCriteria(): string {
     '- 선정 기준: 초가공 판단 참고 성분(인공 감미료, 색소, 향료·MSG, 유화제, 보존료, 가공전분·고과당옥수수시럽 등).\n' +
     '- **중요: 영양성분명은 금지**(예: 나트륨, 당류, 열량, 탄수화물, 단백질, 지방, 포화지방, 트랜스지방). 이런 항목은 concernIngredients에 넣지 않는다.\n' +
     '- 없으면 0개 또는 1개만 표시하고, 억지로 3개 채우지 않는다.\n' +
-    '- 각 성분마다 한 줄 설명. 짧고 쉬운 한국어. "~에 주의가 필요합니다", "~가 많을 수 있습니다"처럼 중립적으로. "위험", "독성", "절대 먹지 말아야 한다" 등 과장·공포 표현 금지.\n\n' +
+    '- 각 성분 explanation은 짧게 한 문장(35자 내외). 쉬운 한국어. "~에 주의", "~가 많을 수 있음" 수준. 과장·공포 표현 금지.\n\n' +
     '[말투 규칙 — 토스 스타일]\n' +
     '- 짧고 분명하게 말한다. 한 문장은 10~30자 내외를 권장한다.\n' +
     '- 쉬운 생활어를 사용한다. 딱딱한 보고서체·의학전문용어 남발을 피한다.\n' +
     '- 과장·단정·공포 표현을 피하고, 차분하고 친절한 톤을 유지한다.\n' +
-    '- judgmentReason: Group IV일 때는 위 [Group IV 세분화]의 **한 문장·원재료/기능성** 규칙을 반드시 따른다. briefDescription/consumptionAdvice/concernIngredients.explanation은 같은 톤으로 쓴다.'
+    '- judgmentReason: Group IV일 때는 위 [Group IV 세분화]의 **한 문장·원재료/기능성** 규칙을 반드시 따른다. briefDescription은 한 문장 45자 이내. consumptionAdvice/concernIngredients.explanation은 짧게 같은 톤.'
   );
 }
 
@@ -82,7 +82,7 @@ export function getTwoImagePackagePrompt(): string {
     '- 영양정보 표가 보이면 nutrition에 숫자 필드와 tableRows를 채웁니다. 없거나 판독 불가면 nutrition은 null로 둡니다.\n' +
     '- 표에 **0kcal·제로칼로리·열량 0** 등으로 나오면 caloriesKcal는 **반드시 숫자 0**(null·빈 문자열 금지).\n' +
     '- **콜레스테롤** 행이 있으면 cholesterolMg에 mg 숫자(0 포함)를 넣습니다. 표에 없으면 null.\n' +
-    '- consumptionAdvice: 라벨에 보이는 것만, **짧게 한 문장**(보관·섭취·당·나트륨 중 눈에 띄는 것 하나). 열량만 길게 설명하지 말 것. kcal를 못 읽으면 추측하지 말 것.\n\n' +
+    '- consumptionAdvice: 라벨에 보이는 것만 한 문장(40자 내외). 보관·섭취·당·나트륨 중 하나만. kcal 추측 금지.\n\n' +
     '[2단계 — JSON만 출력]\n' +
     '- productName: 제품명. **완전히 정확한 이름이 명시되지 않았으면 반드시 공란 \"\".** 추측·유추 금지.\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 \"\"\n' +
@@ -91,9 +91,9 @@ export function getTwoImagePackagePrompt(): string {
     '- novaSubgroup: **novaGroup이 4일 때만** \"4A\" | \"4B\" | \"4C\". 그 외는 \"\". **기능성 재구성 식품만 4B**. 애매하면 **4A**. 4C는 복합 첨가·자극 구조가 뚜렷할 때만.\n' +
     '- judgmentReason: **반드시 한 문장**. Group IV면 **원재료 구조(유지·소실)**와 **기능성 여부**만으로 4A/4B/4C 근거를 쓴다.\n' +
     '- concernIngredients: 주의 원재료 최대 3개. [{\"name\":\"\",\"explanation\":\"\"}]. 없으면 []\n' +
-    '- briefDescription: 이 식품에 대한 간단한 설명 (한 문장)\n' +
+    '- briefDescription: 한 문장, 45자 이내\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 \"\"\n' +
-    '- consumptionAdvice: 라벨 기반 섭취/보관 조언. 한두 문장. 없으면 \"\"\n' +
+    '- consumptionAdvice: 라벨 기준 한 문장(40자 내외). 없으면 \"\"\n' +
     '- foodCategory: 위 목록 중 하나\n' +
     '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG (식이섬유·g, 없으면 null), servingSizeText, basisIsPerServing, tableRows(위 규칙)\n' +
     '[foodCategory 구분]\n' +
@@ -131,9 +131,9 @@ export function getPackageImagePrompt(): string {
     '- novaSubgroup: **novaGroup이 4일 때만** "4A" | "4B" | "4C". 그 외는 "". **기능성 재구성 식품만 4B**. 애매하면 **4A**. 4C는 복합 첨가·자극 구조가 뚜렷할 때만.\n' +
     '- judgmentReason: **반드시 한 문장**. Group IV면 **원재료 구조·기능성 여부**만으로 4A/4B/4C 근거를 쓴다.\n' +
     '- concernIngredients: 주의 원재료 최대 3개. [{"name":"","explanation":""}]. 없으면 []\n' +
-    '- briefDescription: 이 식품에 대한 간단한 설명 (한 문장)\n' +
+    '- briefDescription: 한 문장, 45자 이내\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 ""\n' +
-    '- consumptionAdvice: 라벨에 보이는 것만 **한 문장**. 열량만 길게 쓰지 말 것. 없으면 ""\n' +
+    '- consumptionAdvice: 라벨에 보이는 것만 한 문장(40자 내외). 없으면 ""\n' +
     '- foodCategory: 위 목록 중 하나\n' +
     '- nutrition: 객체 또는 null. 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG (식이섬유·g, 없으면 null), servingSizeText, basisIsPerServing, tableRows(위 규칙)\n' +
     '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
