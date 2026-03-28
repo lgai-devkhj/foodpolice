@@ -110,6 +110,7 @@ type TutorialFocusDecoration =
 /** Apple Watch 스타일: 스포트라이트 + 실제 컨트롤 탭 유도 */
 function TutorialCoachOverlay({
   active,
+  spotlight,
   holeRect,
   focusDecoration,
   message,
@@ -118,6 +119,8 @@ function TutorialCoachOverlay({
   onSkip,
 }: {
   active: boolean;
+  /** false면 딤/구멍 없음 — 화살표·말풍선만 */
+  spotlight: boolean;
   holeRect: CoachRect | null;
   /** 셔터: 화살표 | null: 추가 강조 없음(확인 버튼 등) */
   focusDecoration: TutorialFocusDecoration;
@@ -132,7 +135,12 @@ function TutorialCoachOverlay({
   const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
   const pad = 10;
   let clipPath: string;
-  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
+  if (
+    spotlight &&
+    holeRect &&
+    holeRect.width > 0 &&
+    holeRect.height > 0
+  ) {
     const l = Math.max(0, holeRect.left - pad);
     const t = Math.max(0, holeRect.top - pad);
     const r = Math.min(vw, holeRect.left + holeRect.width + pad);
@@ -149,15 +157,27 @@ function TutorialCoachOverlay({
   const bubbleW = Math.min(420, Math.max(16, vw - 32));
   const halfW = bubbleW / 2;
 
+  const deco = focusDecoration;
+  const arrowRect =
+    deco?.kind === 'arrow' && deco.rect.width > 0 && deco.rect.height > 0
+      ? deco.rect
+      : null;
+  const bubbleAnchor: CoachRect | null =
+    spotlight
+      ? holeRect && holeRect.width > 0 && holeRect.height > 0
+        ? holeRect
+        : null
+      : arrowRect ?? (holeRect && holeRect.width > 0 && holeRect.height > 0 ? holeRect : null);
+
   let bubbleClass = 'tutorial-coach-bubble';
   let bubbleStyle: CSSProperties = {};
 
-  if (holeRect && holeRect.width > 0 && holeRect.height > 0) {
-    const holeTop = Math.max(0, holeRect.top - pad);
-    const holeBottom = Math.min(vh, holeRect.top + holeRect.height + pad);
+  if (bubbleAnchor) {
+    const holeTop = Math.max(0, bubbleAnchor.top - pad);
+    const holeBottom = Math.min(vh, bubbleAnchor.top + bubbleAnchor.height + pad);
     const spaceBelow = vh - holeBottom - safeBottom;
     const spaceAbove = holeTop - safeTop;
-    const midY = holeRect.top + holeRect.height / 2;
+    const midY = bubbleAnchor.top + bubbleAnchor.height / 2;
     let placeBelow = midY < vh * 0.52;
     if (spaceBelow < estBubbleH && spaceAbove > spaceBelow) {
       placeBelow = false;
@@ -165,7 +185,7 @@ function TutorialCoachOverlay({
     if (spaceAbove < estBubbleH && spaceBelow > spaceAbove) {
       placeBelow = true;
     }
-    const cx = holeRect.left + holeRect.width / 2;
+    const cx = bubbleAnchor.left + bubbleAnchor.width / 2;
     const clampedCx = Math.min(Math.max(cx, halfW + 16), vw - halfW - 16);
 
     bubbleClass += ' tutorial-coach-bubble--near';
@@ -185,7 +205,6 @@ function TutorialCoachOverlay({
     bubbleClass += ' tutorial-coach-bubble--dock';
   }
 
-  const deco = focusDecoration;
   const showRing =
     deco?.kind === 'ring' &&
     deco.rect.width > 0 &&
@@ -199,14 +218,19 @@ function TutorialCoachOverlay({
 
   return (
     <div className="tutorial-coach-root" aria-live="polite">
-      <div
-        className="tutorial-coach-dim"
-        style={{
-          clipPath,
-          WebkitClipPath: clipPath,
-        }}
-        aria-hidden
-      />
+      {spotlight &&
+        holeRect &&
+        holeRect.width > 0 &&
+        holeRect.height > 0 && (
+        <div
+          className="tutorial-coach-dim"
+          style={{
+            clipPath,
+            WebkitClipPath: clipPath,
+          }}
+          aria-hidden
+        />
+      )}
       {showRing && ringTarget && (
         <div
           className="tutorial-coach-ring"
@@ -2984,6 +3008,7 @@ export default function App() {
             (tutorialStep === 5 && !!capturedPreviewDataUrl && captureStep === 2)
           )
         }
+        spotlight={tutorialStep === 0}
         holeRect={tutorialHoleRect}
         focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
