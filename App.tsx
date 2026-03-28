@@ -106,6 +106,7 @@ type CoachRect = { top: number; left: number; width: number; height: number };
 function TutorialCoachOverlay({
   active,
   holeRect,
+  pulseRingRect,
   message,
   stepIndex,
   stepTotal,
@@ -113,6 +114,8 @@ function TutorialCoachOverlay({
 }: {
   active: boolean;
   holeRect: CoachRect | null;
+  /** undefined: 링을 hole과 동일 | CoachRect: 셔터 등 별도 강조 | null: 링 숨김 */
+  pulseRingRect?: CoachRect | null;
   message: string;
   stepIndex: number;
   stepTotal: number;
@@ -177,6 +180,11 @@ function TutorialCoachOverlay({
     bubbleClass += ' tutorial-coach-bubble--dock';
   }
 
+  const ringTarget =
+    pulseRingRect === undefined ? holeRect : pulseRingRect;
+  const showRing =
+    ringTarget != null && ringTarget.width > 0 && ringTarget.height > 0;
+
   return (
     <div className="tutorial-coach-root" aria-live="polite">
       <div
@@ -187,14 +195,14 @@ function TutorialCoachOverlay({
         }}
         aria-hidden
       />
-      {holeRect && holeRect.width > 0 && holeRect.height > 0 && (
+      {showRing && (
         <div
           className="tutorial-coach-ring"
           style={{
-            top: holeRect.top - pad,
-            left: holeRect.left - pad,
-            width: holeRect.width + pad * 2,
-            height: holeRect.height + pad * 2,
+            top: ringTarget.top - pad,
+            left: ringTarget.left - pad,
+            width: ringTarget.width + pad * 2,
+            height: ringTarget.height + pad * 2,
           }}
           aria-hidden
         />
@@ -767,6 +775,9 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
+  const [tutorialPulseRingRect, setTutorialPulseRingRect] = useState<CoachRect | null | undefined>(
+    undefined,
+  );
   const showTutorialRef = useRef(false);
   const tutorialStepRef = useRef(0);
   useEffect(() => {
@@ -1424,59 +1435,90 @@ export default function App() {
     setShowTutorial(false);
     setTutorialStep(0);
     setTutorialHoleRect(null);
+    setTutorialPulseRingRect(undefined);
   }, []);
 
   useLayoutEffect(() => {
     if (!showTutorial) {
       setTutorialHoleRect(null);
+      setTutorialPulseRingRect(undefined);
       return;
     }
     const measure = () => {
-      let el: HTMLElement | null = null;
+      let hole: CoachRect | null = null;
+      let pulse: CoachRect | null | undefined = undefined;
+
+      const setFromEl = (node: HTMLElement | null) => {
+        if (!node) return;
+        const r = node.getBoundingClientRect();
+        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+        pulse = undefined;
+      };
+
+      const setCameraHoleAndShutterRing = (): boolean => {
+        const cam = document.getElementById('tutorial-camera-view');
+        const shut = document.getElementById('tutorial-camera-shutter');
+        if (!cam || !shut) return false;
+        const cr = cam.getBoundingClientRect();
+        const sr = shut.getBoundingClientRect();
+        hole = { top: cr.top, left: cr.left, width: cr.width, height: cr.height };
+        pulse = { top: sr.top, left: sr.left, width: sr.width, height: sr.height };
+        return true;
+      };
+
       switch (tutorialStep) {
         case 0:
-          el = document.getElementById('fabUpload');
+          setFromEl(document.getElementById('fabUpload'));
           break;
         case 1:
           if (captureStepGuide === 1) {
-            el = document.getElementById('tutorial-capture-overlay-confirm');
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'));
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterRing()) {
+              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            }
           }
           break;
         case 2:
           if (capturedPreviewDataUrl && captureStep === 1) {
-            el = document.getElementById('tutorial-capture-preview-confirm');
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
           } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterRing()) {
+              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            }
           }
           break;
         case 3:
           if (captureStepGuide === 2) {
-            el = document.getElementById('tutorial-capture-overlay-confirm');
+            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'));
           } else if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterRing()) {
+              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            }
           }
           break;
         case 4:
           if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            el = document.getElementById('tutorial-camera-shutter');
+            if (!setCameraHoleAndShutterRing()) {
+              setFromEl(document.getElementById('tutorial-camera-shutter'));
+            }
           }
           break;
         case 5:
           if (capturedPreviewDataUrl && captureStep === 2) {
-            el = document.getElementById('tutorial-capture-preview-confirm');
+            setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
           }
           break;
         default:
           break;
       }
-      if (!el) {
+      if (!hole) {
         setTutorialHoleRect(null);
+        setTutorialPulseRingRect(undefined);
         return;
       }
-      const r = el.getBoundingClientRect();
-      setTutorialHoleRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setTutorialHoleRect(hole);
+      setTutorialPulseRingRect(pulse);
     };
     measure();
     const raf = requestAnimationFrame(measure);
@@ -1811,7 +1853,11 @@ export default function App() {
       )}
 
       {showCamera && (
-        <div className="camera-view" aria-label="촬영">
+        <div
+          id="tutorial-camera-view"
+          className="camera-view"
+          aria-label="촬영"
+        >
           <video
             ref={cameraVideoRef}
             className="camera-video"
@@ -2882,6 +2928,7 @@ export default function App() {
       <TutorialCoachOverlay
         active={showTutorial}
         holeRect={tutorialHoleRect}
+        pulseRingRect={tutorialPulseRingRect}
         message={tutorialMessage}
         stepIndex={tutorialStep}
         stepTotal={TUTORIAL_STEP_TOTAL}

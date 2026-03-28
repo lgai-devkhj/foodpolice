@@ -1510,10 +1510,7 @@
       }
     }
     .tutorial-coach-bubble {
-      position: fixed;
-      left: max(16px, var(--safe-left));
-      right: max(16px, var(--safe-right));
-      bottom: max(20px, calc(12px + var(--safe-bottom)));
+      box-sizing: border-box;
       padding: 18px 18px 16px;
       border-radius: 20px;
       background: var(--card);
@@ -1521,9 +1518,19 @@
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
       pointer-events: auto;
       z-index: 2;
+    }
+    .tutorial-coach-bubble--dock {
+      position: fixed;
+      left: max(16px, var(--safe-left));
+      right: max(16px, var(--safe-right));
+      bottom: max(20px, calc(12px + var(--safe-bottom)));
       max-width: 420px;
       margin-left: auto;
       margin-right: auto;
+    }
+    .tutorial-coach-bubble--near {
+      position: fixed;
+      max-width: min(420px, calc(100vw - 32px));
     }
     [data-theme="dark"] .tutorial-coach-bubble,
     html:not([data-theme="light"]) .tutorial-coach-bubble {
