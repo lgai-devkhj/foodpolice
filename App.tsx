@@ -2973,8 +2973,17 @@ export default function App() {
         />
       )}
 
+      {/* 캡처 안내·미리보기·분석 확인: 앱 UI만 보이게 코치(딤/말풍선) 숨김 */}
       <TutorialCoachOverlay
-        active={showTutorial}
+        active={
+          showTutorial &&
+          !(
+            (tutorialStep === 1 && captureStepGuide === 1) ||
+            (tutorialStep === 2 && !!capturedPreviewDataUrl && captureStep === 1) ||
+            (tutorialStep === 3 && captureStepGuide === 2) ||
+            (tutorialStep === 5 && !!capturedPreviewDataUrl && captureStep === 2)
+          )
+        }
         holeRect={tutorialHoleRect}
         focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
