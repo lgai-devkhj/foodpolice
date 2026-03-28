@@ -1,18 +1,20 @@
     :root {
-      --bg-top: #e8ebe9;
-      --bg-bottom: #dde2e0;
-      --primary: #2E7D32;
-      --accent: #2E7D32;
+      /* 라이트: 밝은 세이지 배경 + 불투명에 가까운 카드로 다크와 톤 분리 */
+      --bg-top: #eef2ef;
+      --bg-bottom: #e0e8e3;
+      --bg-mix: #d3ddd6;
+      --primary: #2e7d32;
+      --accent: #2e7d32;
       --risk: #b3382e;
-      --text: #1f231f;
-      --text2: #666b68;
-      --text3: #8c918e;
-      --card: rgba(255,255,255,0.5);
-      --card-stroke: rgba(255,255,255,0.35);
-      --glass-bg: rgba(255,255,255,0.45);
-      --glass-border: rgba(255,255,255,0.4);
+      --text: #141a16;
+      --text2: #4a534d;
+      --text3: #6e7872;
+      --card: rgba(255, 255, 255, 0.88);
+      --card-stroke: rgba(46, 125, 50, 0.16);
+      --glass-bg: rgba(255, 255, 255, 0.78);
+      --glass-border: rgba(46, 125, 50, 0.12);
       --glass-blur: blur(24px);
-      --glass-shadow: 0 8px 32px rgba(0,0,0,0.06);
+      --glass-shadow: 0 8px 28px rgba(12, 48, 28, 0.08);
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --safe-left: env(safe-area-inset-left, 0px);
@@ -28,6 +30,7 @@
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     img { max-width: 100%; height: auto; vertical-align: middle; }
     html {
+      color-scheme: light dark;
       font-size: 14px;
       -webkit-text-size-adjust: 100%;
       width: 100%;
@@ -36,8 +39,7 @@
       min-height: 100dvh;
       min-height: -webkit-fill-available;
       overflow-x: hidden;
-      /* 메인 화면·온보딩과 동일 톤의 넓은 배경 (과한 회녹색 대신 부드러운 세이지) */
-      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, var(--bg-mix) 100%);
     }
     body {
       margin: 0;
@@ -53,7 +55,7 @@
       overflow: hidden;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
-      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, var(--bg-mix) 100%);
     }
     #app {
       position: fixed;
@@ -71,7 +73,7 @@
       min-height: -webkit-fill-available;
       margin: 0;
       padding: 0;
-      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, #d5dad7 100%);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, var(--bg-mix) 100%);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -1793,7 +1795,7 @@
     .info-category h4 .ico svg { width: 26px; height: 26px; }
     .info-category .nova-sheet-icon { width: 40px; height: 40px; object-fit: contain; vertical-align: middle; margin-right: 10px; flex-shrink: 0; }
     .info-category ul { margin: 0; padding-left: 1.5rem; color: var(--text2); font-size: 1.1rem; line-height: 1.65; }
-    .info-category-nova ul { color: rgba(0,0,0,0.72); }
+    .info-category-nova ul { color: var(--text2); }
     .info-category-nova-4 ul { color: rgba(40,20,20,0.82); }
     .guide-step { display: flex; align-items: center; gap: 20px; padding: 24px; margin-bottom: 18px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-stroke); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
     .guide-step .num { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.25rem; flex-shrink: 0; }
@@ -1807,43 +1809,65 @@
     .info-sheet .modal-panel .meta { font-size: 1.05rem !important; margin-top: 16px !important; }
 
     [data-theme="dark"] {
-      --bg-top: #0c0c0c;
-      --bg-bottom: #080808;
-      --primary: #4CAF50;
-      --accent: #66BB6A;
-      --risk: #ef5350;
-      --text: #f2f2f2;
-      --text2: #b0b0b0;
-      --text3: #888;
-      --card: rgba(40,40,40,0.5);
-      --card-stroke: rgba(255,255,255,0.12);
-      --glass-bg: rgba(40,40,40,0.5);
-      --glass-border: rgba(255,255,255,0.15);
-      --glass-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      /* 다크: 거의 검정에 가까운 녹색 톤 배경 + 불투명 카드로 라이트와 확실히 구분 */
+      --bg-top: #0d1210;
+      --bg-bottom: #060908;
+      --bg-mix: #030504;
+      --primary: #66bb6a;
+      --accent: #81c784;
+      --risk: #ff8a80;
+      --text: #f1f4f1;
+      --text2: #a8b5ad;
+      --text3: #6d7a72;
+      --card: rgba(30, 38, 33, 0.94);
+      --card-stroke: rgba(129, 199, 132, 0.22);
+      --glass-bg: rgba(24, 32, 27, 0.92);
+      --glass-border: rgba(129, 199, 132, 0.14);
+      --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
     }
     @media (prefers-color-scheme: dark) {
       html:not([data-theme="light"]) {
-        --bg-top: #0c0c0c;
-        --bg-bottom: #080808;
-        --primary: #4CAF50;
-        --accent: #66BB6A;
-        --risk: #ef5350;
-        --text: #f2f2f2;
-        --text2: #b0b0b0;
-        --text3: #888;
-        --card: rgba(40,40,40,0.5);
-        --card-stroke: rgba(255,255,255,0.12);
-        --glass-bg: rgba(40,40,40,0.5);
-        --glass-border: rgba(255,255,255,0.15);
-        --glass-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        --bg-top: #0d1210;
+        --bg-bottom: #060908;
+        --bg-mix: #030504;
+        --primary: #66bb6a;
+        --accent: #81c784;
+        --risk: #ff8a80;
+        --text: #f1f4f1;
+        --text2: #a8b5ad;
+        --text3: #6d7a72;
+        --card: rgba(30, 38, 33, 0.94);
+        --card-stroke: rgba(129, 199, 132, 0.22);
+        --glass-bg: rgba(24, 32, 27, 0.92);
+        --glass-border: rgba(129, 199, 132, 0.14);
+        --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+      }
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+    }
+    html[data-theme="light"] body,
+    html[data-theme="light"] #app {
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, var(--bg-mix) 100%);
+    }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]):not([data-theme="dark"]) {
+        color-scheme: dark;
       }
     }
     [data-theme="dark"] html,
     [data-theme="dark"] body,
     html:not([data-theme="light"]) html,
-    html:not([data-theme="light"]) body { background: linear-gradient(135deg, #1a1f1c 0%, #141816 50%, #0e110f 100%); }
+    html:not([data-theme="light"]) body {
+      background: linear-gradient(155deg, #101916 0%, #0a100d 45%, #050807 100%);
+    }
     [data-theme="dark"] #app,
-    html:not([data-theme="light"]) #app { background: linear-gradient(135deg, #1a1f1c 0%, #141816 50%, #0e110f 100%); }
+    html:not([data-theme="light"]) #app {
+      background: linear-gradient(155deg, #101916 0%, #0a100d 45%, #050807 100%);
+    }
     [data-theme="dark"] .history-item,
     html:not([data-theme="light"]) .history-item { background: var(--card); }
     [data-theme="dark"] .upload-zone:hover,
@@ -1853,11 +1877,11 @@
     [data-theme="dark"] .form-group input,
     [data-theme="dark"] .form-group select,
     html:not([data-theme="light"]) .form-group input,
-    html:not([data-theme="light"]) .form-group select { background: rgba(45,45,48,0.95); border-color: var(--card-stroke); color: var(--text); }
+    html:not([data-theme="light"]) .form-group select { background: rgba(28, 36, 32, 0.98); border-color: var(--card-stroke); color: var(--text); }
     [data-theme="dark"] .modal-panel input, [data-theme="dark"] .modal-panel select,
     [data-theme="dark"] .settings-modal input, [data-theme="dark"] .settings-modal select,
     html:not([data-theme="light"]) .modal-panel input, html:not([data-theme="light"]) .modal-panel select,
-    html:not([data-theme="light"]) .settings-modal input, html:not([data-theme="light"]) .settings-modal select { background: rgba(45,45,48,0.95); color: var(--text); }
+    html:not([data-theme="light"]) .settings-modal input, html:not([data-theme="light"]) .settings-modal select { background: rgba(28, 36, 32, 0.98); color: var(--text); }
     [data-theme="dark"] .btn-primary,
     html:not([data-theme="light"]) .btn-primary {
       box-shadow:
@@ -1867,10 +1891,10 @@
     }
     [data-theme="dark"] .btn-ghost,
     html:not([data-theme="light"]) .btn-ghost {
-      background: rgba(48, 48, 52, 0.88);
+      background: rgba(36, 44, 39, 0.95);
       color: var(--text) !important;
-      border-color: rgba(255, 255, 255, 0.1);
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      border-color: rgba(129, 199, 132, 0.2);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
     }
     [data-theme="dark"] #onboardingView .ob-step-actions .btn-ghost,
     [data-theme="dark"] #onboardingView .ob-confirm-actions .btn-ghost,
@@ -2005,7 +2029,7 @@
     [data-theme="dark"] .advice-box,
     html:not([data-theme="light"]) .advice-box { background: rgba(76,175,80,0.15); }
     [data-theme="dark"] .edit-row input,
-    html:not([data-theme="light"]) .edit-row input { background: rgba(45,45,48,0.95); border-color: var(--card-stroke); color: var(--text); }
+    html:not([data-theme="light"]) .edit-row input { background: rgba(28, 36, 32, 0.98); border-color: var(--card-stroke); color: var(--text); }
     [data-theme="dark"] .edit-row button:not(.save),
     html:not([data-theme="light"]) .edit-row button:not(.save) {
       background: rgba(255, 255, 255, 0.08);
@@ -2103,11 +2127,11 @@
       justify-content: space-between;
       padding: 22px 24px;
       border-radius: 16px;
-      border: 1px solid rgba(0, 0, 0, 0.06);
+      border: 1px solid rgba(46, 125, 50, 0.1);
       background: var(--card);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 2px 12px rgba(12, 48, 28, 0.06);
       cursor: pointer;
       font: inherit;
       font-size: 1.2rem;
