@@ -102,7 +102,7 @@ function ageYearsFromBirthDate(isoDate: string): number | null {
   return age;
 }
 
-/** 출생연도만 있을 때 세는 나이(연 나이): 현재연도 − 출생연도 + 1 */
+/** 출생연도만 있을 때 한국 나이: 현재연도 − 출생연도 + 1 */
 function ageKoreanFromBirthYear(birthYear: number): number | null {
   if (!Number.isFinite(birthYear)) return null;
   const cy = new Date().getFullYear();

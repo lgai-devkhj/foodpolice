@@ -2395,6 +2395,14 @@
       width: 18px;
       height: 18px;
     }
+    .ob-privacy-check.ob-privacy-check--error {
+      box-shadow: 0 0 0 2px var(--risk);
+      border-radius: 14px;
+      padding: 10px 12px;
+      margin-left: -2px;
+      margin-right: -2px;
+      box-sizing: border-box;
+    }
     .privacy-consent-gate {
       position: fixed;
       inset: 0;

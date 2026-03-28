@@ -101,6 +101,48 @@ function stripMarkdownBold(s: string): string {
 
 type CoachRect = { top: number; left: number; width: number; height: number };
 
+/** 튜토리얼 진행 단계 (코치 말풍선은 fab·미리보기 두 구간만) */
+const TUTORIAL_PHASE_SEQUENCE = [
+  'fab',
+  'overlay_ingredient',
+  'camera_ingredient',
+  'preview_ingredient',
+  'overlay_nutrient',
+  'camera_nutrient',
+  'preview_analyze',
+] as const;
+
+type TutorialPhase = (typeof TUTORIAL_PHASE_SEQUENCE)[number];
+
+const TUTORIAL_COACH_PHASES = new Set<TutorialPhase>([
+  'fab',
+  'preview_ingredient',
+  'preview_analyze',
+]);
+
+function tutorialPhaseIndex(phase: TutorialPhase): number {
+  return TUTORIAL_PHASE_SEQUENCE.indexOf(phase);
+}
+
+function tutorialCoachMessage(phase: TutorialPhase, desk: boolean): string {
+  switch (phase) {
+    case 'fab':
+      return desk
+        ? '아래 업로드를 눌러 주세요. 예시 보고 원재료 → 영양표 순으로 두 장 고르면 돼요.'
+        : '아래 촬영을 눌러 주세요. 예시 확인하고 원재료 → 영양표 순으로 찍으면 돼요.';
+    case 'preview_ingredient':
+      return desk
+        ? '이 사진으로 갈까요? 다음을 누르면 영양표 사진 고르는 단계예요.'
+        : '괜찮으면 다음을 눌러 주세요. 이어서 영양표를 찍을게요.';
+    case 'preview_analyze':
+      return desk
+        ? '마지막이에요. 분석하기를 누르면 결과가 나와요.'
+        : '분석하기를 누르면 NOVA랑 영양 비율을 볼 수 있어요.';
+    default:
+      return '';
+  }
+}
+
 type TutorialFocusDecoration =
   | { kind: 'arrow'; rect: CoachRect }
   | { kind: 'ring'; rect: CoachRect }
@@ -434,8 +476,8 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
   const disclaimer =
     '<p class="alt-disclaimer">' +
     (fromWebSearch
-      ? '웹 검색 결과를 참고한 AI 제안이에요. 검색 시점·지역·매장에 따라 품목·명칭이 다를 수 있어요. 구매 전 라벨을 확인해 주세요.'
-      : 'AI 참고 제안이에요. 실제 매장 품목·명칭·판매 여부와 다를 수 있으니, 구매 전 라벨을 확인해 주세요.') +
+      ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
+      : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
     '</p>';
 
   return (
@@ -450,11 +492,11 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 
 /** NOVA 1~2: 웹 대체 추천 없음 — 로딩 없이 바로 표시 */
 const ALT_NOVA_1_2_NOTICE =
-  '이 제품은 NOVA 1~2단계(비가공·최소 가공 또는 조리용 재료)로 분류됐어요. 이미 가공도가 낮은 편이라, 앱에서 “더 건강한 대체 식품” 추천은 제공하지 않아요. 채소·과일·통곡물·콩류 등 다양한 식재료를 골고루 드시면 좋아요.';
+  'NOVA 1~2단계예요. 이미 덜 가공된 편이라, 여기서는 대체 식품 추천은 안 드려요. 채소·과일·통곡물을 곁들여 보시면 좋아요.';
 
 /** 결과 카드 상단·기준 시트에서 공통으로 쓰는 NOVA(분류) 자체 설명 */
 const NOVA_CLASSIFICATION_INTRO =
-  '한국형 NOVA는 식품을 가공 정도에 따라 네 단계(그룹 1~4)로 나눈 분류예요. 첨가물 개수만으로 판단하지 않고, 원재료가 얼마나 변형·가공되어 원래 특성이 유지되는지를 중심으로 봅니다. 단계가 높을수록 보통 산업적 가공이 강한 편에 가깝다고 이해하면 돼요.';
+  '한국형 NOVA는 가공 정도를 1~4단계로 나눈 거예요. 첨가물 개수만 보지 않고, 원재료가 얼마나 변했는지를 봐요. 숫자가 클수록 산업적으로 더 가공된 편에 가깝다고 보면 돼요.';
 
 function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
   const g = raw.novaGroup;
@@ -635,14 +677,14 @@ function getBirthYearFromProfile(p: Profile): number | null {
   return null;
 }
 
-/** 출생연도 + 세는 나이(현재연도 − 출생연도 + 1) */
+/** 출생연도 + 한국 나이(현재연도 − 출생연도 + 1) */
 function birthYearDisplayFromProfile(p: Profile): string {
   const y = getBirthYearFromProfile(p);
   if (y == null) return '—';
   const cy = new Date().getFullYear();
   const age = cy - y + 1;
   if (age < 1 || age > 130) return `${y}년생`;
-  return `${y}년생 (세는 ${age}세)`;
+  return `${y}년생 (한국나이 ${age}세)`;
 }
 
 function BirthYearSelect({
@@ -689,7 +731,7 @@ export default function App() {
   const [showInfoCriteria, setShowInfoCriteria] = useState(false);
   const [showInfoPhoto, setShowInfoPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState('글자 읽는 중');
+  const [loadingText, setLoadingText] = useState('라벨 읽는 중');
   const [error, setError] = useState('');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
@@ -712,6 +754,8 @@ export default function App() {
   const [obSummaryWeight, setObSummaryWeight] = useState('—');
   const [showPrivacyConsentGate, setShowPrivacyConsentGate] = useState(false);
   const [privacyGateChecked, setPrivacyGateChecked] = useState(false);
+  const [privacyGateConsentError, setPrivacyGateConsentError] = useState(false);
+  const [obPrivacyConsentError, setObPrivacyConsentError] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [showAddMeasurement, setShowAddMeasurement] = useState(false);
@@ -729,46 +773,20 @@ export default function App() {
   const [nutritionImageMimeType, setNutritionImageMimeType] = useState<string>('image/jpeg');
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialPhase, setTutorialPhase] = useState<TutorialPhase>('fab');
+  const [tutorialLayoutTick, setTutorialLayoutTick] = useState(0);
   const [tutorialHoleRect, setTutorialHoleRect] = useState<CoachRect | null>(null);
   const [tutorialFocusDecoration, setTutorialFocusDecoration] = useState<TutorialFocusDecoration>(null);
   const showTutorialRef = useRef(false);
-  const tutorialStepRef = useRef(0);
+  const tutorialPhaseRef = useRef<TutorialPhase>('fab');
   useEffect(() => {
     showTutorialRef.current = showTutorial;
-    tutorialStepRef.current = tutorialStep;
-  }, [showTutorial, tutorialStep]);
+    tutorialPhaseRef.current = tutorialPhase;
+  }, [showTutorial, tutorialPhase]);
 
-  /** 실제 촬영·선택·미리보기·분석 플로우 (0~5) */
-  const TUTORIAL_STEP_TOTAL = 6;
-  const tutorialMessage = (() => {
-    if (!showTutorial) return '';
-    const desk = isLikelyDesktop;
-    switch (tutorialStep) {
-      case 0:
-        return desk
-          ? '아래 버튼으로 사진 두 장(원재료 → 영양표)을 골라 실제로 분석해 봐요.'
-          : '아래 버튼으로 촬영을 시작해 원재료와 영양표를 실제로 찍어 보세요.';
-      case 1:
-        if (captureStepGuide === 1) return '';
-        if (desk) return '먼저 원재료가 잘 보이는 첫 번째 사진을 골라 주세요.';
-        return '가운데 셔터로 원재료를 찍어 보세요.';
-      case 2:
-        if (capturedPreviewDataUrl && captureStep === 1) return '';
-        return '미리보기가 괜찮으면 다음으로 넘어가 영양표 촬영을 이어가요.';
-      case 3:
-        if (captureStepGuide === 2) return '';
-        if (desk) return '이제 영양정보 표가 잘 보이는 두 번째 사진을 골라 주세요.';
-        return '셔터로 영양정보 표를 찍어 주세요.';
-      case 4:
-        return desk ? '두 번째 사진으로 영양정보 표가 잘 보이게 골라 주세요.' : '가운데 셔터로 영양정보 표를 찍어 주세요.';
-      case 5:
-        if (capturedPreviewDataUrl && captureStep === 2) return '';
-        return '분석하기를 누르면 분석이 시작돼요. 끝나면 결과에서 NOVA 등을 볼 수 있어요.';
-      default:
-        return '';
-    }
-  })();
+  const TUTORIAL_STEP_TOTAL = TUTORIAL_PHASE_SEQUENCE.length;
+  const tutorialCoachActive = showTutorial && TUTORIAL_COACH_PHASES.has(tutorialPhase);
+  const tutorialMessage = tutorialCoachActive ? tutorialCoachMessage(tutorialPhase, isLikelyDesktop) : '';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -820,6 +838,14 @@ export default function App() {
     );
     setPrivacyGateChecked(false);
   }, [clientId]);
+
+  useEffect(() => {
+    if (showPrivacyConsentGate) setPrivacyGateConsentError(false);
+  }, [showPrivacyConsentGate]);
+
+  useEffect(() => {
+    if (obStep !== 3) setObPrivacyConsentError(false);
+  }, [obStep]);
 
   useEffect(() => {
     if (showResult && resultScrollRef.current) {
@@ -921,7 +947,7 @@ export default function App() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
+        if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
@@ -954,7 +980,7 @@ export default function App() {
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '문제가 생겼어요. 다시 시도해 주세요.');
+        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
         setLoading(false);
       }
@@ -999,7 +1025,7 @@ export default function App() {
           }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '문제가 생겼어요. 다시 시도해 주세요.');
+        if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
@@ -1032,7 +1058,7 @@ export default function App() {
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '문제가 생겼어요. 다시 시도해 주세요.');
+        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
         setLoading(false);
       }
@@ -1207,7 +1233,7 @@ export default function App() {
               '</div></div></details>';
           } else {
             const emptyDisc =
-              '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
+              '<p class="alt-disclaimer">검색·모델 따라 비어 있을 수 있어요. 사기 전에 라벨만 한번 볼까요?</p>';
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
@@ -1233,7 +1259,7 @@ export default function App() {
             html += '</details>';
           } else {
             const emptyDisc =
-              '<p class="alt-disclaimer">검색·모델 응답에 따라 비어 있을 수 있어요. 구매 전 라벨을 확인해 주세요.</p>';
+              '<p class="alt-disclaimer">검색·모델 따라 비어 있을 수 있어요. 사기 전에 라벨만 한번 볼까요?</p>';
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
@@ -1380,8 +1406,8 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
-    if (showTutorial && tutorialStep === 0) {
-      setTutorialStep(1);
+    if (showTutorial && tutorialPhase === 'fab') {
+      setTutorialPhase('overlay_ingredient');
     }
     setCapturedPreviewDataUrl(null);
     setError('');
@@ -1392,6 +1418,11 @@ export default function App() {
     setNutritionImageBase64(null);
     if (isLikelyDesktop) {
       setUploadSource('gallery');
+      // 튜토리얼 중 데스크톱: 예시 오버레이 먼저 → 확인 후 앨범
+      if (showTutorial) {
+        setCaptureStepGuide(1);
+        return;
+      }
       window.setTimeout(() => galleryInputRef.current?.click(), 0);
       return;
     }
@@ -1401,7 +1432,7 @@ export default function App() {
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, isLikelyDesktop, showTutorial, tutorialStep]);
+  }, [startCamera, isLikelyDesktop, showTutorial, tutorialPhase]);
 
   const dismissDesktopRecommend = useCallback(() => {
     try {
@@ -1414,13 +1445,13 @@ export default function App() {
 
   const finishTutorial = useCallback(() => {
     setShowTutorial(false);
-    setTutorialStep(0);
+    setTutorialPhase('fab');
     setTutorialHoleRect(null);
     setTutorialFocusDecoration(null);
   }, []);
 
   useLayoutEffect(() => {
-    if (!showTutorial) {
+    if (!tutorialCoachActive) {
       setTutorialHoleRect(null);
       setTutorialFocusDecoration(null);
       return;
@@ -1432,80 +1463,26 @@ export default function App() {
       const setFromEl = (node: HTMLElement | null, deco: TutorialFocusDecoration = null) => {
         if (!node) return;
         const r = node.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return;
         hole = { top: r.top, left: r.left, width: r.width, height: r.height };
         decoration = deco;
       };
 
-      const setCameraHoleAndShutterArrow = (): boolean => {
-        const cam = document.getElementById('tutorial-camera-view');
-        const shut = document.getElementById('tutorial-camera-shutter');
-        if (!cam || !shut) return false;
-        const cr = cam.getBoundingClientRect();
-        const sr = shut.getBoundingClientRect();
-        hole = { top: cr.top, left: cr.left, width: cr.width, height: cr.height };
-        decoration = {
-          kind: 'arrow',
-          rect: { top: sr.top, left: sr.left, width: sr.width, height: sr.height },
-        };
-        return true;
-      };
-
-      const setShutterOnlyHoleArrow = () => {
-        const shut = document.getElementById('tutorial-camera-shutter');
-        if (!shut) return;
-        const r = shut.getBoundingClientRect();
-        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
-        decoration = { kind: 'arrow', rect: hole };
-      };
-
-      switch (tutorialStep) {
-        case 0: {
+      switch (tutorialPhase) {
+        case 'fab': {
           const el = document.getElementById('fabUpload');
           if (el) {
             const r = el.getBoundingClientRect();
             hole = { top: r.top, left: r.left, width: r.width, height: r.height };
-            decoration = { kind: 'arrow', rect: hole };
+            decoration = { kind: 'ring', rect: hole };
           }
           break;
         }
-        case 1:
-          if (captureStepGuide === 1) {
-            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
-          } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterArrow()) {
-              setShutterOnlyHoleArrow();
-            }
-          }
+        case 'preview_ingredient':
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           break;
-        case 2:
-          if (capturedPreviewDataUrl && captureStep === 1) {
-            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
-          } else if (showCamera && captureStep === 1 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterArrow()) {
-              setShutterOnlyHoleArrow();
-            }
-          }
-          break;
-        case 3:
-          if (captureStepGuide === 2) {
-            setFromEl(document.getElementById('tutorial-capture-overlay-confirm'), null);
-          } else if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterArrow()) {
-              setShutterOnlyHoleArrow();
-            }
-          }
-          break;
-        case 4:
-          if (showCamera && captureStep === 2 && !capturedPreviewDataUrl) {
-            if (!setCameraHoleAndShutterArrow()) {
-              setShutterOnlyHoleArrow();
-            }
-          }
-          break;
-        case 5:
-          if (capturedPreviewDataUrl && captureStep === 2) {
-            setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
-          }
+        case 'preview_analyze':
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
           break;
         default:
           break;
@@ -1520,38 +1497,43 @@ export default function App() {
     };
     measure();
     const raf = requestAnimationFrame(measure);
+    const t = window.setTimeout(measure, 120);
+    const t2 = window.setTimeout(measure, 400);
     const ro = new ResizeObserver(() => measure());
     ro.observe(document.body);
+    const overlayCard = document.getElementById('tutorial-capture-overlay-card');
+    if (overlayCard) ro.observe(overlayCard);
+    const previewRoot = document.querySelector('.capture-preview-view');
+    if (previewRoot) ro.observe(previewRoot);
     window.addEventListener('resize', measure);
     window.addEventListener('scroll', measure, true);
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+      window.clearTimeout(t2);
       ro.disconnect();
       window.removeEventListener('resize', measure);
       window.removeEventListener('scroll', measure, true);
     };
   }, [
-    showTutorial,
-    tutorialStep,
+    tutorialCoachActive,
+    tutorialPhase,
+    tutorialLayoutTick,
     showCamera,
     captureStep,
-    captureStepGuide,
     capturedPreviewDataUrl,
   ]);
 
-  useEffect(() => {
-    if (!showTutorial || tutorialStep !== 1) return;
-    if (capturedPreviewDataUrl && captureStep === 1) {
-      setTutorialStep(2);
+  /** 카메라로 찍은 뒤 미리보기가 뜨면 코치 단계로 전환 */
+  useLayoutEffect(() => {
+    if (!showTutorial) return;
+    if (tutorialPhase === 'camera_ingredient' && capturedPreviewDataUrl && captureStep === 1) {
+      setTutorialPhase('preview_ingredient');
     }
-  }, [showTutorial, tutorialStep, capturedPreviewDataUrl, captureStep]);
-
-  useEffect(() => {
-    if (!showTutorial || tutorialStep !== 4) return;
-    if (capturedPreviewDataUrl && captureStep === 2) {
-      setTutorialStep(5);
+    if (tutorialPhase === 'camera_nutrient' && capturedPreviewDataUrl && captureStep === 2) {
+      setTutorialPhase('preview_analyze');
     }
-  }, [showTutorial, tutorialStep, capturedPreviewDataUrl, captureStep]);
+  }, [showTutorial, tutorialPhase, capturedPreviewDataUrl, captureStep]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1645,8 +1627,8 @@ export default function App() {
       setRawImageBase64(base64 || '');
       rawImageBase64Ref.current = base64 || '';
       setRawImageMimeType(mime);
-      if (showTutorial && tutorialStep === 2) {
-        setTutorialStep(3);
+      if (showTutorial && tutorialPhase === 'preview_ingredient') {
+        setTutorialPhase('overlay_nutrient');
       }
       setCaptureStep(2);
       captureStepRef.current = 2;
@@ -1655,7 +1637,7 @@ export default function App() {
       return;
     }
     if (!rawImageBase64) {
-      setError('원재료 사진을 먼저 선택해 주세요');
+      setError('먼저 원재료 사진을 골라 주세요');
       return;
     }
     if (showTutorial) {
@@ -1671,18 +1653,22 @@ export default function App() {
     runAnalyzeTwoImages,
     startCamera,
     showTutorial,
-    tutorialStep,
+    tutorialPhase,
     finishTutorial,
   ]);
 
   const retakePhoto = useCallback(() => {
     setCapturedPreviewDataUrl(null);
+    if (showTutorial) {
+      if (captureStep === 1) setTutorialPhase('camera_ingredient');
+      else if (captureStep === 2) setTutorialPhase('camera_nutrient');
+    }
     startCamera();
-  }, [startCamera]);
+  }, [startCamera, showTutorial, captureStep]);
 
   const analyzeWithoutNutrition = useCallback(() => {
     if (!rawImageBase64Ref.current) {
-      setError('원재료 사진을 먼저 선택해 주세요');
+      setError('먼저 원재료 사진을 골라 주세요');
       return;
     }
     stopCamera();
@@ -1707,8 +1693,8 @@ export default function App() {
           setRawImageBase64(base64 || '');
           rawImageBase64Ref.current = base64 || '';
           setRawImageMimeType(normalizedMime);
-          if (showTutorialRef.current && tutorialStepRef.current === 1) {
-            setTutorialStep(3);
+          if (showTutorialRef.current && tutorialPhaseRef.current === 'camera_ingredient') {
+            setTutorialPhase('overlay_nutrient');
           }
           setCaptureStep(2);
           captureStepRef.current = 2;
@@ -1716,8 +1702,10 @@ export default function App() {
           // 다음 단계(2/2)를 이어서 진행: 카메라로 가지 않고, 선택한 소스(앨범/촬영)에서 계속 진행
           if (uploadSource === 'gallery') {
             setCapturedPreviewDataUrl(null);
-            // 상태 반영 후 2단계 선택창을 열어, 같은 파일 재선택 시에도 2단계로 처리되게 함
-            window.setTimeout(() => galleryInputRef.current?.click(), 0);
+            // 튜토리얼: 영양표 예시 오버레이 후 두 번째 선택
+            if (!showTutorialRef.current) {
+              window.setTimeout(() => galleryInputRef.current?.click(), 0);
+            }
           } else {
             // 카메라 소스인 경우만 카메라로 이어집니다.
             if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
@@ -1728,7 +1716,7 @@ export default function App() {
           }
         } else {
           if (!rawImageBase64Ref.current) {
-            setError('원재료 사진을 먼저 선택해 주세요');
+            setError('먼저 원재료 사진을 골라 주세요');
             return;
           }
           stopCamera();
@@ -1772,7 +1760,7 @@ export default function App() {
   const settingsProfileSubtitle =
     getBirthYearFromProfile(profile) != null
       ? birthYearDisplayFromProfile(profile)
-      : '설정되지 않음';
+      : '아직 안 적었어요';
 
   if (!clientId) return null;
 
@@ -1781,36 +1769,46 @@ export default function App() {
       <div className="privacy-consent-gate" role="dialog" aria-modal="true" aria-labelledby="privacy-gate-title">
         <div className="privacy-consent-panel">
           <h2 id="privacy-gate-title" className="privacy-gate-title">
-            개인정보 수집·이용 동의
+            개인정보 동의
           </h2>
           <p className="privacy-gate-body">
-            서비스 이용을 위해 출생연도·성별·키·몸무게 등 프로필 정보가 이 기기(로컬)에만 저장됩니다. 해당 정보는 맞춤
-            참고·BMI 계산 등 앱 기능에만 사용되며, 제3자 제공·판매를 하지 않습니다. 동의하지 않으면 서비스를 이용할 수
-            없습니다.
+            출생연도·성별·키·몸무게는 이 기기에만 저장돼요. 맞춤 참고·BMI에만 쓰고, 팔거나 넘기지 않아요. 동의 없으면
+            이용이 어려워요.
           </p>
-          <label className="ob-privacy-check privacy-gate-check">
+          <label
+            className={`ob-privacy-check privacy-gate-check${privacyGateConsentError ? ' ob-privacy-check--error' : ''}`}
+          >
             <input
               type="checkbox"
               checked={privacyGateChecked}
-              onChange={(e) => setPrivacyGateChecked(e.target.checked)}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setPrivacyGateChecked(on);
+                if (on) setPrivacyGateConsentError(false);
+              }}
             />
-            <span>위 내용을 확인하였으며 개인정보 수집·이용에 동의합니다.</span>
+            <span>내용 확인했어요. 개인정보 수집·이용에 동의해요.</span>
           </label>
           <button
             type="button"
             className="btn btn-primary btn-full"
-            disabled={!privacyGateChecked || !clientId}
+            disabled={!clientId}
             onClick={() => {
-              if (!clientId || !privacyGateChecked) return;
+              if (!clientId) return;
+              if (!privacyGateChecked) {
+                setPrivacyGateConsentError(true);
+                return;
+              }
               const cur = getProfile(clientId);
               const next = { ...cur, privacyConsentAccepted: true };
               saveProfile(clientId, next);
               setProfileState(next);
               setShowPrivacyConsentGate(false);
               setPrivacyGateChecked(false);
+              setPrivacyGateConsentError(false);
             }}
           >
-            동의하고 계속하기
+            동의하고 시작하기
           </button>
         </div>
       </div>
@@ -1846,7 +1844,7 @@ export default function App() {
           <div className="modal-panel modal-panel--center-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-header">
               <h2 id="desktop-recommend-title" className="sheet-title" style={{ textAlign: 'left' }}>
-                폰에서 쓰면 더 편해요
+                폰으로 하면 더 편해요
               </h2>
               <button
                 type="button"
@@ -1866,7 +1864,7 @@ export default function App() {
                 textAlign: 'left',
               }}
             >
-              QR로 이 페이지를 열고 촬영하거나, PC에서는 화면 아래 업로드로 사진을 고르세요.
+              QR로 열고 촬영하거나, PC면 아래 업로드에서 사진만 고르면 돼요.
             </p>
             <img
               src="/images/qrcode.png"
@@ -1914,7 +1912,7 @@ export default function App() {
                 aria-hidden
               >
                 <span className="camera-guide-label">
-                  {captureStep === 1 ? '원재료명이 보이게 찍어주세요' : '영양정보 표가 보이게 찍어주세요'}
+                  {captureStep === 1 ? '원재료명이 보이게 찍어 주세요' : '영양정보 표가 보이게 찍어 주세요'}
                 </span>
               </div>
             </div>
@@ -1993,7 +1991,7 @@ export default function App() {
             captureStepGuide === 1 ? 'capture-step-overlay-title-1' : 'capture-step-overlay-title-2'
           }
         >
-          <div className="capture-step-overlay-card">
+          <div id="tutorial-capture-overlay-card" className="capture-step-overlay-card">
             <p className="capture-step-overlay-badge" aria-hidden>
               {captureStepGuide === 1 ? '1 / 2' : '2 / 2'}
             </p>
@@ -2007,10 +2005,11 @@ export default function App() {
                   src={CAPTURE_GUIDE_INGREDIENT_URL}
                   alt="포장 뒷면 원재료 표기가 잘 보이게 찍은 예시"
                   decoding="async"
+                  onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
                 />
                 <p className="capture-step-overlay-caption">촬영 예시 · 원재료</p>
                 <p className="capture-step-overlay-body">
-                  포장 뒷면의 원재료명이 잘 보이게 한 화면에 담아 찍어주세요. 글자가 흐리지 않게 맞춤을 잡아 주세요.
+                  뒷면 원재료명이 한 화면에 들어오게 찍어 주세요. 글자 안 흐리게 초점만 맞춰 주세요.
                 </p>
               </>
             ) : (
@@ -2023,10 +2022,11 @@ export default function App() {
                   src={CAPTURE_GUIDE_NUTRIENT_URL}
                   alt="영양정보 표가 한 화면에 들어오게 찍은 예시"
                   decoding="async"
+                  onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
                 />
                 <p className="capture-step-overlay-caption">촬영 예시 · 영양정보 표</p>
                 <p className="capture-step-overlay-body">
-                  원재료 사진은 저장됐어요. 이제 포장의 영양정보 표가 한 화면에 들어오게 찍어주세요.
+                  원재료는 저장됐어요. 이제 영양정보 표가 한 화면에 들어오게 찍어 주세요.
                 </p>
               </>
             )}
@@ -2035,13 +2035,15 @@ export default function App() {
               id="tutorial-capture-overlay-confirm"
               className="capture-step-overlay-btn"
               onClick={() => {
-                if (showTutorial && captureStepGuide === 1 && tutorialStep === 1) {
-                  setTutorialStep(2);
-                }
-                if (showTutorial && captureStepGuide === 2 && tutorialStep === 3) {
-                  setTutorialStep(4);
+                const g = captureStepGuide;
+                if (showTutorial) {
+                  if (g === 1) setTutorialPhase('camera_ingredient');
+                  if (g === 2) setTutorialPhase('camera_nutrient');
                 }
                 setCaptureStepGuide(null);
+                if (isLikelyDesktop && uploadSource === 'gallery' && (g === 1 || g === 2)) {
+                  window.setTimeout(() => galleryInputRef.current?.click(), 0);
+                }
               }}
             >
               확인
@@ -2052,7 +2054,12 @@ export default function App() {
 
       {capturedPreviewDataUrl && (
         <div className="capture-preview-view" aria-label="촬영 미리보기">
-          <img src={capturedPreviewDataUrl} alt="촬영한 사진" className="capture-preview-img" />
+          <img
+            src={capturedPreviewDataUrl}
+            alt="촬영한 사진"
+            className="capture-preview-img"
+            onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
+          />
           <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
             {captureStep === 1 ? '1/2 · 원재료' : '2/2 · 영양정보 표'}
           </p>
@@ -2073,7 +2080,7 @@ export default function App() {
       )}
 
       {showOnboarding && (
-        <div id="onboardingView" className={showOnboarding ? '' : 'hidden'} role="main" aria-label="사전 조사">
+        <div id="onboardingView" className={showOnboarding ? '' : 'hidden'} role="main" aria-label="시작하기">
           <div className="onboarding-inner">
             {obStep === 0 && (
               <div id="onboardingStep0">
@@ -2084,28 +2091,28 @@ export default function App() {
                 </div>
                 <h2 className="ob-welcome-title">FoodPolice</h2>
                 <p className="ob-welcome-desc">
-                  원재료명과 NOVA를
+                  원재료랑 NOVA,
                   <br />
-                  사진 두 장으로 분석해요
+                  사진 두 장이면 분석해 드려요
                 </p>
                 <div className="ob-welcome-features">
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconCamera size={22} />
                     </span>{' '}
-                    ① 원재료 ② 영양표 순 촬영
+                    ① 원재료 → ② 영양표 순으로
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconUser size={22} />
                     </span>{' '}
-                    키·몸무게로 맞춤 참고
+                    키·몸무게로 맞춤 안내
                   </div>
                   <div className="ob-welcome-feature-item">
                     <span className="ico">
                       <IconAlert size={22} />
                     </span>{' '}
-                    비만이면 초가공 안내 강화
+                    비만이면 초가공 안내를 더 드려요
                   </div>
                 </div>
                 <button type="button" className="btn btn-primary btn-full" onClick={() => setObStep(1)}>
@@ -2117,7 +2124,7 @@ export default function App() {
               <div id="onboardingStep1" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
                   <h2>프로필</h2>
-                  <p className="ob-lead">맞춤 참고에만 써요</p>
+                  <p className="ob-lead">맞춤 안내에만 써요</p>
                 </div>
                 <div className="form-group">
                   <label>출생연도</label>
@@ -2134,7 +2141,7 @@ export default function App() {
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
                   </span>
-                  입력한 정보는 기기에만 안전하게 저장돼요
+                  이 기기에만 저장돼요
                 </p>
                 <div className="ob-step-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(0)}>
@@ -2146,7 +2153,7 @@ export default function App() {
                     onClick={() => {
                       const cy = new Date().getFullYear();
                       if (!Number.isFinite(obBirthYear) || obBirthYear < 1900 || obBirthYear > cy) {
-                        alert('출생연도를 선택해 주세요');
+                        alert('출생연도를 먼저 골라 주세요');
                         return;
                       }
                       const nextProfile = {
@@ -2169,7 +2176,7 @@ export default function App() {
               <div id="onboardingStep2" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div className="ob-form-header">
                   <h2>키·몸무게</h2>
-                  <p className="ob-lead">BMI·맞춤 참고용. 나중에 설정에서 바꿀 수 있어요</p>
+                  <p className="ob-lead">BMI랑 맞춤 안내에 써요. 나중에 설정에서 바꿀 수 있어요</p>
                 </div>
                 {/* 키·몸무게 입력란 너비 동일하게 (form-group-wide → CSS min-width) */}
                 <div className="form-group form-group-wide">
@@ -2201,7 +2208,7 @@ export default function App() {
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
                   </span>
-                  입력한 정보는 기기에만 안전하게 저장돼요
+                  이 기기에만 저장돼요
                 </p>
                 <div className="ob-step-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(1)}>
@@ -2214,7 +2221,7 @@ export default function App() {
                       const h = parseFloat(obHeight);
                       const w = parseFloat(obWeight);
                       if (!isFinite(h) || !isFinite(w) || h <= 0 || w <= 0) {
-                        alert('키와 몸무게를 입력해 주세요');
+                        alert('키랑 몸무게를 입력해 주세요');
                         return;
                       }
                       setObSummaryBirth(
@@ -2239,7 +2246,7 @@ export default function App() {
             )}
             {obStep === 3 && (
               <div id="onboardingStep3" style={{ display: 'flex', flexDirection: 'column' }}>
-                <h2 className="ob-confirm-title">입력한 정보가 맞나요?</h2>
+                <h2 className="ob-confirm-title">입력한 정보, 맞을까요?</h2>
                 <div className="ob-summary-card">
                   <div className="ob-summary-row">
                     <span className="label">출생연도</span>
@@ -2258,23 +2265,31 @@ export default function App() {
                     <span className="value">{obSummaryWeight}</span>
                   </div>
                 </div>
-                <p className="ob-confirm-note">출생연도·성별은 이후 변경이 어려워요. 키·몸무게는 설정에서 수정 가능해요</p>
-                <label className="ob-privacy-check">
+                <p className="ob-confirm-note">
+                  출생연도·성별은 나중에 바꾸기 어려워요. 키·몸무게는 설정에서 언제든 고칠 수 있어요
+                </p>
+                <label
+                  className={`ob-privacy-check${obPrivacyConsentError ? ' ob-privacy-check--error' : ''}`}
+                >
                   <input
                     type="checkbox"
                     checked={obPrivacyAgreed}
-                    onChange={(e) => setObPrivacyAgreed(e.target.checked)}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      setObPrivacyAgreed(on);
+                      if (on) setObPrivacyConsentError(false);
+                    }}
                   />
                   <span>
-                    개인정보 수집·이용에 동의합니다. 본 서비스는 맞춤 영양 참고 등을 위해 출생연도·성별·키·몸무게 정보를
-                    기기(로컬)에만 저장하며, 제3자에게 판매·제공하지 않습니다. 동의하지 않으면 서비스를 이용할 수 없습니다.
+                    개인정보 수집·이용에 동의해요. 출생연도·성별·키·몸무게는 이 기기에만 저장하고, 팔거나 넘기지 않아요.
+                    동의 없으면 이용이 어려워요.
                   </span>
                 </label>
                 <p className="ob-safety">
                   <span className="ob-safety-ico" aria-hidden>
                     <IconLock size={16} />
                   </span>
-                  입력한 정보는 기기에만 안전하게 저장돼요
+                  이 기기에만 저장돼요
                 </p>
                 <div className="ob-confirm-actions">
                   <button type="button" className="btn btn-ghost btn-full" onClick={() => setObStep(2)}>
@@ -2283,10 +2298,9 @@ export default function App() {
                   <button
                     type="button"
                     className="btn btn-primary btn-full"
-                    disabled={!obPrivacyAgreed}
                     onClick={() => {
                       if (!obPrivacyAgreed) {
-                        alert('개인정보 수집·이용에 동의해 주세요.');
+                        setObPrivacyConsentError(true);
                         return;
                       }
                       if (!clientId) return;
@@ -2304,7 +2318,7 @@ export default function App() {
                       refreshHistory();
                       /* 토스트(약 2.2초) 이후 코치 튜토리얼 자동 시작 */
                       window.setTimeout(() => {
-                        setTutorialStep(0);
+                        setTutorialPhase('fab');
                         setShowTutorial(true);
                       }, 2350);
                     }}
@@ -2323,7 +2337,7 @@ export default function App() {
           <span className="onboarding-complete-icon" aria-hidden>
             <IconCheck size={26} strokeWidth={2.5} />
           </span>
-          <span className="onboarding-complete-text">반영 완료</span>
+          <span className="onboarding-complete-text">저장했어요</span>
         </div>
       )}
 
@@ -2345,7 +2359,7 @@ export default function App() {
                     type="button"
                     className="btn-tutorial-text"
                     onClick={() => {
-                      setTutorialStep(0);
+                      setTutorialPhase('fab');
                       setShowTutorial(true);
                     }}
                   >
@@ -2372,7 +2386,7 @@ export default function App() {
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
-                원재료·NOVA·영양 비율을 알려줄게요
+                원재료·NOVA·영양 비율을 알려 드릴게요
               </h2>
             </div>
             {loading && (
@@ -2397,7 +2411,7 @@ export default function App() {
             )}
             {history.length > 0 && (
               <div id="historyList" className="history-list-wrap">
-                <h2 className="history-list-title">최근 분석 기록</h2>
+                <h2 className="history-list-title">최근에 본 분석</h2>
                 {history.slice(0, 5).map((item) => (
                     <div
                       key={item.id}
@@ -2541,9 +2555,9 @@ export default function App() {
               </div>
             )}
             <div className="disclaimer">
-              이 정보는 참고용이에요.
+              참고용 정보예요.
               <br />
-              정확한 건강 상담은 전문의와 함께하세요.
+              정확한 상담은 병원에서 함께해 주세요.
             </div>
           </div>
         </div>
@@ -2599,7 +2613,12 @@ export default function App() {
                   aria-label="모든 기록 삭제"
                   onClick={() => {
                     if (!clientId) return;
-                    if (!window.confirm('스캔 기록과 개인 맞춤화 정보(출생연도·성별·키·몸무게 등)를 모두 삭제할까요?\n삭제 후에는 복구할 수 없어요.')) return;
+                    if (
+                      !window.confirm(
+                        '스캔 기록이랑 프로필(출생연도·성별·키·몸무게)까지 전부 지울까요?\n한번 지우면 되돌릴 수 없어요.',
+                      )
+                    )
+                      return;
                     clearAllData(clientId);
                     const state = loadState(clientId);
                     setProfileState(state.profile || {});
@@ -2741,7 +2760,7 @@ export default function App() {
                       const { heightCm: h, weightKg: w } = getLatestHeightWeight(profile);
                       return h != null && h > 0 && w != null && w > 0
                         ? `키 ${Math.round(h)} cm · 몸무게 ${w.toFixed(1)} kg`
-                        : '기록 없음';
+                        : '아직 없어요';
                     })()}
                   </div>
                   <button
@@ -2861,13 +2880,13 @@ export default function App() {
             </div>
             <div className="info-knova-intro">
               <p className="info-knova-intro-line">
-                NOVA는 식품이 얼마나 가공되었는지를 단계로 나눈 분류 개념이에요. 한국형 NOVA(K-NOVA)는 국내 식품 표기와 섭취 환경에 맞게 이를 적용합니다.
+                NOVA는 식품 가공 정도를 단계로 나눈 개념이에요. 한국형(K-NOVA)은 우리나라 표기·먹는 환경에 맞춰 쓰는 거예요.
               </p>
               <p className="info-knova-intro-line">
                 {NOVA_CLASSIFICATION_INTRO}
               </p>
               <p className="info-knova-intro-line info-knova-intro-line--muted">
-                아래는 그룹별로 자주 쓰이는 설명이에요. 세부 기준은 학술·정책 문서와 다를 수 있어요.
+                아래는 그룹별로 자주 쓰는 설명이에요. 세부 기준은 논문·정책 문서랑 다를 수 있어요.
               </p>
             </div>
             {[1, 2, 3, 4].map((n) => (
@@ -2888,7 +2907,7 @@ export default function App() {
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
-              프로필이 있으면 맞춤 참고가 붙어요. 나트륨·당 비율은 결과의 영양 막대에서 보세요.
+              프로필 넣으면 맞춤 안내가 붙어요. 나트륨·당은 결과 막대에서 볼 수 있어요.
             </p>
           </div>
         </div>
@@ -2986,19 +3005,11 @@ export default function App() {
 
       {/* 캡처 안내·미리보기·분석 확인: 앱 UI만 보이게 코치(딤/말풍선) 숨김 */}
       <TutorialCoachOverlay
-        active={
-          showTutorial &&
-          !(
-            (tutorialStep === 1 && captureStepGuide === 1) ||
-            (tutorialStep === 2 && !!capturedPreviewDataUrl && captureStep === 1) ||
-            (tutorialStep === 3 && captureStepGuide === 2) ||
-            (tutorialStep === 5 && !!capturedPreviewDataUrl && captureStep === 2)
-          )
-        }
+        active={tutorialCoachActive}
         holeRect={tutorialHoleRect}
         focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
-        stepIndex={tutorialStep}
+        stepIndex={tutorialPhaseIndex(tutorialPhase)}
         stepTotal={TUTORIAL_STEP_TOTAL}
         onSkip={finishTutorial}
       />
