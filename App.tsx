@@ -3008,7 +3008,8 @@ export default function App() {
             (tutorialStep === 5 && !!capturedPreviewDataUrl && captureStep === 2)
           )
         }
-        spotlight={tutorialStep === 0}
+        /* 촬영 UI가 뜨면 딤 없음(가이드 프레임 그림자와 겹쳐 보이는 것도 방지) */
+        spotlight={tutorialStep === 0 && !showCamera}
         holeRect={tutorialHoleRect}
         focusDecoration={tutorialFocusDecoration}
         message={tutorialMessage}
