@@ -74,6 +74,10 @@ export function getPersonalizationBlock(profile?: PersonalizationInput | null): 
     `- 맞춤 기준: ${focus.personalSummary}\n` +
     '- 이 정보는 novaGroup·novaSubgroup 판단에는 사용하지 않는다.\n' +
     '- 이 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice를 더 정확하고 간결하게 조정하는 데만 사용한다.\n' +
+    '- consumptionAdvice는 BMI 구간별로 반드시 톤을 다르게 쓴다.\n' +
+    '- 체형 구간이 과체중/비만이면: 당류·지방·초가공 식품에 대해 더 보수적인 주의 톤을 분명히 드러낸다.\n' +
+    '- 체형 구간이 정상/저체중이면: 일반 기준의 균형·확인 중심 톤으로 쓴다.\n' +
+    '- 같은 제품이라도 BMI 구간이 다르면 consumptionAdvice 문장이 동일하면 안 된다.\n' +
     '- 하루 몇 번, 하루 몇 개, 하루 몇 봉지, 하루 몇 캔, 주 몇 회 같은 숫자·횟수·기간형 표현은 쓰지 않는다.\n' +
     '- 적게, 덜 자주, 자주, 많이, 하루 1회, 하루 1개처럼 섭취 빈도나 양을 직접 지시하는 표현도 피한다.\n' +
     '- 맞춤 참고는 위험 설명의 우선순위를 조정하는 용도이며, 의료적 진단이나 처방처럼 말하지 않는다.\n\n'
