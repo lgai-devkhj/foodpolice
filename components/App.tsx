@@ -302,13 +302,20 @@ function TutorialCoachOverlay({
         </div>
       )}
       <div className={bubbleClass} style={bubbleStyle}>
-        <p className="tutorial-coach-step">
-          {stepIndex + 1} / {stepTotal}
-        </p>
+        <div className="tutorial-coach-bubble-head">
+          <p className="tutorial-coach-step">
+            {stepIndex + 1} / {stepTotal}
+          </p>
+          <button
+            type="button"
+            className="tutorial-coach-close"
+            aria-label="튜토리얼 닫기"
+            onClick={onSkip}
+          >
+            ×
+          </button>
+        </div>
         {message.trim() !== '' && <p className="tutorial-coach-msg">{message}</p>}
-        <button type="button" className="tutorial-coach-skip" onClick={onSkip}>
-          건너뛰기
-        </button>
       </div>
     </div>
   );
@@ -1514,12 +1521,21 @@ export default function App() {
       let hole: CoachRect | null = null;
       let decoration: TutorialFocusDecoration = null;
 
-      const setFromEl = (node: HTMLElement | null, deco: TutorialFocusDecoration = null) => {
+      const setFromEl = (
+        node: HTMLElement | null,
+        decoMode: 'arrow' | 'ring' | 'none' = 'arrow'
+      ) => {
         if (!node) return;
         const r = node.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) return;
-        hole = { top: r.top, left: r.left, width: r.width, height: r.height };
-        decoration = deco;
+        const h = { top: r.top, left: r.left, width: r.width, height: r.height };
+        hole = h;
+        decoration =
+          decoMode === 'arrow'
+            ? { kind: 'arrow', rect: h }
+            : decoMode === 'ring'
+              ? { kind: 'ring', rect: h }
+              : null;
       };
 
       switch (tutorialPhase) {
@@ -1533,10 +1549,10 @@ export default function App() {
           break;
         }
         case 'preview_ingredient':
-          setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), 'arrow');
           break;
         case 'preview_analyze':
-          setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), 'arrow');
           break;
         default:
           break;

@@ -1591,8 +1591,16 @@
     html:not([data-theme="light"]) .tutorial-coach-bubble {
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
     }
+    .tutorial-coach-bubble-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
     .tutorial-coach-step {
-      margin: 0 0 8px;
+      margin: 0;
+      padding-top: 2px;
       font-size: 0.82rem;
       font-weight: 700;
       letter-spacing: 0.04em;
@@ -1600,30 +1608,39 @@
       text-transform: uppercase;
     }
     .tutorial-coach-msg {
-      margin: 0 0 14px;
+      margin: 0;
       font-size: 1.12rem;
       font-weight: 600;
       line-height: 1.45;
       color: var(--text);
     }
-    .tutorial-coach-skip {
-      display: block;
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 14px;
-      background: rgba(0, 0, 0, 0.06);
-      color: var(--text2);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
+    .tutorial-coach-bubble-head + .tutorial-coach-msg {
+      margin-top: 4px;
     }
-    [data-theme="dark"] .tutorial-coach-skip,
-    html:not([data-theme="light"]) .tutorial-coach-skip {
+    .tutorial-coach-close {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      margin: -6px -6px 0 0;
+      border-radius: 50%;
+      border: 1px solid var(--card-stroke);
+      background: rgba(0, 0, 0, 0.05);
+      font-size: 1.5rem;
+      font-weight: 300;
+      line-height: 1;
+      color: var(--text2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    [data-theme="dark"] .tutorial-coach-close,
+    html:not([data-theme="light"]) .tutorial-coach-close {
       background: rgba(255, 255, 255, 0.08);
     }
-    .tutorial-coach-skip:active {
-      opacity: 0.85;
+    .tutorial-coach-close:active {
+      opacity: 0.88;
     }
 
     .modal {
