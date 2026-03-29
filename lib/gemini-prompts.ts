@@ -53,7 +53,7 @@ function getPersonalizationFocus(tier: BmiTier): {
       return {
         adviceTone: 'careful',
         focusText: '당류·포화지방·초가공성을 가장 우선해서 더 엄격하게 본다.',
-        personalSummary: '덜 자주, 덜 많이 먹는 쪽의 보수적 표현을 사용하되 허용 횟수는 임의 계산하지 않는다.'
+        personalSummary: '강한 단맛, 높은 지방, 초가공성에 더 조심스러운 톤을 사용하되 섭취 횟수나 양은 숫자로 제시하지 않는다.'
       };
   }
 }
@@ -74,7 +74,8 @@ export function getPersonalizationBlock(profile?: PersonalizationInput | null): 
     `- 맞춤 기준: ${focus.personalSummary}\n` +
     '- 이 정보는 novaGroup·novaSubgroup 판단에는 사용하지 않는다.\n' +
     '- 이 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice를 더 정확하고 간결하게 조정하는 데만 사용한다.\n' +
-    '- 하루 몇 번, 몇 개, 몇 봉지처럼 구체적 허용 횟수를 임의로 계산하거나 제시하지 않는다.\n' +
+    '- 하루 몇 번, 하루 몇 개, 하루 몇 봉지, 하루 몇 캔, 주 몇 회 같은 숫자·횟수·기간형 표현은 쓰지 않는다.\n' +
+    '- 적게, 덜 자주, 자주, 많이, 하루 1회, 하루 1개처럼 섭취 빈도나 양을 직접 지시하는 표현도 피한다.\n' +
     '- 맞춤 참고는 위험 설명의 우선순위를 조정하는 용도이며, 의료적 진단이나 처방처럼 말하지 않는다.\n\n'
   );
 }
@@ -94,7 +95,8 @@ export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationIn
     '- 개인화는 식품 자체 분류를 바꾸는 용도가 아니다.\n' +
     '- 개인화는 설명의 초점과 조언의 보수성을 조정하는 용도다.\n' +
     '- 같은 식품이라도 사용자 상태에 따라 더 주의 깊게 봐야 할 요소를 다르게 짚을 수 있다.\n' +
-    '- 섭취 허용 횟수, 감량 효과, 건강 개선 효과를 임의 계산하지 않는다.\n\n' +
+    '- 섭취 허용 횟수, 감량 효과, 건강 개선 효과를 임의 계산하지 않는다.\n' +
+    '- 숫자, 횟수, 기간을 넣은 섭취 규칙은 만들지 않는다.\n\n' +
     '[출력 원칙]\n' +
     '- briefDescription: 전체 평가를 한 문장으로, 45자 이내.\n' +
     '- briefDescription은 영양성분, 원재료 특성, 가공 정도 중 최소 2가지를 반영한다.\n' +
@@ -103,7 +105,7 @@ export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationIn
     '- concernIngredients.name에는 원재료 표기에 실제로 보이는 명칭만 넣는다. 일반화·추측 금지.\n' +
     '- concernIngredients.name에 나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 같은 영양성분표 항목명은 넣지 않는다.\n' +
     '- judgmentReason: K-NOVA 판단 근거를 한 문장으로 쓴다.\n' +
-    '- consumptionAdvice: 라벨에 보이는 정보와 맞춤 참고를 함께 반영해 짧게 쓴다.\n' +
+    '- consumptionAdvice: 라벨에 적힌 사실만 바탕으로 쓰고, 숫자형 섭취 횟수나 허용량을 만들지 않는다.\n' +
     '- 의료적 진단, 치료, 단정 표현은 금지한다.\n\n'
   );
 }
@@ -128,7 +130,8 @@ export function getNutritionServingUnitRulesBlock(): string {
     '- 캔디·껌·목캔디·정제형·작은 알갱이 간식은 특히 포장 개수 추정을 금지한다.\n' +
     '- servingSizeText에는 1회 제공량, 개당 중량, 총 내용량(g/ml) 등 표기를 가능한 그대로 넣는다.\n' +
     '- basisIsPerServing은 표 숫자가 1회 제공량 기준인지 100g/100ml 기준인지 정확히 구분한다.\n' +
-    '- consumptionAdvice에서는 하루 몇 통, 몇 봉지, 몇 박스 같은 구체적 허용 개수를 쓰지 않는다.\n' +
+    '- consumptionAdvice에서는 하루 몇 통, 몇 봉지, 몇 박스, 주 몇 회 같은 구체적 허용 개수나 빈도를 쓰지 않는다.\n' +
+    '- consumptionAdvice에서는 적게 먹기, 덜 자주 먹기, 하루 1개만 같은 행동 지시형 문장도 쓰지 않는다.\n' +
     '- 애매하면 중량 또는 1회 제공량 확인을 권하는 보수적 문장만 쓴다.\n'
   );
 }
@@ -228,8 +231,9 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- 없거나 판독 불가면 nutrition은 null로 둔다.\n' +
     '- 표에 0kcal, 제로칼로리, 열량 0 등으로 나오면 caloriesKcal는 반드시 숫자 0이다.\n' +
     '- 콜레스테롤 행이 있으면 cholesterolMg에 mg 숫자(0 포함)를 넣는다. 표에 없으면 null.\n' +
-    '- consumptionAdvice는 라벨에 보이는 것만 바탕으로 한 문장으로 쓴다.\n' +
-    '- 보관, 섭취, 당, 나트륨 중 하나만 짚는다.\n' +
+    '- consumptionAdvice는 라벨에 실제로 보이는 정보만 바탕으로 한 문장으로 쓴다.\n' +
+    '- 보관, 섭취 시 확인사항, 당, 나트륨 중 하나만 짚는다.\n' +
+    '- 숫자형 섭취 횟수, 허용량, 빈도 조언은 금지한다.\n' +
     '- kcal 추측은 금지한다.\n\n' +
     '[JSON 출력]\n' +
     '- productName: 제품명. 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
@@ -241,7 +245,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- concernIngredients: 주의 원재료 최대 3개. 없으면 [].\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
-    '- consumptionAdvice: 라벨 기준 한 문장. 없으면 "".\n' +
+    '- consumptionAdvice: 라벨에 보이는 정보만 바탕으로 쓴 짧은 한 문장. 숫자, 횟수, 기간, 허용량 표현은 금지. 없으면 "".\n' +
     '- foodCategory: 아래 목록 중 정확히 하나.\n' +
     '- nutrition: 객체 또는 null.\n\n' +
     '[foodCategory]\n' +
@@ -305,7 +309,7 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- concernIngredients: 최대 3개. 없으면 [].\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
-    '- consumptionAdvice: 라벨에 보이는 정보만 바탕으로 한 문장. 없으면 "".\n' +
+    '- consumptionAdvice: 라벨에 실제로 보이는 정보만 바탕으로 쓴 짧은 한 문장. 숫자, 횟수, 기간, 허용량 표현은 금지. 없으면 "".\n' +
     '- foodCategory: 위 목록 중 하나.\n' +
     '- nutrition: 객체 또는 null.\n' +
     '- nutrition 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG, servingSizeText, basisIsPerServing, tableRows.\n\n' +

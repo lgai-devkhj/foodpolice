@@ -22,6 +22,8 @@ import {
   clearAllData,
   addBodyMeasurement,
   removeBodyMeasurement,
+  compareBodyMeasurementsAsc,
+  compareBodyMeasurementsDesc,
   type Profile,
   type HistoryItem,
   type AnalysisResult,
@@ -65,11 +67,11 @@ import {
   IconCheck,
 } from '@/components/ui-icons';
 
-/** bodyMeasurements 중 날짜 기준 가장 최신 기록의 키·몸무게, 없으면 profile 값 */
+/** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
   const list = profile.bodyMeasurements || [];
   if (list.length === 0) return { heightCm: profile.heightCm, weightKg: profile.weightKg };
-  const sorted = [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sorted = [...list].sort(compareBodyMeasurementsDesc);
   const latest = sorted[0];
   return { heightCm: latest.heightCm, weightKg: latest.weightKg };
 }
@@ -3106,7 +3108,7 @@ export default function App() {
       {/* 키·몸무게 기록 목록 시트 */}
       {showMeasurementHistory && (
         <BodyMeasurementHistorySheet
-          measurements={[...(profile.bodyMeasurements || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())}
+          measurements={[...(profile.bodyMeasurements || [])].sort(compareBodyMeasurementsDesc)}
           onDelete={(index) => {
             if (clientId) {
               removeBodyMeasurement(clientId, index);
@@ -3120,7 +3122,7 @@ export default function App() {
       {/* 비만도 추이 시트 */}
       {showBmiGraph && (
         <BMIGraphSheet
-          measurements={[...(profile.bodyMeasurements || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())}
+          measurements={[...(profile.bodyMeasurements || [])].sort(compareBodyMeasurementsAsc)}
           onClose={() => setShowBmiGraph(false)}
         />
       )}
@@ -3234,7 +3236,10 @@ function BodyMeasurementHistorySheet({
               </thead>
               <tbody>
                 {measurements.map((m, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid var(--card-stroke)' }}>
+                  <tr
+                    key={`${m.date}-${m.recordedAt ?? idx}-${m.heightCm}-${m.weightKg}`}
+                    style={{ borderBottom: '1px solid var(--card-stroke)' }}
+                  >
                     <td style={{ padding: '10px 12px', color: 'var(--text)' }}>{dateStr(m.date)}</td>
                     <td style={{ textAlign: 'right', padding: '10px 12px', color: 'var(--text2)' }}>{Math.round(m.heightCm)}</td>
                     <td style={{ textAlign: 'right', padding: '10px 12px', color: 'var(--text2)' }}>{m.weightKg.toFixed(1)}</td>
@@ -3265,7 +3270,7 @@ function BMIGraphSheet({ measurements, onClose }: { measurements: BodyMeasuremen
   const bmiMax = 35;
   const leftPad = 36;
   const bottomPad = 28;
-  const sorted = measurements.length ? [...measurements].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) : [];
+  const sorted = measurements.length ? [...measurements].sort(compareBodyMeasurementsAsc) : [];
   const dateLabel = (iso: string) => {
     const d = new Date(iso);
     return isNaN(d.getTime()) ? '' : (d.getMonth() + 1) + '/' + d.getDate();

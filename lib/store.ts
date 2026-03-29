@@ -4,6 +4,38 @@ export interface BodyMeasurement {
   date: string; // ISO
   heightCm: number;
   weightKg: number;
+  /** 같은 calendar 날짜에 여러 건일 때 정렬·최신 판별용(추가 시각) */
+  recordedAt?: string;
+  /** 추가 순서 번호(항상 증가). 같은 날짜/시각 충돌 시 최종 tie-breaker */
+  seq?: number;
+}
+
+/** 날짜 오름차순, 같은 날이면 recordedAt(없으면 0) 오름차순 */
+export function compareBodyMeasurementsAsc(a: BodyMeasurement, b: BodyMeasurement): number {
+  const ta = new Date(a.date).getTime();
+  const tb = new Date(b.date).getTime();
+  if (ta !== tb) return ta - tb;
+  const ra = a.recordedAt ? new Date(a.recordedAt).getTime() : 0;
+  const rb = b.recordedAt ? new Date(b.recordedAt).getTime() : 0;
+  if (ra !== rb) return ra - rb;
+  const sa = typeof a.seq === 'number' && Number.isFinite(a.seq) ? a.seq : 0;
+  const sb = typeof b.seq === 'number' && Number.isFinite(b.seq) ? b.seq : 0;
+  if (sa !== sb) return sa - sb;
+  return 0;
+}
+
+export function compareBodyMeasurementsDesc(a: BodyMeasurement, b: BodyMeasurement): number {
+  return -compareBodyMeasurementsAsc(a, b);
+}
+
+function nextBodyMeasurementSeq(list: BodyMeasurement[]): number {
+  let maxSeq = 0;
+  for (const m of list) {
+    if (typeof m?.seq === 'number' && Number.isFinite(m.seq)) {
+      if (m.seq > maxSeq) maxSeq = m.seq;
+    }
+  }
+  return maxSeq + 1;
 }
 
 export interface Profile {
@@ -144,6 +176,8 @@ export function loadState(clientId: string): AppState {
           date: new Date().toISOString(),
           heightCm: Number(profile.heightCm),
           weightKg: Number(profile.weightKg),
+          recordedAt: new Date().toISOString(),
+          seq: 1,
         },
       ];
     }
@@ -158,6 +192,8 @@ export function loadState(clientId: string): AppState {
           date: new Date().toISOString(),
           heightCm: Number(profile.heightCm),
           weightKg: Number(profile.weightKg),
+          recordedAt: new Date().toISOString(),
+          seq: 1,
         },
       ];
     }
@@ -193,7 +229,13 @@ export function setProfile(clientId: string, profile: Profile): void {
     p = {
       ...p,
       bodyMeasurements: [
-        { date: new Date().toISOString(), heightCm: p.heightCm, weightKg: p.weightKg },
+        {
+          date: new Date().toISOString(),
+          heightCm: p.heightCm,
+          weightKg: p.weightKg,
+          recordedAt: new Date().toISOString(),
+          seq: 1,
+        },
       ],
     };
   }
@@ -289,9 +331,15 @@ export function addBodyMeasurement(
   const state = loadState(clientId);
   const p = state.profile || {};
   const list = Array.isArray(p.bodyMeasurements) ? [...p.bodyMeasurements] : [];
-  list.push({ date, heightCm, weightKg });
+  list.push({
+    date,
+    heightCm,
+    weightKg,
+    recordedAt: new Date().toISOString(),
+    seq: nextBodyMeasurementSeq(list),
+  });
   if (list.length > 100) list.splice(0, list.length - 100);
-  const sorted = [...list].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sorted = [...list].sort(compareBodyMeasurementsAsc);
   const latest = sorted[sorted.length - 1];
   state.profile = {
     ...p,
@@ -314,14 +362,24 @@ export function removeBodyMeasurement(clientId: string, index: number): void {
   const state = loadState(clientId);
   const p = state.profile || {};
   const list = Array.isArray(p.bodyMeasurements) ? [...p.bodyMeasurements] : [];
-  const sortedDesc = [...list].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sortedDesc = [...list].sort(compareBodyMeasurementsDesc);
   if (index < 0 || index >= sortedDesc.length) return;
   const toRemove = sortedDesc[index];
-  const idxInList = list.findIndex(
-    (m) => m.date === toRemove.date && m.heightCm === toRemove.heightCm && m.weightKg === toRemove.weightKg
+  let idxInList = list.findIndex(
+    (m) =>
+      m.date === toRemove.date &&
+      m.heightCm === toRemove.heightCm &&
+      m.weightKg === toRemove.weightKg &&
+      (m.recordedAt || '') === (toRemove.recordedAt || '') &&
+      (m.seq ?? 0) === (toRemove.seq ?? 0)
   );
+  if (idxInList < 0) {
+    idxInList = list.findIndex(
+      (m) => m.date === toRemove.date && m.heightCm === toRemove.heightCm && m.weightKg === toRemove.weightKg
+    );
+  }
   const newList = idxInList >= 0 ? list.filter((_, i) => i !== idxInList) : list;
-  const nextSorted = [...newList].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const nextSorted = [...newList].sort(compareBodyMeasurementsAsc);
   const latest = nextSorted[nextSorted.length - 1];
   state.profile = {
     ...p,
