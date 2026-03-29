@@ -1535,7 +1535,8 @@
     }
     .tutorial-coach-arrow {
       position: fixed;
-      z-index: 2;
+      /* 말풍선(bubble)보다 위 — 겹칠 때 화살표가 가려지지 않게 */
+      z-index: 4;
       pointer-events: none;
       transform: translate(-50%, -100%);
       filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4));
@@ -1572,7 +1573,7 @@
       border: 1px solid var(--card-stroke);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
       pointer-events: auto;
-      z-index: 2;
+      z-index: 3;
     }
     .tutorial-coach-bubble--dock {
       position: fixed;
