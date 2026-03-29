@@ -327,12 +327,15 @@ function buildNutritionResultHtml(
 ): string {
   const hasDaily = daily && Object.keys(daily).length > 0;
   const hasServingLine = !!(nutrition?.servingSizeText);
-  /* 표 대신 막대만: 일일 비율 또는 제공량 문구가 있을 때만 섹션 표시 */
-  if (!hasDaily && !hasServingLine) return '';
+  const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
+  const hasTableRows = tableRows.length > 0;
+  if (!hasDaily && !hasServingLine && !hasTableRows) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
-  html +=
-    '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
+  if (hasDaily) {
+    html +=
+      '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
+  }
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -342,6 +345,21 @@ function buildNutritionResultHtml(
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
       '</span></div>';
+  }
+
+  if (hasTableRows) {
+    html += '<p class="nutrition-label-heading">라벨에서 읽은 영양표</p>';
+    html += '<div class="nutrition-label-table" role="list">';
+    for (const tr of tableRows) {
+      html +=
+        '<div class="nutrition-label-row" role="listitem">' +
+        '<span class="nutrition-label-name">' +
+        escapeHtml((tr.name || '').trim() || '항목') +
+        '</span><span class="nutrition-label-value">' +
+        escapeHtml((tr.amount || '').trim() || '—') +
+        '</span></div>';
+    }
+    html += '</div>';
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
@@ -632,6 +650,19 @@ function requestAlternativesFromApi(
       novaSubgroup: baseResult.novaSubgroup || null,
       briefDescription: baseResult.briefDescription || null,
       rawMaterials: baseResult.product?.rawMaterials || '',
+      nutrition: baseResult.nutrition
+        ? {
+            caloriesKcal: baseResult.nutrition.caloriesKcal ?? null,
+            sodiumMg: baseResult.nutrition.sodiumMg ?? null,
+            sugarG: baseResult.nutrition.sugarG ?? null,
+            saturatedFatG: baseResult.nutrition.saturatedFatG ?? null,
+            transFatG: baseResult.nutrition.transFatG ?? null,
+            proteinG: baseResult.nutrition.proteinG ?? null,
+            fatG: baseResult.nutrition.fatG ?? null,
+            carbsG: baseResult.nutrition.carbsG ?? null,
+            dietaryFiberG: baseResult.nutrition.dietaryFiberG ?? null,
+          }
+        : null,
     }),
   })
     .then(async (r) => {
@@ -1326,7 +1357,7 @@ export default function App() {
         result.nutritionDailyPercent ?? undefined
       );
       if (nutritionHtml) {
-        html += '<details class="result-details"><summary>영양 비율 보기</summary>' + nutritionHtml + '</details>';
+        html += '<details class="result-details"><summary>영양 정보 보기</summary>' + nutritionHtml + '</details>';
       }
       setResultContentHtml(html);
     },

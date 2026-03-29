@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   buildAlternativeFoodWebSearchPrompt,
+  buildNutritionHintForAlternatives,
   fetchAlternativesWithGoogleSearch,
+  type AlternativesNutritionPayload,
 } from '@/lib/gemini-alternative-search';
 
 export const runtime = 'nodejs';
-/** gemini-2.5-flash 그라운딩 1회(최대 ~24s) + 여유 */
-export const maxDuration = 45;
+/** 그라운딩 최대 2회(각 ~28s)까지 허용 */
+export const maxDuration = 60;
 
 interface AlternativesBody {
   productName?: string;
@@ -16,6 +18,8 @@ interface AlternativesBody {
   novaSubgroup?: string | null;
   briefDescription?: string | null;
   rawMaterials?: string;
+  /** 분석 결과 nutrition의 숫자 필드만 전달 */
+  nutrition?: AlternativesNutritionPayload | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -27,6 +31,7 @@ export async function POST(request: NextRequest) {
 
     const body: AlternativesBody = await request.json();
     const novaGroup = Math.min(4, Math.max(1, parseInt(String(body.novaGroup), 10) || 4));
+    const nutritionHint = buildNutritionHintForAlternatives(body.nutrition ?? undefined);
     const ctx = {
       productName: (body.productName || '').trim(),
       companyName: (body.companyName || '').trim(),
@@ -35,6 +40,7 @@ export async function POST(request: NextRequest) {
       novaSubgroup: body.novaSubgroup ? String(body.novaSubgroup).trim().toUpperCase() : null,
       briefDescription: body.briefDescription ? String(body.briefDescription).trim() : null,
       rawMaterials: (body.rawMaterials || '').trim(),
+      nutritionHint,
     };
 
     const prompt = buildAlternativeFoodWebSearchPrompt(ctx);

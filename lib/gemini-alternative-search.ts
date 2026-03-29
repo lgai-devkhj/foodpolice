@@ -14,7 +14,43 @@ import { generateContentWithGoogleSearch } from '@/lib/gemini-grounding';
 export const ALTERNATIVES_GROUNDING_MODEL = SEARCH_MODEL;
 
 /** 한 번의 generateContent(검색 그라운딩 포함) 최대 대기 */
-const PER_ATTEMPT_TIMEOUT_MS = 24_000;
+const PER_ATTEMPT_TIMEOUT_MS = 28_000;
+
+/** /api/alternatives 요청 본문에서 넘기는 축약 영양(표 숫자 필드) */
+export type AlternativesNutritionPayload = {
+  caloriesKcal?: number | null;
+  sodiumMg?: number | null;
+  sugarG?: number | null;
+  saturatedFatG?: number | null;
+  transFatG?: number | null;
+  proteinG?: number | null;
+  fatG?: number | null;
+  carbsG?: number | null;
+  dietaryFiberG?: number | null;
+};
+
+export function buildNutritionHintForAlternatives(
+  n: AlternativesNutritionPayload | null | undefined
+): string | null {
+  if (!n || typeof n !== 'object') return null;
+  const parts: string[] = [];
+  const push = (label: string, v: unknown, unit: string) => {
+    if (v == null || v === '') return;
+    const num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+    if (!Number.isFinite(num)) return;
+    parts.push(`${label} 약 ${num}${unit}`);
+  };
+  push('열량', n.caloriesKcal, 'kcal');
+  push('나트륨', n.sodiumMg, 'mg');
+  push('당류', n.sugarG, 'g');
+  push('포화지방', n.saturatedFatG, 'g');
+  push('트랜스지방', n.transFatG, 'g');
+  push('지방', n.fatG, 'g');
+  push('탄수화물', n.carbsG, 'g');
+  push('단백질', n.proteinG, 'g');
+  push('식이섬유', n.dietaryFiberG, 'g');
+  return parts.length > 0 ? parts.join(', ') : null;
+}
 
 export interface AlternativeSearchContext {
   productName: string;
@@ -24,6 +60,8 @@ export interface AlternativeSearchContext {
   novaSubgroup: string | null;
   briefDescription: string | null;
   rawMaterials: string;
+  /** 분석 API가 채운 숫자 영양 — 대안 선정 시 나트륨·당 등 비교에 사용 */
+  nutritionHint: string | null;
 }
 
 const OUTPUT_FORMAT =
@@ -47,7 +85,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const stage = `Group ${ctx.novaGroup}${ctx.novaGroup === 4 ? sub : ''}`;
   const cat = ctx.foodCategory || '미분류';
   const desc = (ctx.briefDescription || '').slice(0, 300);
-
+  const nut = ctx.nutritionHint ? `\n(1회 제공량·표 기준 추정) ${ctx.nutritionHint}\n` : '';
 
   return (
     '**필수:** 답하기 전에 **Google Search 도구로 실제 웹 검색을 반드시 실행**하고, 네이버 쇼핑·마트 채널 등에서 **품명이 스니펫에 보이는지** 확인하세요. 검색 없이 추측만 하지 마세요.\n\n' +
@@ -59,11 +97,17 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     `NOVA(한국형): ${stage}\n` +
     (desc ? `한 줄 설명: ${desc}\n` : '') +
     (raw ? `원재료 일부: ${raw}\n` : '') +
+    (nut ? `영양(숫자):${nut}` : '') +
     '\n[한국 온라인 마트 — 검색 시 우선 활용]\n' +
     '웹 검색 쿼리를 잡을 때 **국내 실판매 페이지가 나오도록** 하세요.\n' +
     '- **네이버 쇼핑**(shopping.naver.com, search.shopping.naver.com)에 올라온 상품명·브랜드가 검색 스니펫에 보일 때까지 검색을 조정해도 됩니다.\n' +
+    '- 검색은 **여러 쿼리**로 시도: ① `foodCategory` + 품목 키워드 + `저당`·`저나트륨`·`무가당`·`플레인` 등 **해당 카테고리에 맞는 수식어** ② 현재 브랜드/제품명 + `대체` ③ 유사 제품군 + `추천` + `site:shopping.naver.com`.\n' +
     '- 대형마트 채널 예: 네이버 쇼핑 내 **이마트** 마켓 홈 `https://shopping.naver.com/market/emart/home` — 식료품 유통 맥락의 기준으로 삼으세요. 실제 후보 품목은 **검색으로** `네이버쇼핑 이마트`, `site:shopping.naver.com`, 제품명+브랜드+`구매` 등 한국어 조합을 활용해 확인하세요.\n' +
-    '- 홈플러스·롯데마트·GS더프레시 등 **다른** 네이버 쇼핑 마켓/슈퍼 채널 결과가 나와도 무방합니다. **검색 결과에 품명이 명시된 경우에만** 추천 칸에 적으세요.\n\n' +
+    '- 홈플러스·롯데마트·GS더프레시 등 **다른** 네이버 쇼핑 마켓/슈퍼 채널 결과가 나와도 무방합니다. **검색 결과에 품명이 명시된 경우에만** 추천 칸에 적으세요.\n' +
+    (ctx.nutritionHint
+      ? '- 위 **영양(숫자)**가 있으면: 나트륨·당류·포화지방이 높게 잡혀 있으면 **같은 식품군** 안에서 그 수치를 **상대적으로 낮추는** 실제 유통 품을 우선 검색해 보세요. 숫자가 없는 항목은 억지로 비교하지 않습니다.\n'
+      : '') +
+    '\n' +
     '[규칙 — 반드시 준수]\n' +
     '1. **웹 검색으로 확인된** 브랜드+공식 판매명만 1~3번에 적습니다. 검색 결과에 없는 조합·플레버는 **지어내지 마세요**.\n' +
     '2. 같은 식품군(위 foodCategory)·비슷한 소비 상황을 유지하세요. 탄산 제로 콜라류면 다른 브랜드 **동종 제로 콜라** 등, 완전 다른 계열(생수·무가당 차만)로 바꾸지 마세요.\n' +
@@ -148,12 +192,15 @@ async function generateAlternativesOnce(
 
 /**
  * Google Search 그라운딩 — 항상 `gemini-2.5-flash`.
+ * 빈 응답·검증 탈락 시 같은 프롬프트로 1회 재시도.
  * @returns 대체 식품 블록 텍스트, 실패 시 null
  */
 export async function fetchAlternativesWithGoogleSearch(
   apiKey: string,
   prompt: string
 ): Promise<string | null> {
-  const { text } = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
-  return text;
+  const first = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
+  if (first.text) return first.text;
+  const second = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
+  return second.text;
 }

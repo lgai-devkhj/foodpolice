@@ -145,7 +145,7 @@ function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
 function isNutritionLabelLike(name: string): boolean {
   const n = (name || '').trim().toLowerCase();
   if (!n) return true;
-  return /(?:나트륨|당류|열량|칼로리|kcal|탄수화물|단백질|지방|포화지방|트랜스지방|콜레스테롤|식이섬유|탄수|당|protein|fat|carb|sodium|calorie|칼슘|칼륨|인\b|철\b|철분|마그네슘|아연|셀레늄|요오드|엽산|니아신|판토텐|티아민|리보플라빈|피리독신|비오틴|비타민|비타민a|비타민d|비타민c|비타민e|비타민k|비타민 b|회분|수분)/i.test(
+  return /(?:나트륨|당류|열량|칼로리|kcal|탄수화물|단백질|지방|포화지방|트랜스지방|콜레스테롤|식이섬유|탄수|protein|fat|carb|sodium|calorie|칼슘|칼륨|인\b|철\b|철분|마그네슘|아연|셀레늄|요오드|엽산|니아신|판토텐|티아민|리보플라빈|피리독신|비오틴|비타민|비타민a|비타민d|비타민c|비타민e|비타민k|비타민 b|회분|수분)/i.test(
     n
   );
 }
