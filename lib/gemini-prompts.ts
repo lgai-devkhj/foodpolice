@@ -27,32 +27,52 @@ function getBmiTierLabel(tier: BmiTier): string {
 
 function getPersonalizationFocus(tier: BmiTier): {
   adviceTone: 'general' | 'careful';
-  focusText: string;
+  riskPriority: string;
+  evaluationBias: string;
+  leniencyRule: string;
+  adviceStyle: string;
+  summaryStyle: string;
   personalSummary: string;
 } {
   switch (tier) {
     case 'underweight':
       return {
         adviceTone: 'general',
-        focusText: '당류·나트륨·포화지방과 초가공성을 일반 기준으로 본다.',
-        personalSummary: '체중 변화 목적을 추정하지 말고 일반 기준으로 짧게 설명한다.'
+        riskPriority: '당류·나트륨·포화지방·초가공성을 전체적으로 균형 있게 본다.',
+        evaluationBias: '특정 성분 하나만으로 과도하게 부정 평가하지 않고, 전체 성분 구성과 가공 정도를 함께 본다.',
+        leniencyRule: '경미한 수준의 요소는 과장하지 말고 일반적인 확인 포인트로 설명한다.',
+        adviceStyle: '부담을 주지 않는 균형 중심 톤으로 짧고 부드럽게 쓴다.',
+        summaryStyle: '전체 구성과 가공 정도를 차분하게 요약한다.',
+        personalSummary: '체중 변화 목적을 추정하지 말고 일반 기준으로 핵심만 설명한다.'
       };
     case 'normal':
       return {
         adviceTone: 'general',
-        focusText: '당류·나트륨·포화지방과 초가공성을 일반 기준으로 본다.',
-        personalSummary: '과한 경고 없이 균형 중심으로 핵심만 설명한다.'
+        riskPriority: '당류·나트륨·포화지방·초가공성을 전체적으로 균형 있게 본다.',
+        evaluationBias: '특정 수치 하나보다 전체 영양 균형과 가공 정도를 함께 보고 판단한다.',
+        leniencyRule: '경미한 수준의 요소는 과도하게 위험으로 해석하지 않는다.',
+        adviceStyle: '과한 경고 없이 균형과 확인 중심의 톤으로 쓴다.',
+        summaryStyle: '과장 없이 핵심만 정리하는 일반 기준 요약을 쓴다.',
+        personalSummary: '과도한 경고보다 균형 중심으로 핵심만 설명한다.'
       };
     case 'overweight':
       return {
         adviceTone: 'careful',
-        focusText: '당류·포화지방·초가공성을 더 민감하게 본다.',
+        riskPriority: '당류·포화지방·초가공성을 우선적으로 더 민감하게 본다.',
+        evaluationBias: '같은 제품이라도 경계 수준의 단맛, 지방, 가공성은 더 주의가 필요한 요소로 해석한다.',
+        leniencyRule: '문제가 가볍게 보이더라도 축소해서 표현하지 않는다.',
+        adviceStyle: '일반 기준보다 더 조심스러운 톤으로 주의 포인트를 분명하게 쓴다.',
+        summaryStyle: '당류·지방·초가공성 쪽 위험 신호를 먼저 짚는다.',
         personalSummary: '같은 식품이라도 단맛, 지방, 초가공성에 더 주의하는 방향으로 설명한다.'
       };
     case 'obese':
       return {
         adviceTone: 'careful',
-        focusText: '당류·포화지방·초가공성을 가장 우선해서 더 엄격하게 본다.',
+        riskPriority: '당류·포화지방·초가공성을 최우선 요소로 가장 엄격하게 본다.',
+        evaluationBias: '경계 수준의 요소도 위험 신호로 해석하고, 강한 단맛·높은 지방·초가공 특성은 더 보수적으로 판단한다.',
+        leniencyRule: '완화 표현이나 느슨한 표현을 최소화하고, 주의가 필요한 요소를 분명하게 드러낸다.',
+        adviceStyle: '단정적이거나 공격적이지 않되, 더 엄격하고 조심스러운 톤으로 쓴다.',
+        summaryStyle: '강한 단맛, 높은 지방, 초가공성 위험을 우선 강조한다.',
         personalSummary: '강한 단맛, 높은 지방, 초가공성에 더 조심스러운 톤을 사용하되 섭취 횟수나 양은 숫자로 제시하지 않는다.'
       };
   }
@@ -70,14 +90,24 @@ export function getPersonalizationBlock(profile?: PersonalizationInput | null): 
     `- BMI: ${bmiText}\n` +
     `- 체형 구간: ${bmiTierLabel}\n` +
     `- 설명 톤: ${focus.adviceTone}\n` +
-    `- 중점 요소: ${focus.focusText}\n` +
+    `- 위험 우선순위: ${focus.riskPriority}\n` +
+    `- 해석 기준: ${focus.evaluationBias}\n` +
+    `- 완화 기준: ${focus.leniencyRule}\n` +
+    `- 조언 방식: ${focus.adviceStyle}\n` +
+    `- 요약 방식: ${focus.summaryStyle}\n` +
     `- 맞춤 기준: ${focus.personalSummary}\n` +
     '- 이 정보는 novaGroup·novaSubgroup 판단에는 사용하지 않는다.\n' +
     '- 이 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice를 더 정확하고 간결하게 조정하는 데만 사용한다.\n' +
-    '- consumptionAdvice는 BMI 구간별로 반드시 톤을 다르게 쓴다.\n' +
-    '- 체형 구간이 과체중/비만이면: 당류·지방·초가공 식품에 대해 더 보수적인 주의 톤을 분명히 드러낸다.\n' +
-    '- 체형 구간이 정상/저체중이면: 일반 기준의 균형·확인 중심 톤으로 쓴다.\n' +
+    '- 같은 식품이라도 BMI 구간에 따라 설명의 우선순위와 조심스러움이 달라져야 한다.\n' +
+    '- consumptionAdvice는 BMI 구간별로 반드시 표현과 강조점이 달라야 한다.\n' +
+    '- briefDescription도 BMI 구간에 따라 같은 문장을 반복하지 말고 강조 요소를 다르게 반영한다.\n' +
+    '- concernIngredients.explanation 역시 BMI 구간에 따라 같은 설명을 반복하지 말고, 더 민감하게 봐야 할 요소를 다르게 짚는다.\n' +
+    '- BMI 구간에 따라 동일한 수치라도 해석 기준을 다르게 적용한다.\n' +
+    '- 체형 구간이 과체중/비만이면: 경계 수준의 성분도 더 주의가 필요한 요소로 보고, 당류·지방·초가공 식품에 대해 더 보수적인 주의 톤을 분명히 드러낸다.\n' +
+    '- 체형 구간이 정상/저체중이면: 경미한 수준은 과도하게 위험으로 해석하지 않고, 일반 기준의 균형·확인 중심 톤으로 쓴다.\n' +
     '- 같은 제품이라도 BMI 구간이 다르면 consumptionAdvice 문장이 동일하면 안 된다.\n' +
+    '- 같은 제품이라도 BMI 구간이 다르면 briefDescription 문장도 가능하면 동일하지 않게 쓴다.\n' +
+    '- 숫자형 위험 점수나 novaGroup 자체는 바꾸지 않더라도, 설명의 경고 강도와 우선순위는 달라져야 한다.\n' +
     '- 하루 몇 번, 하루 몇 개, 하루 몇 봉지, 하루 몇 캔, 주 몇 회 같은 숫자·횟수·기간형 표현은 쓰지 않는다.\n' +
     '- 적게, 덜 자주, 자주, 많이, 하루 1회, 하루 1개처럼 섭취 빈도나 양을 직접 지시하는 표현도 피한다.\n' +
     '- 맞춤 참고는 위험 설명의 우선순위를 조정하는 용도이며, 의료적 진단이나 처방처럼 말하지 않는다.\n\n'
@@ -97,19 +127,24 @@ export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationIn
     '4. 최종 종합: 영양성분과 가공 정도를 우선하고, 열량은 보조로만 반영한다.\n\n' +
     '[개인화 적용 원칙]\n' +
     '- 개인화는 식품 자체 분류를 바꾸는 용도가 아니다.\n' +
-    '- 개인화는 설명의 초점과 조언의 보수성을 조정하는 용도다.\n' +
+    '- 개인화는 설명의 초점, 위험 해석 강도, 조언의 보수성을 조정하는 용도다.\n' +
     '- 같은 식품이라도 사용자 상태에 따라 더 주의 깊게 봐야 할 요소를 다르게 짚을 수 있다.\n' +
+    '- 과체중/비만일 경우: 경계 수준의 당류, 지방, 초가공성도 더 주의가 필요한 요소로 본다.\n' +
+    '- 정상/저체중일 경우: 경미한 수준의 요소는 과도하게 위험으로 해석하지 않는다.\n' +
     '- 섭취 허용 횟수, 감량 효과, 건강 개선 효과를 임의 계산하지 않는다.\n' +
     '- 숫자, 횟수, 기간을 넣은 섭취 규칙은 만들지 않는다.\n\n' +
     '[출력 원칙]\n' +
     '- briefDescription: 전체 평가를 한 문장으로, 45자 이내.\n' +
     '- briefDescription은 영양성분, 원재료 특성, 가공 정도 중 최소 2가지를 반영한다.\n' +
     '- briefDescription은 열량만으로 요약한 문장을 금지한다.\n' +
+    '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- concernIngredients: 원재료명 또는 첨가물명만 최대 3개. 영양성분명은 금지.\n' +
     '- concernIngredients.name에는 원재료 표기에 실제로 보이는 명칭만 넣는다. 일반화·추측 금지.\n' +
     '- concernIngredients.name에 나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 같은 영양성분표 항목명은 넣지 않는다.\n' +
+    '- concernIngredients.explanation은 BMI 구간에 따라 같은 문장을 반복하지 말고, 더 민감하게 봐야 할 이유를 다르게 반영한다.\n' +
     '- judgmentReason: K-NOVA 판단 근거를 한 문장으로 쓴다.\n' +
     '- consumptionAdvice: 라벨에 적힌 사실만 바탕으로 쓰고, 숫자형 섭취 횟수나 허용량을 만들지 않는다.\n' +
+    '- consumptionAdvice는 BMI 구간별로 표현 강도와 강조점이 달라야 한다.\n' +
     '- 의료적 진단, 치료, 단정 표현은 금지한다.\n\n'
   );
 }
@@ -206,7 +241,8 @@ export function getKoreanNovaCriteria(profile?: PersonalizationInput | null): st
     '- 없으면 0개 또는 1개만 표시하고 억지로 3개 채우지 않는다.\n' +
     '- explanation은 짧게 한 문장으로 쓴다.\n' +
     '- 쉬운 한국어로 쓴다.\n' +
-    '- 과장·공포 표현은 금지한다.\n\n' +
+    '- 과장·공포 표현은 금지한다.\n' +
+    '- BMI 구간에 따라 explanation의 강조점은 달라질 수 있다.\n\n' +
     '[말투 규칙]\n' +
     '- 짧고 분명하게 말한다.\n' +
     '- 쉬운 생활어를 사용한다.\n' +
@@ -238,7 +274,9 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- consumptionAdvice는 라벨에 실제로 보이는 정보만 바탕으로 한 문장으로 쓴다.\n' +
     '- 보관, 섭취 시 확인사항, 당, 나트륨 중 하나만 짚는다.\n' +
     '- 숫자형 섭취 횟수, 허용량, 빈도 조언은 금지한다.\n' +
-    '- kcal 추측은 금지한다.\n\n' +
+    '- kcal 추측은 금지한다.\n' +
+    '- BMI 구간이 과체중/비만이면: 경계 수준의 단맛·지방·초가공성도 더 신중하게 짚는다.\n' +
+    '- BMI 구간이 정상/저체중이면: 경미한 요소를 과장하지 말고 확인 중심으로 쓴다.\n\n' +
     '[JSON 출력]\n' +
     '- productName: 제품명. 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 "".\n' +
@@ -248,8 +286,10 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- judgmentReason: 반드시 한 문장.\n' +
     '- concernIngredients: 주의 원재료 최대 3개. 없으면 [].\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
+    '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
     '- consumptionAdvice: 라벨에 보이는 정보만 바탕으로 쓴 짧은 한 문장. 숫자, 횟수, 기간, 허용량 표현은 금지. 없으면 "".\n' +
+    '- consumptionAdvice는 BMI 구간별로 표현 강도와 강조점이 달라야 한다.\n' +
     '- foodCategory: 아래 목록 중 정확히 하나.\n' +
     '- nutrition: 객체 또는 null.\n\n' +
     '[foodCategory]\n' +
@@ -303,6 +343,10 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- 컵라면·도시락·햄버거·샌드위치 등은 "간편한 한 끼"\n' +
     '- 식빵·시리얼은 "빵·시리얼류"\n' +
     '- 마시는 것만 "음료"\n\n' +
+    '[개인화 차등 적용]\n' +
+    '- BMI 구간이 과체중/비만이면: 경계 수준의 단맛, 지방, 초가공성도 더 주의가 필요한 요소로 해석한다.\n' +
+    '- BMI 구간이 정상/저체중이면: 경미한 수준은 과도하게 위험으로 해석하지 않는다.\n' +
+    '- 같은 제품이라도 BMI 구간이 다르면 briefDescription, concernIngredients.explanation, consumptionAdvice 문장이 같지 않게 조정한다.\n\n' +
     '[JSON 출력]\n' +
     '- productName: 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 "".\n' +
@@ -312,8 +356,10 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- judgmentReason: 반드시 한 문장.\n' +
     '- concernIngredients: 최대 3개. 없으면 [].\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
+    '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
     '- consumptionAdvice: 라벨에 실제로 보이는 정보만 바탕으로 쓴 짧은 한 문장. 숫자, 횟수, 기간, 허용량 표현은 금지. 없으면 "".\n' +
+    '- consumptionAdvice는 BMI 구간별로 표현 강도와 강조점이 달라야 한다.\n' +
     '- foodCategory: 위 목록 중 하나.\n' +
     '- nutrition: 객체 또는 null.\n' +
     '- nutrition 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG, servingSizeText, basisIsPerServing, tableRows.\n\n' +
