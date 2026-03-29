@@ -326,9 +326,7 @@ function buildNutritionResultHtml(
 ): string {
   const hasDaily = daily && Object.keys(daily).length > 0;
   const hasServingLine = !!(nutrition?.servingSizeText);
-  const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
-  const hasTableRows = tableRows.length > 0;
-  if (!hasDaily && !hasServingLine && !hasTableRows) return '';
+  if (!hasDaily) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
   if (hasDaily) {
@@ -344,21 +342,6 @@ function buildNutritionResultHtml(
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
       '</span></div>';
-  }
-
-  if (hasTableRows) {
-    html += '<p class="nutrition-label-heading">라벨에서 읽은 영양표</p>';
-    html += '<div class="nutrition-label-table" role="list">';
-    for (const tr of tableRows) {
-      html +=
-        '<div class="nutrition-label-row" role="listitem">' +
-        '<span class="nutrition-label-name">' +
-        escapeHtml((tr.name || '').trim() || '항목') +
-        '</span><span class="nutrition-label-value">' +
-        escapeHtml((tr.amount || '').trim() || '—') +
-        '</span></div>';
-    }
-    html += '</div>';
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
@@ -1545,15 +1528,15 @@ export default function App() {
           if (el) {
             const r = el.getBoundingClientRect();
             hole = { top: r.top, left: r.left, width: r.width, height: r.height };
-            decoration = { kind: 'ring', rect: hole };
+            decoration = { kind: 'arrow', rect: hole };
           }
           break;
         }
         case 'preview_ingredient':
-          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
           break;
         case 'preview_analyze':
-          setFromEl(document.getElementById('tutorial-capture-preview-confirm'), null);
+          setFromEl(document.getElementById('tutorial-capture-preview-confirm'));
           break;
         default:
           break;
@@ -1981,11 +1964,10 @@ export default function App() {
                 ref={cameraGuideRef}
                 className={`camera-guide-frame ${cameraOrientation}`}
                 aria-hidden
-              >
-                <span className="camera-guide-label">
-                  {captureStep === 1 ? '원재료명이 보이게 찍어 주세요' : '영양정보 표가 보이게 찍어 주세요'}
-                </span>
-              </div>
+              />
+              <span className="camera-guide-label">
+                {captureStep === 1 ? '원재료명이 보이게 찍어 주세요' : '영양정보 표가 보이게 찍어 주세요'}
+              </span>
             </div>
             <div
               className={`camera-step-chip${cameraStepChipPulse ? ' camera-step-chip-pulse' : ''}`}
