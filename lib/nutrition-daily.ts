@@ -200,12 +200,12 @@ function beverageIntakeLine(): string {
 function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string {
   const q = `${n}${unit}`;
   if (kind === 'snack') {
-    return `맞춤 참고: 간식이면 하루 ${q} 정도까지.`;
+    return `맞춤 참고: 간식 기준으로 약 ${q} 분량이면 열량 부담이 커질 수 있어요(이 표 기준).`;
   }
   if (kind === 'meal') {
-    return `맞춤 참고: 한 끼·간편식이면 하루 ${q} 정도까지.`;
+    return `맞춤 참고: 한 끼·간편식 기준으로 약 ${q} 분량이면 열량 부담이 커질 수 있어요(이 표 기준).`;
   }
-  return `맞춤 참고: 하루 ${q} 정도까지.`;
+  return `맞춤 참고: 약 ${q} 분량이면 열량 부담이 커질 수 있어요(이 표 기준).`;
 }
 
 const PACKAGING_COUNT_UNITS = new Set(['통', '봉지', '박스']);
@@ -279,8 +279,7 @@ function extractTotalContentGrams(servingText: string): number | null {
 function perServingBasisIntakeLine(n: number, kind: IntakeSlotKind): string {
   const slot =
     kind === 'snack' ? '간식' : kind === 'meal' ? '한 끼·간편식' : '이 유형';
-  const capped = Math.min(20, Math.max(1, n));
-  return `맞춤 참고: 영양표 1회 분량 기준, ${slot} 열량 몫은 하루 약 ${capped}번까지.`;
+  return `맞춤 참고: 영양표 1회 분량을 기준으로 ${slot} 섭취량을 조절해 보세요.`;
 }
 
 function weightBasisIntakeLine(grams: number, totalGramsKnown: boolean, kind: IntakeSlotKind): string {
@@ -294,9 +293,8 @@ function weightBasisIntakeLine(grams: number, totalGramsKnown: boolean, kind: In
 function liquidPortionIntakeLine(n: number, mlPerPortion: number, kind: IntakeSlotKind): string {
   const slot =
     kind === 'snack' ? '간식·음료' : kind === 'meal' ? '한 끼·간편식' : '이 유형';
-  const capped = Math.min(25, Math.max(1, n));
   const ml = Math.round(mlPerPortion);
-  return `맞춤 참고: ${ml}ml 한 번 기준, ${slot} 열량 몫은 하루 약 ${capped}번까지.`;
+  return `맞춤 참고: ${ml}ml 기준으로 ${slot} 섭취량을 조절해 보세요(이 표 기준).`;
 }
 
 function conservativeWeightFallbackIntakeLine(_kind: IntakeSlotKind): string {

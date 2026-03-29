@@ -6,14 +6,11 @@ import {
   GEMINI_MODEL,
 } from '@/lib/gemini-prompts';
 import {
-  buildPersonalizedIntakeNote,
   computeBmiServer,
   bmiCategoryKo,
   computeDailyPercentages,
-  PERSONALIZED_INTAKE_FOOTNOTE,
   type NutritionDailyPercent,
   type NutritionFactsInput,
-  type ProfileForKcalNote,
 } from '@/lib/nutrition-daily';
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
@@ -317,54 +314,13 @@ export async function POST(request: NextRequest) {
       ? computeDailyPercentages(nutritionParsed)
       : null;
 
-    let bmi: number | null = null;
-    let bmiCategory: string | null = null;
-    const h = profile?.heightCm;
-    const w = profile?.weightKg;
-    if (h != null && w != null) {
-      bmi = computeBmiServer(Number(h), Number(w));
-      if (bmi != null) bmiCategory = bmiCategoryKo(bmi);
-    }
-
     const foodCategory = normalizeFoodCategory(parsed.foodCategory);
-
-    let profileForKcal: ProfileForKcalNote | null = null;
-    if (h != null && w != null && h > 0 && w > 0) {
-      const by =
-        profile?.birthYear != null && Number.isFinite(Number(profile.birthYear))
-          ? Math.round(Number(profile.birthYear))
-          : null;
-      profileForKcal = {
-        heightCm: Number(h),
-        weightKg: Number(w),
-        birthYear: by,
-        birthDate: profile?.birthDate != null ? String(profile.birthDate).trim() || null : null,
-        gender: profile?.gender != null ? String(profile.gender).trim() || null : null,
-      };
-    }
-
-    const personalizedIntakeNote = nutritionParsed
-      ? buildPersonalizedIntakeNote(
-          bmi,
-          bmiCategory,
-          nutritionParsed.caloriesKcal ?? null,
-          nutritionParsed.servingSizeText ?? null,
-          nutritionParsed.basisIsPerServing ?? null,
-          {
-            foodCategory,
-            sugarG: nutritionParsed.sugarG ?? null,
-            productName: product.productName || null,
-          },
-          profileForKcal
-        )
-      : null;
-
-    const personalizedIntakeFootnote =
-      profileForKcal &&
-      personalizedIntakeNote &&
-      !personalizedIntakeNote.includes('숫자 안내는 빼었어요')
-        ? PERSONALIZED_INTAKE_FOOTNOTE
+    // 맞춤 참고는 서버 계산으로 재작성하지 않고, Gemini 응답 문구를 그대로 사용
+    const personalizedIntakeNote =
+      parsed.consumptionAdvice != null && String(parsed.consumptionAdvice).trim().length > 0
+        ? String(parsed.consumptionAdvice).trim()
         : null;
+    const personalizedIntakeFootnote = null;
 
     const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
     // 대체 식품은 별도 /api/alternatives에서 비동기로 처리

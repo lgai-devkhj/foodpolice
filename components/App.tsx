@@ -82,6 +82,14 @@ function getProfileWithLatestMeasurement(profile: Profile): Profile {
   return { ...profile, heightCm, weightKg };
 }
 
+function todayYmdLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** 연령 무관: 저체중 <18.5, 정상 18.5~22.9, 과체중 23~24.9, 비만 25 이상 */
 function getBMICategory(p: Profile): { bmi: number; category: string } | null {
   const bmi = computeBmi(p.heightCm ?? 0, p.weightKg ?? 0);
@@ -1473,7 +1481,14 @@ export default function App() {
     return () => {
       cleanups.forEach((fn) => fn());
     };
-  }, [resultContentHtml, currentHistoryId, history, handleAltForceFetch]);
+  }, [
+    resultContentHtml,
+    currentHistoryId,
+    history,
+    handleAltForceFetch,
+    showInfoCriteria,
+    showInfoIngredient,
+  ]);
 
   const startCamera = useCallback(() => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
@@ -3154,7 +3169,7 @@ function AddBodyMeasurementSheet({
   onAdd: (date: string, heightCm: number, weightKg: number) => void;
   onCancel: () => void;
 }) {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => todayYmdLocal());
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const canAdd =
@@ -3174,7 +3189,13 @@ function AddBodyMeasurementSheet({
         </div>
         <div className="form-group">
           <label>날짜</label>
-          <input type="date" value={date} min="1900-01-01" max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} />
+          <input
+            type="date"
+            value={date}
+            min="1900-01-01"
+            max={todayYmdLocal()}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </div>
         <div className="form-group">
           <label>키 (cm)</label>
@@ -3186,7 +3207,15 @@ function AddBodyMeasurementSheet({
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={onCancel}>취소</button>
-          <button type="button" className="btn btn-primary" style={{ flex: 1 }} disabled={!canAdd} onClick={() => canAdd && onAdd(new Date(date).toISOString(), parseFloat(height), parseFloat(weight))}>추가</button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ flex: 1 }}
+            disabled={!canAdd}
+            onClick={() => canAdd && onAdd(date, parseFloat(height), parseFloat(weight))}
+          >
+            추가
+          </button>
         </div>
       </div>
     </div>
@@ -3203,6 +3232,8 @@ function BodyMeasurementHistorySheet({
   onClose: () => void;
 }) {
   const dateStr = (iso: string) => {
+    const ymd = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) return `${ymd[1]}. ${ymd[2]}. ${ymd[3]}.`;
     const d = new Date(iso);
     return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ko-KR');
   };

@@ -10,11 +10,27 @@ export interface BodyMeasurement {
   seq?: number;
 }
 
+function toLocalYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function measurementDateKey(v: string | undefined | null): string {
+  const s = (v || '').trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return toLocalYmd(d);
+}
+
 /** 날짜 오름차순, 같은 날이면 recordedAt(없으면 0) 오름차순 */
 export function compareBodyMeasurementsAsc(a: BodyMeasurement, b: BodyMeasurement): number {
-  const ta = new Date(a.date).getTime();
-  const tb = new Date(b.date).getTime();
-  if (ta !== tb) return ta - tb;
+  const da = measurementDateKey(a.date);
+  const db = measurementDateKey(b.date);
+  if (da !== db) return da < db ? -1 : 1;
   const ra = a.recordedAt ? new Date(a.recordedAt).getTime() : 0;
   const rb = b.recordedAt ? new Date(b.recordedAt).getTime() : 0;
   if (ra !== rb) return ra - rb;
@@ -171,12 +187,13 @@ export function loadState(clientId: string): AppState {
       profile.heightCm > 0 &&
       profile.weightKg > 0;
     if (Array.isArray(profile.bodyMeasurements) === false && hasHw) {
+      const now = new Date();
       profile.bodyMeasurements = [
         {
-          date: new Date().toISOString(),
+          date: toLocalYmd(now),
           heightCm: Number(profile.heightCm),
           weightKg: Number(profile.weightKg),
-          recordedAt: new Date().toISOString(),
+          recordedAt: now.toISOString(),
           seq: 1,
         },
       ];
@@ -187,12 +204,13 @@ export function loadState(clientId: string): AppState {
       profile.bodyMeasurements.length === 0 &&
       hasHw
     ) {
+      const now = new Date();
       profile.bodyMeasurements = [
         {
-          date: new Date().toISOString(),
+          date: toLocalYmd(now),
           heightCm: Number(profile.heightCm),
           weightKg: Number(profile.weightKg),
-          recordedAt: new Date().toISOString(),
+          recordedAt: now.toISOString(),
           seq: 1,
         },
       ];
@@ -226,14 +244,15 @@ export function setProfile(clientId: string, profile: Profile): void {
     p.weightKg != null &&
     (!Array.isArray(p.bodyMeasurements) || p.bodyMeasurements.length === 0)
   ) {
+    const now = new Date();
     p = {
       ...p,
       bodyMeasurements: [
         {
-          date: new Date().toISOString(),
+          date: toLocalYmd(now),
           heightCm: p.heightCm,
           weightKg: p.weightKg,
-          recordedAt: new Date().toISOString(),
+          recordedAt: now.toISOString(),
           seq: 1,
         },
       ],
