@@ -68,20 +68,65 @@ function parseNutritionTableRows(raw: unknown): { name: string; amount: string }
   return out;
 }
 
+function firstNumber(text: string): number | null {
+  const m = String(text).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = parseFloat(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+function amountToUnitValue(amount: string, expect: 'mg' | 'g' | 'kcal'): number | null {
+  const src = String(amount).replace(/,/g, '').toLowerCase();
+  const m = src.match(/(-?\d+(?:\.\d+)?)\s*(mg|g|kcal|㎎|ｇ|그램|밀리그램)?/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n)) return null;
+  const u = m[2] || '';
+  const unit = u === '㎎' || u === '밀리그램' ? 'mg' : u === 'ｇ' || u === '그램' ? 'g' : u;
+  if (expect === 'kcal') return n;
+  if (!unit) return n;
+  if (expect === unit) return n;
+  if (expect === 'mg' && unit === 'g') return n * 1000;
+  if (expect === 'g' && unit === 'mg') return n / 1000;
+  return n;
+}
+
+function inferFromTableRows(
+  rows: { name: string; amount: string }[],
+  nameRe: RegExp,
+  unit: 'mg' | 'g' | 'kcal'
+): number | null {
+  for (const row of rows) {
+    if (!nameRe.test(row.name)) continue;
+    const byUnit = amountToUnitValue(row.amount, unit);
+    if (byUnit != null) return byUnit;
+    const byNumber = firstNumber(row.amount);
+    if (byNumber != null) return byNumber;
+  }
+  return null;
+}
+
 function parseNutrition(raw: unknown): NutritionFactsInput | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const caloriesKcal = numOrNull(o.caloriesKcal);
-  const sodiumMg = numOrNull(o.sodiumMg);
-  const carbsG = numOrNull(o.carbsG);
-  const sugarG = numOrNull(o.sugarG);
-  const proteinG = numOrNull(o.proteinG);
-  const fatG = numOrNull(o.fatG);
-  const saturatedFatG = numOrNull(o.saturatedFatG);
-  const transFatG = numOrNull(o.transFatG);
-  const cholesterolMg = numOrNull(o.cholesterolMg);
-  const dietaryFiberG = numOrNull(o.dietaryFiberG);
   const tableRows = parseNutritionTableRows(o.tableRows ?? o.nutritionTableRows);
+  const caloriesKcal =
+    numOrNull(o.caloriesKcal) ??
+    inferFromTableRows(tableRows, /(열량|칼로리|kcal|energy|calories?)/i, 'kcal');
+  const sodiumMg = numOrNull(o.sodiumMg) ?? inferFromTableRows(tableRows, /(나트륨|sodium)/i, 'mg');
+  const carbsG =
+    numOrNull(o.carbsG) ?? inferFromTableRows(tableRows, /(탄수화물|carb(?:ohydrate)?s?)/i, 'g');
+  const sugarG = numOrNull(o.sugarG) ?? inferFromTableRows(tableRows, /(당류|당\b|sugar)/i, 'g');
+  const proteinG = numOrNull(o.proteinG) ?? inferFromTableRows(tableRows, /(단백질|protein)/i, 'g');
+  const fatG = numOrNull(o.fatG) ?? inferFromTableRows(tableRows, /(^|[^가-힣])지방|total\s*fat/i, 'g');
+  const saturatedFatG =
+    numOrNull(o.saturatedFatG) ?? inferFromTableRows(tableRows, /(포화지방|saturated\s*fat)/i, 'g');
+  const transFatG =
+    numOrNull(o.transFatG) ?? inferFromTableRows(tableRows, /(트랜스지방|trans\s*fat)/i, 'g');
+  const cholesterolMg =
+    numOrNull(o.cholesterolMg) ?? inferFromTableRows(tableRows, /(콜레스테롤|cholesterol)/i, 'mg');
+  const dietaryFiberG =
+    numOrNull(o.dietaryFiberG) ?? inferFromTableRows(tableRows, /(식이섬유|fiber|fibre)/i, 'g');
   const servingSizeText =
     o.servingSizeText != null && String(o.servingSizeText).trim() ? String(o.servingSizeText).trim() : null;
   /* 한국 라벨은 대개 1회 제공량 기준이 많아, 미표기 시 true로 둠 */

@@ -25,8 +25,37 @@ function getBmiTierLabel(tier: BmiTier): string {
   }
 }
 
-function getRiskMode(tier: BmiTier | null): 'general' | 'strict' {
-  return tier === 'overweight' || tier === 'obese' ? 'strict' : 'general';
+function getPersonalizationFocus(tier: BmiTier): {
+  adviceTone: 'general' | 'careful';
+  focusText: string;
+  personalSummary: string;
+} {
+  switch (tier) {
+    case 'underweight':
+      return {
+        adviceTone: 'general',
+        focusText: '당류·나트륨·포화지방과 초가공성을 일반 기준으로 본다.',
+        personalSummary: '체중 변화 목적을 추정하지 말고 일반 기준으로 짧게 설명한다.'
+      };
+    case 'normal':
+      return {
+        adviceTone: 'general',
+        focusText: '당류·나트륨·포화지방과 초가공성을 일반 기준으로 본다.',
+        personalSummary: '과한 경고 없이 균형 중심으로 핵심만 설명한다.'
+      };
+    case 'overweight':
+      return {
+        adviceTone: 'careful',
+        focusText: '당류·포화지방·초가공성을 더 민감하게 본다.',
+        personalSummary: '같은 식품이라도 단맛, 지방, 초가공성에 더 주의하는 방향으로 설명한다.'
+      };
+    case 'obese':
+      return {
+        adviceTone: 'careful',
+        focusText: '당류·포화지방·초가공성을 가장 우선해서 더 엄격하게 본다.',
+        personalSummary: '덜 자주, 덜 많이 먹는 쪽의 보수적 표현을 사용하되 허용 횟수는 임의 계산하지 않는다.'
+      };
+  }
 }
 
 export function getPersonalizationBlock(profile?: PersonalizationInput | null): string {
@@ -34,20 +63,19 @@ export function getPersonalizationBlock(profile?: PersonalizationInput | null): 
 
   const bmiText = formatBmiValue(profile.bmiValue);
   const bmiTierLabel = getBmiTierLabel(profile.bmiTier);
-  const riskMode = getRiskMode(profile.bmiTier);
-  const rule =
-    riskMode === 'strict'
-      ? '당류·포화지방·초가공 식품은 더 엄격하게 본다.'
-      : '개인화는 참고만 하고 일반 기준으로 평가한다.';
+  const focus = getPersonalizationFocus(profile.bmiTier);
 
   return (
     '[맞춤 참고]\n' +
     `- BMI: ${bmiText}\n` +
     `- 체형 구간: ${bmiTierLabel}\n` +
-    `- 평가 모드: ${riskMode}\n` +
-    `- 적용 원칙: ${rule}\n` +
-    '- 이 정보는 novaGroup·novaSubgroup을 바꾸지 않는다.\n' +
-    '- 이 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice의 엄격도 조정에만 사용한다.\n\n'
+    `- 설명 톤: ${focus.adviceTone}\n` +
+    `- 중점 요소: ${focus.focusText}\n` +
+    `- 맞춤 기준: ${focus.personalSummary}\n` +
+    '- 이 정보는 novaGroup·novaSubgroup 판단에는 사용하지 않는다.\n' +
+    '- 이 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice를 더 정확하고 간결하게 조정하는 데만 사용한다.\n' +
+    '- 하루 몇 번, 몇 개, 몇 봉지처럼 구체적 허용 횟수를 임의로 계산하거나 제시하지 않는다.\n' +
+    '- 맞춤 참고는 위험 설명의 우선순위를 조정하는 용도이며, 의료적 진단이나 처방처럼 말하지 않는다.\n\n'
   );
 }
 
@@ -62,16 +90,20 @@ export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationIn
     '2. 원재료: 정제 재료, 인공첨가물, 초가공 특징을 본다.\n' +
     '3. 가공 정도: 한국형 NOVA 기준으로 Group 1~4를 판단한다.\n' +
     '4. 최종 종합: 영양성분과 가공 정도를 우선하고, 열량은 보조로만 반영한다.\n\n' +
+    '[개인화 적용 원칙]\n' +
+    '- 개인화는 식품 자체 분류를 바꾸는 용도가 아니다.\n' +
+    '- 개인화는 설명의 초점과 조언의 보수성을 조정하는 용도다.\n' +
+    '- 같은 식품이라도 사용자 상태에 따라 더 주의 깊게 봐야 할 요소를 다르게 짚을 수 있다.\n' +
+    '- 섭취 허용 횟수, 감량 효과, 건강 개선 효과를 임의 계산하지 않는다.\n\n' +
     '[출력 원칙]\n' +
     '- briefDescription: 전체 평가를 한 문장으로, 45자 이내.\n' +
-    '- briefDescription은 다음 3가지 중 최소 2가지를 반영한다: 영양성분, 원재료 특성, 가공 정도.\n' +
+    '- briefDescription은 영양성분, 원재료 특성, 가공 정도 중 최소 2가지를 반영한다.\n' +
     '- briefDescription은 열량만으로 요약한 문장을 금지한다.\n' +
     '- concernIngredients: 원재료명 또는 첨가물명만 최대 3개. 영양성분명은 금지.\n' +
-    '- concernIngredients.name에는 원재료명 또는 첨가물명만 넣는다.\n' +
-    '- concernIngredients.name은 원재료 표기에 실제로 보이는 명칭만 사용한다. 일반화·추측 금지.\n' +
-    '- concernIngredients.name에 영양성분표 항목명(나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 등)은 절대 넣지 않는다.\n' +
+    '- concernIngredients.name에는 원재료 표기에 실제로 보이는 명칭만 넣는다. 일반화·추측 금지.\n' +
+    '- concernIngredients.name에 나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 같은 영양성분표 항목명은 넣지 않는다.\n' +
     '- judgmentReason: K-NOVA 판단 근거를 한 문장으로 쓴다.\n' +
-    '- consumptionAdvice: 라벨에 보이는 정보만 바탕으로 짧게 쓴다.\n' +
+    '- consumptionAdvice: 라벨에 보이는 정보와 맞춤 참고를 함께 반영해 짧게 쓴다.\n' +
     '- 의료적 진단, 치료, 단정 표현은 금지한다.\n\n'
   );
 }
@@ -81,7 +113,7 @@ export function getNutritionTableRowsRulesBlock(): string {
     '- tableRows(영양표가 보일 때 필수): 표에 보이는 줄을 위→아래 그대로 한 줄도 빠짐없이 배열.\n' +
     '- name은 라벨에 적힌 문자·표기 그대로 넣는다. 정해진 항목 목록 없이 어떤 항목명이든 생략·통합·대체 금지.\n' +
     '- amount는 숫자·단위·%를 화면에 보이는 그대로 넣는다.\n' +
-    '- 위쪽 표 제목, 1회 제공량 안내 등 영양항목이 아닌 줄은 제외해도 되지만, 성분 표 본문 줄은 전부 넣는다.\n' +
+    '- 표 제목, 1회 제공량 안내 등 영양항목이 아닌 줄은 제외해도 되지만, 성분 표 본문 줄은 전부 넣는다.\n' +
     '- JSON의 caloriesKcal 등과 겹쳐도 tableRows에는 표 시각 그대로 반드시 한 줄씩 넣는다.\n' +
     '- 표가 없거나 판독 불가면 nutrition은 null.\n'
   );
@@ -96,7 +128,7 @@ export function getNutritionServingUnitRulesBlock(): string {
     '- 캔디·껌·목캔디·정제형·작은 알갱이 간식은 특히 포장 개수 추정을 금지한다.\n' +
     '- servingSizeText에는 1회 제공량, 개당 중량, 총 내용량(g/ml) 등 표기를 가능한 그대로 넣는다.\n' +
     '- basisIsPerServing은 표 숫자가 1회 제공량 기준인지 100g/100ml 기준인지 정확히 구분한다.\n' +
-    '- consumptionAdvice에서는 내부 개수 확인 없이 하루 몇 통, 몇 봉지, 몇 박스 같은 구체적 허용 개수를 쓰지 않는다.\n' +
+    '- consumptionAdvice에서는 하루 몇 통, 몇 봉지, 몇 박스 같은 구체적 허용 개수를 쓰지 않는다.\n' +
     '- 애매하면 중량 또는 1회 제공량 확인을 권하는 보수적 문장만 쓴다.\n'
   );
 }
@@ -110,7 +142,7 @@ export function getKoreanNovaCriteria(profile?: PersonalizationInput | null): st
     '- 식품의 가공 방식과 원재료 구조 유지 여부로 판단한다.\n' +
     '- 한국 전통 식품(장류, 김치, 젓갈 등) 특성을 반영한다.\n' +
     '- 사용자 맞춤 정보는 novaGroup, novaSubgroup 판단에 사용하지 않는다.\n' +
-    '- 사용자 맞춤 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice의 엄격도 조정에만 사용한다.\n\n' +
+    '- 사용자 맞춤 정보는 briefDescription, concernIngredients.explanation, consumptionAdvice의 초점 조정에만 사용한다.\n\n' +
     '[분류 순서]\n' +
     '1) 원재료 그대로인가? → YES → Group I\n' +
     '2) 원재료에서 특정 성분만 추출한 조리 재료인가? → YES → Group II\n' +

@@ -333,13 +333,14 @@ function buildNutritionResultHtml(
 ): string {
   const hasDaily = daily && Object.keys(daily).length > 0;
   const hasServingLine = !!(nutrition?.servingSizeText);
-  if (!hasDaily) return '';
+  const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
+  const hasTableRows = tableRows.length > 0;
+  if (!hasDaily && !hasTableRows) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
-  if (hasDaily) {
-    html +=
-      '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
-  }
+  html += hasTableRows
+    ? '<p class="meta nutrition-intro-meta">라벨에 적힌 항목을 그대로 막대로 보여줘요. %가 적힌 항목은 그 비율로 표시해요.</p>'
+    : '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -349,6 +350,34 @@ function buildNutritionResultHtml(
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
       '</span></div>';
+  }
+
+  if (hasTableRows) {
+    html += '<p class="nutrition-daily-heading">라벨 전체 항목</p>';
+    tableRows.forEach((tr) => {
+      const name = (tr.name || '').trim() || '항목';
+      const amount = (tr.amount || '').trim() || '—';
+      const pm = amount.match(/(-?\d+(?:\.\d+)?)\s*%/);
+      const pct = pm ? parseFloat(pm[1]) : null;
+      const safePct =
+        pct != null && Number.isFinite(pct) ? Math.max(0, Math.min(100, Number(pct))) : 0;
+      html += '<div style="margin-bottom:14px;">';
+      html +=
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="color:var(--text);font-weight:500;">' +
+        escapeHtml(name) +
+        '</span><span style="color:var(--text2);font-size:0.95rem;">' +
+        escapeHtml(amount) +
+        '</span></div>';
+      html +=
+        '<div class="nutrition-pct-bar"><div class="' +
+        nutritionPctBarClass(safePct) +
+        '" style="width:' +
+        safePct +
+        '%;"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
