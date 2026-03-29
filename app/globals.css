@@ -783,13 +783,20 @@
       box-shadow: 0 20px 56px rgba(0, 0, 0, 0.4);
       animation: capture-step-card-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
     }
+    .capture-step-overlay-example-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 0 0 6px;
+      align-items: stretch;
+    }
     .capture-step-overlay-example {
       display: block;
       width: 100%;
-      max-height: min(38vh, 220px);
+      max-height: min(32vh, 200px);
       object-fit: contain;
       border-radius: 14px;
-      margin: 0 0 6px;
+      margin: 0;
       border: 1px solid var(--card-stroke);
       background: var(--card);
     }
@@ -1801,8 +1808,22 @@
     .guide-step .num { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1.25rem; flex-shrink: 0; }
     .guide-step .txt { flex: 1; color: var(--text); font-size: 1.1rem; }
     .photo-guide-example-wrap { margin: 24px 0; }
-    .photo-guide-example-title { font-size: 1.2rem; font-weight: 500; color: var(--text2); margin-bottom: 14px; }
-    .photo-guide-example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .photo-guide-example-title { font-size: 1.2rem; font-weight: 500; color: var(--text2); margin-bottom: 10px; }
+    .photo-guide-example-subtitle {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text2);
+      margin: 12px 0 8px;
+    }
+    .photo-guide-example-title + .photo-guide-example-subtitle {
+      margin-top: 6px;
+    }
+    .photo-guide-example-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
     .photo-guide-example-img { width: 100%; max-width: 100%; height: auto; aspect-ratio: 3/4; object-fit: contain; border-radius: 20px; border: 1px solid var(--card-stroke); background: var(--card); display: block; }
     .photo-guide-example-img[src=""] { display: none; }
     .info-sheet .modal-panel p { font-size: 1.15rem !important; line-height: 1.65; margin: 0 0 20px !important; color: var(--text2); }

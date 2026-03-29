@@ -33,9 +33,8 @@ import {
   NOVA_SHORT_REASON,
   NOVA_SUBGROUP_NAMES,
   NOVA_SUBGROUP_HINTS,
-  PHOTO_GUIDE_EXAMPLE_URL,
-  CAPTURE_GUIDE_INGREDIENT_URL,
-  CAPTURE_GUIDE_NUTRIENT_URL,
+  CAPTURE_GUIDE_INGREDIENT_EXAMPLES,
+  CAPTURE_GUIDE_NUTRIENT_EXAMPLES,
 } from '@/lib/constants';
 import {
   ALTERNATIVE_NOT_FOUND_MESSAGE,
@@ -2072,13 +2071,18 @@ export default function App() {
                 <h2 id="capture-step-overlay-title-1" className="capture-step-overlay-title">
                   원재료 촬영
                 </h2>
-                <img
-                  className="capture-step-overlay-example"
-                  src={CAPTURE_GUIDE_INGREDIENT_URL}
-                  alt="포장 뒷면 원재료 표기가 잘 보이게 찍은 예시"
-                  decoding="async"
-                  onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
-                />
+                <div className="capture-step-overlay-example-row" role="group" aria-label="원재료 촬영 예시">
+                  {CAPTURE_GUIDE_INGREDIENT_EXAMPLES.map((src, i) => (
+                    <img
+                      key={src}
+                      className="capture-step-overlay-example"
+                      src={src}
+                      alt={`원재료 촬영 예시 ${i + 1}`}
+                      decoding="async"
+                      onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
+                    />
+                  ))}
+                </div>
                 <p className="capture-step-overlay-caption">촬영 예시 · 원재료</p>
                 <p className="capture-step-overlay-body">
                   뒷면 원재료명이 한 화면에 들어오게 찍어 주세요. 글자 안 흐리게 초점만 맞춰 주세요.
@@ -2089,13 +2093,18 @@ export default function App() {
                 <h2 id="capture-step-overlay-title-2" className="capture-step-overlay-title">
                   영양정보 표 촬영
                 </h2>
-                <img
-                  className="capture-step-overlay-example"
-                  src={CAPTURE_GUIDE_NUTRIENT_URL}
-                  alt="영양정보 표가 한 화면에 들어오게 찍은 예시"
-                  decoding="async"
-                  onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
-                />
+                <div className="capture-step-overlay-example-row" role="group" aria-label="영양정보 표 촬영 예시">
+                  {CAPTURE_GUIDE_NUTRIENT_EXAMPLES.map((src, i) => (
+                    <img
+                      key={src}
+                      className="capture-step-overlay-example"
+                      src={src}
+                      alt={`영양정보 표 촬영 예시 ${i + 1}`}
+                      decoding="async"
+                      onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
+                    />
+                  ))}
+                </div>
                 <p className="capture-step-overlay-caption">촬영 예시 · 영양정보 표</p>
                 <p className="capture-step-overlay-body">
                   원재료는 저장됐어요. 이제 영양정보 표가 한 화면에 들어오게 찍어 주세요.
@@ -3022,13 +3031,27 @@ export default function App() {
             </div>
             <div className="photo-guide-example-wrap">
               <div className="photo-guide-example-title">촬영 예시</div>
-              <div className="photo-guide-example-grid">
-                {[PHOTO_GUIDE_EXAMPLE_URL, '/images/nutrient.jpg', '/images/ingredient.jpg'].map((src, idx) => (
+              <div className="photo-guide-example-subtitle">원재료</div>
+              <div className="photo-guide-example-row">
+                {CAPTURE_GUIDE_INGREDIENT_EXAMPLES.map((src, idx) => (
                   <img
                     key={src}
                     className="photo-guide-example-img"
                     src={src}
-                    alt={`촬영 예시 ${idx + 1}`}
+                    alt={`원재료 촬영 예시 ${idx + 1}`}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                ))}
+              </div>
+              <div className="photo-guide-example-subtitle">영양정보 표</div>
+              <div className="photo-guide-example-row">
+                {CAPTURE_GUIDE_NUTRIENT_EXAMPLES.map((src, idx) => (
+                  <img
+                    key={src}
+                    className="photo-guide-example-img"
+                    src={src}
+                    alt={`영양정보 표 촬영 예시 ${idx + 1}`}
                     loading="lazy"
                     referrerPolicy="no-referrer"
                   />

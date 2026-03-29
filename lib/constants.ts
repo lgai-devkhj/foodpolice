@@ -33,10 +33,14 @@ export const NOVA_SUBGROUP_HINTS: Record<string, string> = {
   '4C': '당·염·지방이 매우 높고 첨가물이 복합적이며, 자극적 맛으로 과식하기 쉬운 구조에 가까워요.',
 };
 
-export const PHOTO_GUIDE_EXAMPLE_URL = '/images/photo-guide-example.jpg';
-
-/** 촬영 단계 안내 팝업용 예시 (public/images/) */
-export const CAPTURE_GUIDE_INGREDIENT_URL = '/images/ingredient.jpg';
-export const CAPTURE_GUIDE_NUTRIENT_URL = '/images/nutrient.jpg';
+/** 촬영 단계·촬영 팁 시트 — 원재료 / 영양표 예시 각 2장 (public/images/) */
+export const CAPTURE_GUIDE_INGREDIENT_EXAMPLES = [
+  '/images/ingredient1.png',
+  '/images/ingredient2.jpg',
+] as const;
+export const CAPTURE_GUIDE_NUTRIENT_EXAMPLES = [
+  '/images/nutrient1.png',
+  '/images/nutrient2.jpg',
+] as const;
 
 export const STORE_PREFIX = 'fp_state_v1_';
