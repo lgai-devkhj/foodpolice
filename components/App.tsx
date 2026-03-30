@@ -1242,6 +1242,21 @@ export default function App() {
         html += '<span class="nova-subtag">' + escapeHtml(NOVA_SUBGROUP_NAMES[subKey]) + '</span>';
       }
       html += '</span>';
+      if (nova === 4) {
+        const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
+        html += '<div class="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">';
+        subGraphItems.forEach((k) => {
+          html +=
+            '<div class="nova-subgroup-node' +
+            (subKey === k ? ' active' : '') +
+            '">' +
+            '<span class="nova-subgroup-label">' +
+            k +
+            '</span></div>';
+          if (k !== '4C') html += '<span class="nova-subgroup-link" aria-hidden="true"></span>';
+        });
+        html += '</div>';
+      }
       if (subKey && NOVA_SUBGROUP_HINTS[subKey]) {
         html +=
           '<div class="nova-result-hint">' + escapeHtml(NOVA_SUBGROUP_HINTS[subKey]) + '</div>';
@@ -3009,6 +3024,12 @@ export default function App() {
               </p>
               <p className="info-knova-intro-line">
                 {NOVA_CLASSIFICATION_INTRO}
+              </p>
+              <p className="info-knova-intro-line">
+                Group IV는 4A·4B·4C로 더 나눠서 봐요. 4A는 재료 기반 경계형, 4B는 기능성 재구성형, 4C는 복합 첨가가 강한 고도형에 가까워요.
+              </p>
+              <p className="info-knova-intro-line info-knova-intro-line--muted">
+                참고로 SIGA 체계도 초가공 식품을 세분해 보는 접근이에요. 이 앱은 한국형 NOVA를 기본으로 쓰되, Group IV 설명 톤은 SIGA 취지를 참고해요.
               </p>
               <p className="info-knova-intro-line info-knova-intro-line--muted">
                 아래는 그룹별로 자주 쓰는 설명이에요. 세부 기준은 논문·정책 문서랑 다를 수 있어요.
