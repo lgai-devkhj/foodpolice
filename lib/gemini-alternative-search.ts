@@ -2,9 +2,6 @@
  * 대체 식품 안내 — Perplexity 웹 검색 전용 (텍스트만, 이미지 없음).
  */
 
-import {
-  ALT_FOOD_OPTION_LINE_RE,
-} from '@/lib/alternative-food-normalize';
 export const PERPLEXITY_MODEL = 'sonar';
 
 /** 한 번의 Perplexity 호출 최대 대기 */
@@ -63,15 +60,13 @@ const OUTPUT_FORMAT =
   '현재 식품: (위 제품명과 동일하게)\n' +
   '가공 단계: (novaGroup/novaSubgroup 반영, 예: Group IV · 4B)\n\n' +
   '👉 더 나은 선택:\n\n' +
-  '1. 조금 개선: {웹에서 확인된 실제 제품명 또는 공백}\n' +
+  '1. 조금 개선: {웹에서 확인된 실제 제품명}\n' +
   '- 이유: {공백 가능}\n\n' +
-  '2. 더 나은 선택: {실제 제품명 또는 공백}\n' +
+  '2. 더 나은 선택: {실제 제품명}\n' +
   '- 이유: {공백 가능}\n\n' +
-  '3. 최적 선택: {실제 제품명 또는 공백}\n' +
+  '3. 최적 선택: {실제 제품명}\n' +
   '- 이유: {공백 가능}\n\n' +
-  '검색으로도 구체 품명을 확인할 수 없으면 1~3번 제품명은 모두 비우고, "👉 더 나은 선택:" 바로 아래에 **딱 한 줄만** 출력:\n' +
-  '더 건강한 식품은 찾지 못했어요.\n' +
-  '(금지: 현재 식품·NOVA·식품군 설명, **이유:**, HTML, 여러 문단. 위 한 문장만.)\n';
+  '금지: "더 건강한 식품은 찾지 못했어요." 같은 포기 문장, HTML, 여러 문단.\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = (ctx.rawMaterials || '').slice(0, 900);
@@ -123,19 +118,8 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
 function acceptAlternativeModelText(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
-
-  if (/현재 식품\s*:/i.test(t) && /(👉\s*)?더\s*나은\s*선택/i.test(t)) return true;
-  const lines = t.split(/\r?\n/).map((l) => l.trim());
-  if (lines.some((line) => ALT_FOOD_OPTION_LINE_RE.test(line))) return true;
-  if (
-    t.length >= 35 &&
-    /(조금\s*개선|더\s*나은\s*선택|최적\s*선택|대체|유통|마트|쇼핑|라벨|네이버|쇼핑)/.test(t)
-  ) {
-    return true;
-  }
-  if (t.length >= 28) return true;
-  if (t.length >= 120) return true;
-  return false;
+  // 사용자가 "있는 그대로" 표시를 원하므로, 비어 있지 않으면 통과시킨다.
+  return true;
 }
 
 async function generateAlternativesOnce(
@@ -168,7 +152,7 @@ async function generateAlternativesOnce(
           {
             role: 'system',
             content:
-              '웹 검색 결과를 근거로만 답하세요. 확실하지 않으면 비우고 형식을 엄격히 지키세요.',
+              '웹 검색 결과를 우선 참고해 답하세요. 빈칸 없이 한국에서 구하기 쉬운 대안을 3개 제시하세요.',
           },
           { role: 'user', content: prompt },
         ],
@@ -233,6 +217,13 @@ export async function fetchAlternativesWithPerplexity(
 ): Promise<string | null> {
   const first = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, prompt);
   if (first.text) return first.text;
-  const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, prompt);
+
+  const relaxedPrompt =
+    prompt +
+    '\n\n[재시도 규칙]\n' +
+    '- 반드시 3개를 채워서 제시한다. 빈칸 금지.\n' +
+    '- 완전 일치 제품이 부족하면, 한국에서 유통되는 같은 식품군의 대표 제품(브랜드+제품명)을 제안한다.\n' +
+    '- "찾지 못했어요" 문장은 쓰지 말고, 가장 가까운 현실적 대안을 적는다.\n';
+  const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, relaxedPrompt);
   return second.text;
 }

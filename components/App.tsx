@@ -1225,13 +1225,12 @@ export default function App() {
         escapeHtml(NOVA_CLASSIFICATION_INTRO) +
         '</p>';
       html +=
-        '<span class="nova-badge nova-' +
+        '<div class="nova-badge nova-' +
         nova +
         '"><img src="' +
         (NOVA_IMG[nova] || '') +
         '" alt="" class="nova-icon" referrerpolicy="no-referrer">' +
         NOVA_NAMES[nova];
-      html += '</span>';
       if (nova === 4) {
         const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
         html += '<div class="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">';
@@ -1247,6 +1246,7 @@ export default function App() {
         });
         html += '</div>';
       }
+      html += '</div>';
       if (subKey && NOVA_SUBGROUP_HINTS[subKey]) {
         html +=
           '<div class="nova-result-hint">' + escapeHtml(NOVA_SUBGROUP_HINTS[subKey]) + '</div>';
