@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   buildAlternativeFoodWebSearchPrompt,
   buildNutritionHintForAlternatives,
-  fetchAlternativesWithGoogleSearch,
+  fetchAlternativesWithPerplexity,
   type AlternativesNutritionPayload,
 } from '@/lib/gemini-alternative-search';
 
@@ -24,9 +24,9 @@ interface AlternativesBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const key = process.env.GEMINI_API_KEY;
+    const key = process.env.PERPLEXITY_API_KEY;
     if (!key || key.length === 0) {
-      return NextResponse.json({ error: 'Gemini API 키를 설정해 주세요.' }, { status: 500 });
+      return NextResponse.json({ error: 'Perplexity API 키를 설정해 주세요.' }, { status: 500 });
     }
 
     const body: AlternativesBody = await request.json();
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     };
 
     const prompt = buildAlternativeFoodWebSearchPrompt(ctx);
-    const alternativeFoodText = await fetchAlternativesWithGoogleSearch(key, prompt);
+    const alternativeFoodText = await fetchAlternativesWithPerplexity(key, prompt);
 
     return NextResponse.json({
       alternativeFoodText: alternativeFoodText || null,

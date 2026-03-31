@@ -1,19 +1,14 @@
 /**
- * 대체 식품 안내 — Gemini **Google Search 그라운딩** 전용 (텍스트만, 이미지 없음).
- * 모델 ID는 `lib/gemini-models.ts`의 SEARCH_MODEL 과 동일.
- * @see https://ai.google.dev/gemini-api/docs/google-search
+ * 대체 식품 안내 — Perplexity 웹 검색 전용 (텍스트만, 이미지 없음).
  */
 
 import {
   normalizeAlternativeFoodOutput,
   ALT_FOOD_OPTION_LINE_RE,
 } from '@/lib/alternative-food-normalize';
-import { SEARCH_MODEL } from '@/lib/gemini-models';
-import { generateContentWithGoogleSearch } from '@/lib/gemini-grounding';
+export const PERPLEXITY_MODEL = 'sonar';
 
-export const ALTERNATIVES_GROUNDING_MODEL = SEARCH_MODEL;
-
-/** 한 번의 generateContent(검색 그라운딩 포함) 최대 대기 */
+/** 한 번의 Perplexity 호출 최대 대기 */
 const PER_ATTEMPT_TIMEOUT_MS = 28_000;
 
 /** /api/alternatives 요청 본문에서 넘기는 축약 영양(표 숫자 필드) */
@@ -126,15 +121,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   );
 }
 
-function responseHasGroundingMetadata(data: unknown): boolean {
-  const candidates = (data as { candidates?: Array<{ groundingMetadata?: unknown }> })?.candidates;
-  if (!Array.isArray(candidates)) return false;
-  return candidates.some(
-    (c) => c?.groundingMetadata != null && typeof c.groundingMetadata === 'object'
-  );
-}
-
-function acceptAlternativeModelText(text: string, grounded: boolean): boolean {
+function acceptAlternativeModelText(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
 
@@ -147,60 +134,106 @@ function acceptAlternativeModelText(text: string, grounded: boolean): boolean {
   ) {
     return true;
   }
-  if (grounded && t.length >= 28) return true;
+  if (t.length >= 28) return true;
   if (t.length >= 120) return true;
   return false;
 }
 
 async function generateAlternativesOnce(
-  apiKey: string,
+  perplexityApiKey: string,
   model: string,
   prompt: string
-): Promise<{ text: string | null; ok: boolean; status: number; bodySnippet: string }> {
-  const { text, ok, status, raw } = await generateContentWithGoogleSearch(
-    apiKey,
-    model,
-    prompt,
-    PER_ATTEMPT_TIMEOUT_MS
-  );
-
-  if (!ok && status === 0) {
-    return { text: null, ok: false, status: 0, bodySnippet: '' };
+): Promise<{
+  text: string | null;
+  ok: boolean;
+  status: number;
+  bodySnippet: string;
+  elapsedMs: number;
+}> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PER_ATTEMPT_TIMEOUT_MS);
+  const started = Date.now();
+  let res: Response;
+  try {
+    res = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${perplexityApiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'system',
+            content:
+              '웹 검색 결과를 근거로만 답하세요. 확실하지 않으면 비우고 형식을 엄격히 지키세요.',
+          },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    const elapsedMs = Date.now() - started;
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[alternatives] perplexity fetch failed:', msg);
+    return { text: null, ok: false, status: 0, bodySnippet: '', elapsedMs };
   }
-  if (!ok) {
-    const snippet =
-      raw != null && typeof raw === 'object'
-        ? JSON.stringify(raw).slice(0, 500)
-        : String(raw).slice(0, 500);
-    return { text: null, ok: false, status, bodySnippet: snippet };
-  }
+  clearTimeout(timer);
 
-  const grounded = responseHasGroundingMetadata(raw);
-  const t = text.trim();
+  const bodyText = await res.text();
+  let data: unknown = null;
+  try {
+    data = JSON.parse(bodyText);
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    return {
+      text: null,
+      ok: false,
+      status: res.status,
+      bodySnippet: bodyText.slice(0, 500),
+      elapsedMs: Date.now() - started,
+    };
+  }
+  const text =
+    (data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content ?? '';
+  const t = String(text).trim();
   if (!t) {
-    console.warn(`[alternatives] empty text model=${model} grounded=${grounded}`);
-    return { text: null, ok: true, status, bodySnippet: '' };
+    console.warn('[alternatives] perplexity empty text');
+    return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
   }
 
-  if (acceptAlternativeModelText(t, grounded)) {
-    return { text: normalizeAlternativeFoodOutput(t), ok: true, status, bodySnippet: '' };
+  if (acceptAlternativeModelText(t)) {
+    return {
+      text: normalizeAlternativeFoodOutput(t),
+      ok: true,
+      status: res.status,
+      bodySnippet: '',
+      elapsedMs: Date.now() - started,
+    };
   }
 
-  console.warn(`[alternatives] rejected by validator model=${model} len=${t.length} grounded=${grounded}`);
-  return { text: null, ok: true, status, bodySnippet: '' };
+  console.warn(`[alternatives] rejected by validator perplexity len=${t.length}`);
+  return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
 }
 
 /**
- * Google Search 그라운딩 — 항상 `gemini-2.5-flash`.
+ * Perplexity 검색 — `sonar` 단일 고정.
  * 빈 응답·검증 탈락 시 같은 프롬프트로 1회 재시도.
  * @returns 대체 식품 블록 텍스트, 실패 시 null
  */
-export async function fetchAlternativesWithGoogleSearch(
-  apiKey: string,
+
+export async function fetchAlternativesWithPerplexity(
+  perplexityApiKey: string,
   prompt: string
 ): Promise<string | null> {
-  const first = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
+  const first = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, prompt);
   if (first.text) return first.text;
-  const second = await generateAlternativesOnce(apiKey, SEARCH_MODEL, prompt);
+  const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, prompt);
   return second.text;
 }
