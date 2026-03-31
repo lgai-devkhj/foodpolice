@@ -553,10 +553,6 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     const prose = proseParts.join('<br/>').trim();
     if (prose) fallbackNote = prose;
   }
-  const rawOutput = raw
-    .split(/\r?\n/)
-    .map((line) => escapeHtml(line))
-    .join('<br/>');
 
   const disclaimer =
     '<p class="alt-disclaimer">' +
@@ -571,7 +567,6 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     (grid ? `<div class="alt-grid">${grid}</div>` : '') +
     (fallbackNote ? `<div class="alt-fallback">${fallbackNote.split('<br/>').map((p) => escapeHtml(p)).join('<br/>')}</div>` : '') +
     disclaimer +
-    `<details class="alt-raw-output"><summary>원본 출력 보기</summary><div class="alt-raw-output-body">${rawOutput}</div></details>` +
     '</div>'
   );
 }
@@ -1065,6 +1060,14 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
+        /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
+        setShowHome(false);
+        setShowResult(true);
+        setShowDeleteArea(true);
+        setCaptureStep(1);
+        setRawImageBase64(null);
+        setNutritionImageBase64(null);
+        setCapturedPreviewDataUrl(null);
         if (result.novaGroup === 3 || result.novaGroup === 4) {
           requestAlternativesFromApi(
             clientId,
@@ -1077,13 +1080,6 @@ export default function App() {
             renderResult
           );
         }
-        setShowHome(false);
-        setShowResult(true);
-        setShowDeleteArea(true);
-        setCaptureStep(1);
-        setRawImageBase64(null);
-        setNutritionImageBase64(null);
-        setCapturedPreviewDataUrl(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
@@ -1143,6 +1139,14 @@ export default function App() {
         setProfileState(getProfile(clientId));
         refreshHistory();
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
+        /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
+        setShowHome(false);
+        setShowResult(true);
+        setShowDeleteArea(true);
+        setCaptureStep(1);
+        setRawImageBase64(null);
+        setNutritionImageBase64(null);
+        setCapturedPreviewDataUrl(null);
         if (result.novaGroup === 3 || result.novaGroup === 4) {
           requestAlternativesFromApi(
             clientId,
@@ -1155,13 +1159,6 @@ export default function App() {
             renderResult
           );
         }
-        setShowHome(false);
-        setShowResult(true);
-        setShowDeleteArea(true);
-        setCaptureStep(1);
-        setRawImageBase64(null);
-        setNutritionImageBase64(null);
-        setCapturedPreviewDataUrl(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
