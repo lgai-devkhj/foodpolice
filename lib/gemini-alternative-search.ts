@@ -3,7 +3,6 @@
  */
 
 import {
-  normalizeAlternativeFoodOutput,
   ALT_FOOD_OPTION_LINE_RE,
 } from '@/lib/alternative-food-normalize';
 export const PERPLEXITY_MODEL = 'sonar';
@@ -210,7 +209,7 @@ async function generateAlternativesOnce(
 
   if (acceptAlternativeModelText(t)) {
     return {
-      text: normalizeAlternativeFoodOutput(t),
+      text: t,
       ok: true,
       status: res.status,
       bodySnippet: '',

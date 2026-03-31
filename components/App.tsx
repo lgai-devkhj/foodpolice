@@ -42,7 +42,6 @@ import {
   ALTERNATIVE_NOT_FOUND_MESSAGE,
   ALT_FOOD_OPTION_LINE_RE,
   ALT_FOOD_REASON_LINE_RE,
-  normalizeAlternativeFoodOutput,
 } from '@/lib/alternative-food-normalize';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
@@ -479,8 +478,8 @@ function buildNutritionResultHtml(
 function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): string {
   if (!altText) return '';
 
-  const normalized = normalizeAlternativeFoodOutput(altText.trim());
-  const lines = normalized
+  const raw = altText.trim();
+  const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
@@ -541,16 +540,10 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 
   let fallbackNote = '';
   if (shown.length === 0) {
-    const arrowIdx = lines.findIndex((l) => /👉\s*더 나은 선택/.test(l));
-    const start = arrowIdx >= 0 ? arrowIdx + 1 : 0;
-    const proseParts: string[] = [];
-    for (let i = start; i < lines.length; i++) {
-      const l = lines[i];
-      if (optionRe.test(l) || reasonRe.test(l)) break;
-      if (/^현재 식품\s*:/.test(l) || /^가공 단계\s*:/.test(l)) continue;
-      if (l.length > 0) proseParts.push(l);
-    }
-    const prose = proseParts.join(' ').trim();
+    const proseParts = lines.filter(
+      (l) => !/^현재 식품\s*:/.test(l) && !/^가공 단계\s*:/.test(l) && !/👉\s*더 나은 선택/.test(l)
+    );
+    const prose = proseParts.join('<br/>').trim();
     if (prose) fallbackNote = prose;
   }
 
@@ -565,7 +558,7 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     '<div class="alt-block">' +
     top.join('') +
     (grid ? `<div class="alt-grid">${grid}</div>` : '') +
-    (fallbackNote ? `<div class="alt-fallback">${escapeHtml(fallbackNote)}</div>` : '') +
+    (fallbackNote ? `<div class="alt-fallback">${fallbackNote.split('<br/>').map((p) => escapeHtml(p)).join('<br/>')}</div>` : '') +
     disclaimer +
     '</div>'
   );
@@ -1238,22 +1231,19 @@ export default function App() {
         (NOVA_IMG[nova] || '') +
         '" alt="" class="nova-icon" referrerpolicy="no-referrer">' +
         NOVA_NAMES[nova];
-      if (subKey && NOVA_SUBGROUP_NAMES[subKey]) {
-        html += '<span class="nova-subtag">' + escapeHtml(NOVA_SUBGROUP_NAMES[subKey]) + '</span>';
-      }
       html += '</span>';
       if (nova === 4) {
         const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
         html += '<div class="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">';
         subGraphItems.forEach((k) => {
+          const label = subKey === k && NOVA_SUBGROUP_NAMES[k] ? NOVA_SUBGROUP_NAMES[k] : k;
           html +=
-            '<div class="nova-subgroup-node' +
+            '<span class="nova-subgroup-node' +
             (subKey === k ? ' active' : '') +
             '">' +
-            '<span class="nova-subgroup-label">' +
-            k +
-            '</span></div>';
-          if (k !== '4C') html += '<span class="nova-subgroup-link" aria-hidden="true"></span>';
+            escapeHtml(label) +
+            '</span>';
+          if (k !== '4C') html += '<span class="nova-subgroup-link" aria-hidden="true"> - </span>';
         });
         html += '</div>';
       }

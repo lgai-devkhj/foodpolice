@@ -1073,34 +1073,27 @@
     .nova-subgroup-graph {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0;
       margin: -2px 0 10px;
+      flex-wrap: wrap;
+      font-size: 0.96rem;
     }
     .nova-subgroup-node {
-      min-width: 58px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--card-stroke);
-      background: rgba(255,255,255,0.72);
+      padding: 0;
+      border: none;
+      background: transparent;
       color: var(--text2);
-      text-align: center;
-      font-size: 0.9rem;
-      font-weight: 800;
-      line-height: 1;
+      font-weight: 700;
+      line-height: 1.4;
     }
     .nova-subgroup-node.active {
-      background: rgba(183, 28, 28, 0.12);
-      border-color: rgba(183, 28, 28, 0.45);
       color: #b71c1c;
-      box-shadow: 0 0 0 1px rgba(183, 28, 28, 0.1) inset;
+      font-weight: 800;
     }
     .nova-subgroup-link {
-      width: 14px;
-      height: 2px;
-      border-radius: 999px;
-      background: var(--card-stroke);
-      opacity: 0.95;
-      flex-shrink: 0;
+      color: var(--text3);
+      margin: 0 8px;
+      font-weight: 600;
     }
     .nova-result-hint {
       font-size: 1rem;
@@ -2056,13 +2049,11 @@
     }
     [data-theme="dark"] .nova-subgroup-node.active,
     html:not([data-theme="light"]) .nova-subgroup-node.active {
-      background: rgba(255, 138, 128, 0.18);
-      border-color: rgba(255, 138, 128, 0.55);
       color: #ffe0db;
     }
     [data-theme="dark"] .nova-subgroup-link,
     html:not([data-theme="light"]) .nova-subgroup-link {
-      background: rgba(255,255,255,0.28);
+      color: rgba(255,255,255,0.55);
     }
 
     [data-theme="dark"] .info-category-nova-1,
