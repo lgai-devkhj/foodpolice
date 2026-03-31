@@ -491,6 +491,13 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 
   const optionRe = ALT_FOOD_OPTION_LINE_RE;
   const reasonRe = ALT_FOOD_REASON_LINE_RE;
+  const isValidAlternativeProductText = (value: string): boolean => {
+    const cleaned = value.replace(/\*\*/g, '').replace(/[“”"'`]/g, '').trim();
+    if (!cleaned) return false;
+    if (/^[:：•·\-\–—,./\\|(){}\[\]]+$/.test(cleaned)) return false;
+    if (/^(이유|없음|미상|N\/A)$/i.test(cleaned)) return false;
+    return /[가-힣A-Za-z0-9]/.test(cleaned) && cleaned.length >= 2;
+  };
 
   type Item = { label: string; product: string; reason: string };
   const items: Item[] = [];
@@ -502,7 +509,7 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     if (om) {
       const label = om[2] || '';
       const product = (om[3] || '').trim();
-      if (!product) {
+      if (!isValidAlternativeProductText(product)) {
         lastIdx = null;
         continue;
       }
@@ -546,6 +553,10 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     const prose = proseParts.join('<br/>').trim();
     if (prose) fallbackNote = prose;
   }
+  const rawOutput = raw
+    .split(/\r?\n/)
+    .map((line) => escapeHtml(line))
+    .join('<br/>');
 
   const disclaimer =
     '<p class="alt-disclaimer">' +
@@ -560,6 +571,7 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     (grid ? `<div class="alt-grid">${grid}</div>` : '') +
     (fallbackNote ? `<div class="alt-fallback">${fallbackNote.split('<br/>').map((p) => escapeHtml(p)).join('<br/>')}</div>` : '') +
     disclaimer +
+    `<details class="alt-raw-output"><summary>원본 출력 보기</summary><div class="alt-raw-output-body">${rawOutput}</div></details>` +
     '</div>'
   );
 }

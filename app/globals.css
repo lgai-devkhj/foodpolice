@@ -1460,6 +1460,31 @@
       line-height: 1.45;
       color: var(--text3);
     }
+    .alt-raw-output {
+      margin-top: 10px;
+      border: 1px dashed var(--card-stroke);
+      border-radius: 12px;
+      background: rgba(0,0,0,0.02);
+      padding: 8px 10px;
+    }
+    [data-theme="dark"] .alt-raw-output,
+    html:not([data-theme="light"]) .alt-raw-output { background: rgba(255,255,255,0.03); }
+    .alt-raw-output > summary {
+      cursor: pointer;
+      color: var(--text2);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+    .alt-raw-output-body {
+      margin-top: 8px;
+      color: var(--text3);
+      font-size: 0.86rem;
+      line-height: 1.45;
+      word-break: break-word;
+      max-height: 160px;
+      overflow: auto;
+      padding-right: 4px;
+    }
     .alt-meta {
       color: var(--text2);
       font-size: 0.95rem;
