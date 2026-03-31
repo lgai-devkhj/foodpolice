@@ -83,8 +83,8 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const nut = ctx.nutritionHint ? `\n(1회 제공량·표 기준 추정) ${ctx.nutritionHint}\n` : '';
 
   return (
-    '**필수:** 답하기 전에 **Google Search 도구로 실제 웹 검색을 반드시 실행**하고, 네이버 쇼핑·마트 채널 등에서 **품명이 스니펫에 보이는지** 확인하세요. 검색 없이 추측만 하지 마세요.\n\n' +
-    '당신은 **Google Search(웹 검색) 도구**로 얻은 정보**만** 근거로, 한국에서 살 수 있는 **실제 유통 제품**을 제안합니다.\n\n' +
+    '**필수:** 답하기 전에 **웹 검색을 실제로 수행**하고, 네이버 쇼핑·마트 채널 등에서 **품명이 스니펫에 보이는지** 확인하세요. 검색 없이 추측만 하지 마세요.\n\n' +
+    '당신은 **웹 검색으로 확인한 정보만** 근거로, 한국에서 살 수 있는 **실제 유통 제품**을 제안합니다.\n\n' +
     '[현재 식품 — 이미지 분석 결과]\n' +
     `제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}\n` +
     `제조사: ${ctx.companyName || '(없음)'}\n` +
