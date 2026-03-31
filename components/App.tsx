@@ -475,10 +475,18 @@ function buildNutritionResultHtml(
   return html;
 }
 
+/** Perplexity 등 검색 인용 표기 `[1]` `[12]` 제거 */
+function stripWebCitationMarkers(text: string): string {
+  return text
+    .replace(/\[\d+\]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): string {
   if (!altText) return '';
 
-  const raw = altText.trim();
+  const raw = stripWebCitationMarkers(altText);
   const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
