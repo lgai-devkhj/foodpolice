@@ -50,7 +50,11 @@ export async function POST(request: NextRequest) {
     };
 
     const prompt = buildAlternativeFoodWebSearchPrompt(ctx);
-    const alternativeFoodText = await fetchAlternativesWithPerplexity(key, prompt);
+    const alternativeFoodText = await fetchAlternativesWithPerplexity(
+      key,
+      prompt,
+      ctx.productName || ''
+    );
 
     return NextResponse.json({
       alternativeFoodText: alternativeFoodText || null,

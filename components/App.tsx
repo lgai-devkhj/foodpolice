@@ -43,6 +43,8 @@ import {
   ALT_FOOD_OPTION_LINE_RE,
   ALT_FOOD_REASON_LINE_RE,
 } from '@/lib/alternative-food-normalize';
+import type { AlternativeFoodJsonRoot } from '@/lib/alternative-food-json';
+import { isSameProductLineOrWeightOnlyVariant, productIdentityCore } from '@/lib/alternative-food-json';
 import { DAILY_REFERENCE } from '@/lib/nutrition-daily';
 import type { NutritionDailyPercent, NutritionFacts } from '@/lib/store';
 import {
@@ -483,10 +485,73 @@ function stripWebCitationMarkers(text: string): string {
     .trim();
 }
 
-function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): string {
+function buildAlternativeFoodHtml(
+  altText: string,
+  fromWebSearch?: boolean,
+  scannedProductName?: string
+): string {
   if (!altText) return '';
 
-  const raw = stripWebCitationMarkers(altText);
+  const scanned = (scannedProductName || '').trim();
+  const trimmed = stripWebCitationMarkers(altText).trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed) as AlternativeFoodJsonRoot;
+      const alts = parsed?.alternatives;
+      if (Array.isArray(alts) && alts.length > 0) {
+        const tierLabel: Record<string, string> = {
+          slight: '조금 개선',
+          better: '더 나은 선택',
+          best: '최적 선택',
+        };
+        const topMeta: string[] = [];
+        const cf = (parsed.currentFood || '').trim();
+        const st = (parsed.processingStage || '').trim();
+        if (cf) topMeta.push(`<div class="alt-meta">현재 식품: ${escapeHtml(cf)}</div>`);
+        if (st) topMeta.push(`<div class="alt-meta">가공 단계: ${escapeHtml(st)}</div>`);
+        const seen = new Set<string>();
+        const gridItems = alts
+          .filter((it) => it && String(it.productName || '').trim() && String(it.reason || '').trim())
+          .filter((it) => {
+            const name = String(it.productName).trim();
+            if (scanned && isSameProductLineOrWeightOnlyVariant(name, scanned)) return false;
+            const core = productIdentityCore(name);
+            if (!core || seen.has(core)) return false;
+            seen.add(core);
+            return true;
+          })
+          .slice(0, 3);
+        if (gridItems.length >= 3) {
+          const grid = gridItems
+            .map((it) => {
+              const kicker = escapeHtml(tierLabel[it.tier] || it.tier || '');
+              const reason = escapeHtml(String(it.reason || '').trim());
+              return (
+                '<div class="alt-item">' +
+                '<div class="alt-item-row">' +
+                '<div class="alt-item-main">' +
+                (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
+                `<div class="alt-product">${escapeHtml(String(it.productName || '').trim())}</div>` +
+                (reason ? `<div class="alt-reason">${reason}</div>` : '') +
+                '</div></div></div>'
+              );
+            })
+            .join('');
+          const disclaimer =
+            '<p class="alt-disclaimer">' +
+            (fromWebSearch
+              ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
+              : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
+            '</p>';
+          return '<div class="alt-block">' + topMeta.join('') + `<div class="alt-grid">${grid}</div>` + disclaimer + '</div>';
+        }
+      }
+    } catch {
+      /* 텍스트 형식으로 이어감 */
+    }
+  }
+
+  const raw = trimmed;
   const lines = raw
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -560,11 +625,12 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
   if (currentFood) top.push(`<div class="alt-meta">현재 식품: ${escapeHtml(currentFood)}</div>`);
   if (stage) top.push(`<div class="alt-meta">가공 단계: ${escapeHtml(stage)}</div>`);
 
-  const currentKey = normalizeProductKey(currentFood);
+  const currentKey = normalizeProductKey(currentFood || scanned);
   const seen = new Set<string>();
   const deduped = items.filter((it) => {
     const key = normalizeProductKey(it.product);
     if (!key) return false;
+    if (scanned && isSameProductLineOrWeightOnlyVariant(it.product, scanned)) return false;
     if (currentKey && (key === currentKey || key.includes(currentKey) || currentKey.includes(key))) {
       return false;
     }
@@ -1367,7 +1433,11 @@ export default function App() {
         if (nova === 1 || nova === 2) {
           const altPending = result.alternativeFoodLoaded === false;
           const altHtml = altText
-            ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
+            ? buildAlternativeFoodHtml(
+                altText,
+                result.alternativeFoodFromWebSearch === true,
+                (result.product?.productName || '').trim()
+              )
             : '';
           const showNoticeWithButton = !result.alternativeFoodUserRequested;
           if (altPending) {
@@ -1404,7 +1474,11 @@ export default function App() {
         } else {
           const altPending = result.alternativeFoodLoaded === false;
           const altHtml = altText
-            ? buildAlternativeFoodHtml(altText, result.alternativeFoodFromWebSearch === true)
+            ? buildAlternativeFoodHtml(
+                altText,
+                result.alternativeFoodFromWebSearch === true,
+                (result.product?.productName || '').trim()
+              )
             : '';
           if (altPending) {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
