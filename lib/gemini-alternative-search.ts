@@ -70,8 +70,8 @@ const OUTPUT_FORMAT =
   '- 출처: {https://... 실제 상품 페이지/검색 결과 URL}\n\n' +
   '3. 최적 선택: {실제 제품명}\n' +
   '- 이유: {공백 가능}\n' +
-  '- 출처: {https://... 실제 상품 페이지/검색 결과 URL}\n\n' +
-  '금지: 확인되지 않은 제품명 추측, 브랜드/제품 임의 조합, HTML, 여러 문단.\n';
+  '- 출처: {https://... 실제 구매 가능한 상품/스토어 페이지 URL}\n\n' +
+  '금지: 확인되지 않은 제품명 추측, 브랜드/제품 임의 조합, 브랜드 없는 일반명, HTML, 여러 문단.\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = (ctx.rawMaterials || '').slice(0, 900);
@@ -104,16 +104,20 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     '\n' +
     '[규칙 — 반드시 준수]\n' +
     '1. 검색 스니펫/상품 목록에 보인 정확한 제품명만 적으세요. 존재를 확인 못한 제품은 절대 쓰지 마세요.\n' +
+    '1-1. 제품명은 반드시 "브랜드 + 정식 상품명" 형태로 쓰세요.\n' +
+    '1-2. 금지 예시: "플레인 구운 땅콩", "무염 땅콩", "볶은 땅콩".\n' +
+    '1-3. 허용 예시: "브랜드명 + 제품에 인쇄된 공식 상품명" 형태.\n' +
     '2. 브랜드와 제품명을 임의로 합치지 마세요(예: 다른 브랜드명+다른 제품명 조합 금지).\n' +
     '3. 각 항목(1~3)마다 반드시 출처 URL을 함께 적으세요. URL 없는 항목은 무효입니다.\n' +
-    '4. 1~3 항목 모두 제품명과 출처 URL을 채우세요. 비워두지 마세요.\n' +
+    '4. 출처 URL은 사용자가 눌러서 상품/스토어 페이지로 이동 가능한 링크여야 합니다.\n' +
+    '5. 1~3 항목 모두 제품명과 출처 URL을 채우세요. 비워두지 마세요.\n' +
     '5. 같은 식품군(위 foodCategory)·비슷한 소비 상황을 유지하세요. 완전 다른 계열로 바꾸지 마세요.\n' +
     (ctx.novaGroup === 3
-      ? '6. 현재 Group III(가공 식품)이면 덜 가공된 방향으로: 같은 식품군·용도 안에서 원재료가 더 분명하고 첨가가 더 적은 제품을 우선 제안하세요.\n'
+      ? '7. 현재 Group III(가공 식품)이면 덜 가공된 방향으로: 같은 식품군·용도 안에서 원재료가 더 분명하고 첨가가 더 적은 제품을 우선 제안하세요.\n'
       : ctx.novaGroup <= 2
-        ? '6. 현재 Group I~II라도 사용자가 대안을 요청했으므로, 같은 식품군·비슷한 용도의 실제 유통 품명 위주로 제안하세요.\n'
-        : '6. Group IV면 4C→4B, 4B→4A, 4A→III 방향을 우선하되, 확인된 제품만 제시하세요.\n') +
-    '7. 한국어 검색 기반으로 한국 내 유통·수입 제품을 우선하세요.\n\n' +
+        ? '7. 현재 Group I~II라도 사용자가 대안을 요청했으므로, 같은 식품군·비슷한 용도의 실제 유통 품명 위주로 제안하세요.\n'
+        : '7. Group IV면 4C→4B, 4B→4A, 4A→III 방향을 우선하되, 확인된 제품만 제시하세요.\n') +
+    '8. 한국어 검색 기반으로 한국 내 유통·수입 제품을 우선하세요.\n\n' +
     '[말투 규칙 — 토스 스타일]\n' +
     '- 짧고 분명하게 쓴다. 군더더기 설명은 줄인다.\n' +
     '- 이유 문장은 쉬운 생활어로 1문장만 쓴다.\n' +
@@ -133,7 +137,20 @@ function acceptAlternativeModelText(text: string): boolean {
     .filter((m): m is RegExpMatchArray => !!m)
     .map((m) => (m[3] || '').trim())
     .filter((name) => /[가-힣A-Za-z0-9]/.test(name) && !/^[:：•·\-\–—,./\\|(){}\[\]]+$/.test(name));
-  return products.length >= 3;
+  const urlCandidates = Array.from(new Set(t.match(/https?:\/\/[^\s)\]]+/gi) || []));
+  const validUrls = urlCandidates.filter((raw) => {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      // 구매/스토어로 클릭 이동 가능한 페이지 성격(검색·몰·상품)
+      return /(shopping|product|item|goods|mall|store|mart|market|coupang|ssg|emart|gmarket|11st|auction|kurly)/i.test(
+        `${u.hostname}${u.pathname}`
+      );
+    } catch {
+      return false;
+    }
+  });
+  return products.length >= 3 && validUrls.length >= 3;
 }
 
 async function generateAlternativesOnce(
@@ -166,7 +183,7 @@ async function generateAlternativesOnce(
           {
             role: 'system',
             content:
-              '한국에서 실제로 구매 가능한 제품 3개를 반드시 제시하세요. 추측 금지, 임의 조합 금지, 빈칸 금지.',
+              '한국에서 실제로 구매 가능한 제품 3개를 반드시 제시하세요. 추측 금지, 임의 조합 금지, 빈칸 금지. 각 항목에 클릭 가능한 구매/스토어 URL을 포함하세요.',
           },
           { role: 'user', content: prompt },
         ],
@@ -237,6 +254,7 @@ export async function fetchAlternativesWithPerplexity(
     '\n\n[재시도 규칙]\n' +
     '- 1~3을 반드시 채워서 제시한다. 빈칸 금지.\n' +
     '- 한국에서 구매 가능한 실제 제품명만 쓴다.\n' +
+    '- 각 항목에 클릭 가능한 구매/스토어 URL을 반드시 포함한다.\n' +
     '- 브랜드명+제품명 임의 조합을 절대 만들지 않는다.\n';
   const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, relaxedPrompt);
   return second.text;
