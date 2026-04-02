@@ -518,6 +518,12 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     if (/^(이유|없음|미상|N\/A)$/i.test(cleaned)) return false;
     return /[가-힣A-Za-z0-9]/.test(cleaned) && cleaned.length >= 2;
   };
+  const normalizeProductKey = (value: string): string =>
+    String(value || '')
+      .toLowerCase()
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[^a-z0-9가-힣]/gi, '')
+      .trim();
 
   type Item = { label: string; product: string; reason: string; sourceUrl: string };
   const items: Item[] = [];
@@ -554,12 +560,23 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
   if (currentFood) top.push(`<div class="alt-meta">현재 식품: ${escapeHtml(currentFood)}</div>`);
   if (stage) top.push(`<div class="alt-meta">가공 단계: ${escapeHtml(stage)}</div>`);
 
-  const shown = items.slice(0, 3);
+  const currentKey = normalizeProductKey(currentFood);
+  const seen = new Set<string>();
+  const deduped = items.filter((it) => {
+    const key = normalizeProductKey(it.product);
+    if (!key) return false;
+    if (currentKey && (key === currentKey || key.includes(currentKey) || currentKey.includes(key))) {
+      return false;
+    }
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const shown = deduped.slice(0, 3);
   const grid = shown
     .map((it) => {
       const kicker = it.label ? escapeHtml(it.label) : '';
       const reason = it.reason ? escapeHtml(it.reason) : '';
-      const sourceUrl = safeExternalUrl(it.sourceUrl);
       return (
         '<div class="alt-item">' +
         '<div class="alt-item-row">' +
@@ -567,9 +584,6 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
         (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
         `<div class="alt-product">${escapeHtml(it.product)}</div>` +
         (reason ? `<div class="alt-reason">${reason}</div>` : '') +
-        (sourceUrl
-          ? `<a class="alt-buy-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">구매 링크 열기</a>`
-          : '') +
         '</div></div></div>'
       );
     })
