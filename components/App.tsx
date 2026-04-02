@@ -499,6 +499,18 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
 
   const optionRe = ALT_FOOD_OPTION_LINE_RE;
   const reasonRe = ALT_FOOD_REASON_LINE_RE;
+  const sourceRe = /^[-–—•]\s*(?:출처|source)\s*[:：]\s*(https?:\/\/\S+)$/i;
+  const safeExternalUrl = (value: string): string | null => {
+    const src = String(value || '').trim();
+    if (!/^https?:\/\//i.test(src)) return null;
+    try {
+      const u = new URL(src);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+      return u.toString();
+    } catch {
+      return null;
+    }
+  };
   const isValidAlternativeProductText = (value: string): boolean => {
     const cleaned = value.replace(/\*\*/g, '').replace(/[“”"'`]/g, '').trim();
     if (!cleaned) return false;
@@ -507,7 +519,7 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     return /[가-힣A-Za-z0-9]/.test(cleaned) && cleaned.length >= 2;
   };
 
-  type Item = { label: string; product: string; reason: string };
+  type Item = { label: string; product: string; reason: string; sourceUrl: string };
   const items: Item[] = [];
   let lastIdx: number | null = null;
 
@@ -521,13 +533,19 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
         lastIdx = null;
         continue;
       }
-      items.push({ label, product, reason: '' });
+      items.push({ label, product, reason: '', sourceUrl: '' });
       lastIdx = items.length - 1;
       continue;
     }
     const rm = line.match(reasonRe);
     if (rm && lastIdx != null) {
       items[lastIdx].reason = (rm[1] || '').trim();
+      continue;
+    }
+    const sm = line.match(sourceRe);
+    if (sm && lastIdx != null) {
+      const url = safeExternalUrl(sm[1] || '');
+      if (url) items[lastIdx].sourceUrl = url;
       continue;
     }
   }
@@ -541,6 +559,7 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
     .map((it) => {
       const kicker = it.label ? escapeHtml(it.label) : '';
       const reason = it.reason ? escapeHtml(it.reason) : '';
+      const sourceUrl = safeExternalUrl(it.sourceUrl);
       return (
         '<div class="alt-item">' +
         '<div class="alt-item-row">' +
@@ -548,6 +567,9 @@ function buildAlternativeFoodHtml(altText: string, fromWebSearch?: boolean): str
         (kicker ? `<div class="alt-kicker">${kicker}</div>` : '') +
         `<div class="alt-product">${escapeHtml(it.product)}</div>` +
         (reason ? `<div class="alt-reason">${reason}</div>` : '') +
+        (sourceUrl
+          ? `<a class="alt-buy-link" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">구매 링크 열기</a>`
+          : '') +
         '</div></div></div>'
       );
     })

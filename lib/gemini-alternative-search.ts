@@ -2,6 +2,8 @@
  * 대체 식품 안내 — Perplexity 웹 검색 전용 (텍스트만, 이미지 없음).
  */
 
+import { ALT_FOOD_OPTION_LINE_RE } from '@/lib/alternative-food-normalize';
+
 export const PERPLEXITY_MODEL = 'sonar';
 
 /** 한 번의 Perplexity 호출 최대 대기 */
@@ -61,12 +63,15 @@ const OUTPUT_FORMAT =
   '가공 단계: (novaGroup/novaSubgroup 반영, 예: Group IV · 4B)\n\n' +
   '👉 더 나은 선택:\n\n' +
   '1. 조금 개선: {웹에서 확인된 실제 제품명}\n' +
-  '- 이유: {공백 가능}\n\n' +
+  '- 이유: {공백 가능}\n' +
+  '- 출처: {https://... 실제 상품 페이지/검색 결과 URL}\n\n' +
   '2. 더 나은 선택: {실제 제품명}\n' +
-  '- 이유: {공백 가능}\n\n' +
+  '- 이유: {공백 가능}\n' +
+  '- 출처: {https://... 실제 상품 페이지/검색 결과 URL}\n\n' +
   '3. 최적 선택: {실제 제품명}\n' +
-  '- 이유: {공백 가능}\n\n' +
-  '금지: "더 건강한 식품은 찾지 못했어요." 같은 포기 문장, HTML, 여러 문단, 빈 제품명.\n';
+  '- 이유: {공백 가능}\n' +
+  '- 출처: {https://... 실제 상품 페이지/검색 결과 URL}\n\n' +
+  '금지: 확인되지 않은 제품명 추측, 브랜드/제품 임의 조합, HTML, 여러 문단.\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = (ctx.rawMaterials || '').slice(0, 900);
@@ -98,18 +103,17 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
       : '') +
     '\n' +
     '[규칙 — 반드시 준수]\n' +
-    '1. 1~3번 제품명은 **빈칸 금지**입니다. 각 줄에 반드시 브랜드+제품명을 적으세요.\n' +
-    '2. 검색에서 완전일치 품명이 약하면, 한국에서 널리 유통되는 같은 식품군의 대표 제품명으로 채우세요(가장 현실적인 후보 우선).\n' +
-    '3. 검색 스니펫에 제품명이 보이면 그 이름을 우선 사용하고, 없으면 카테고리 대표 제품으로 보완하세요.\n' +
-    '4. 지나치게 생소한 조합·가짜 플레이버는 피하고, 편의점/대형마트/네이버쇼핑에서 흔한 품목을 고르세요.\n' +
-    '5. 제품명만 비워두는 출력은 금지합니다.\n' +
-    '6. 같은 식품군(위 foodCategory)·비슷한 소비 상황을 유지하세요. 탄산 제로 콜라류면 다른 브랜드 동종 제로 콜라 등, 완전 다른 계열로 바꾸지 마세요.\n' +
+    '1. 검색 스니펫/상품 목록에 보인 정확한 제품명만 적으세요. 존재를 확인 못한 제품은 절대 쓰지 마세요.\n' +
+    '2. 브랜드와 제품명을 임의로 합치지 마세요(예: 다른 브랜드명+다른 제품명 조합 금지).\n' +
+    '3. 각 항목(1~3)마다 반드시 출처 URL을 함께 적으세요. URL 없는 항목은 무효입니다.\n' +
+    '4. 1~3 항목 모두 제품명과 출처 URL을 채우세요. 비워두지 마세요.\n' +
+    '5. 같은 식품군(위 foodCategory)·비슷한 소비 상황을 유지하세요. 완전 다른 계열로 바꾸지 마세요.\n' +
     (ctx.novaGroup === 3
-      ? '7. 현재 Group III(가공 식품)이면 덜 가공된 방향으로: 같은 식품군·용도 안에서 원재료가 더 분명하고 첨가가 더 적은 제품을 우선 제안하세요.\n'
+      ? '6. 현재 Group III(가공 식품)이면 덜 가공된 방향으로: 같은 식품군·용도 안에서 원재료가 더 분명하고 첨가가 더 적은 제품을 우선 제안하세요.\n'
       : ctx.novaGroup <= 2
-        ? '7. 현재 Group I~II라도 사용자가 대안을 요청했으므로, 같은 식품군·비슷한 용도에서 다른 브랜드 실제 유통 품명 3개를 채워 제시하세요.\n'
-        : '7. Group IV면 4C→4B, 4B→4A, 4A→III 방향을 우선하되, 비워두지 말고 같은 식품군에서 현실적인 대안을 채워 제시하세요.\n') +
-    '8. 한국어 검색 기반으로 한국 내 유통·수입 제품을 우선하세요.\n\n' +
+        ? '6. 현재 Group I~II라도 사용자가 대안을 요청했으므로, 같은 식품군·비슷한 용도의 실제 유통 품명 위주로 제안하세요.\n'
+        : '6. Group IV면 4C→4B, 4B→4A, 4A→III 방향을 우선하되, 확인된 제품만 제시하세요.\n') +
+    '7. 한국어 검색 기반으로 한국 내 유통·수입 제품을 우선하세요.\n\n' +
     '[말투 규칙 — 토스 스타일]\n' +
     '- 짧고 분명하게 쓴다. 군더더기 설명은 줄인다.\n' +
     '- 이유 문장은 쉬운 생활어로 1문장만 쓴다.\n' +
@@ -121,8 +125,20 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
 function acceptAlternativeModelText(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
-  // 사용자가 "있는 그대로" 표시를 원하므로, 비어 있지 않으면 통과시킨다.
-  return true;
+  if (/더\s*건강한\s*식품은\s*찾지\s*못했어요/.test(t)) return false;
+  if (/검색\s*근거\s*부족/.test(t)) return false;
+
+  const lines = t.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const products = lines
+    .map((line) => line.match(ALT_FOOD_OPTION_LINE_RE))
+    .filter((m): m is RegExpMatchArray => !!m)
+    .map((m) => (m[3] || '').trim())
+    .filter((name) => /[가-힣A-Za-z0-9]/.test(name) && !/^[:：•·\-\–—,./\\|(){}\[\]]+$/.test(name));
+  const sourceUrls = lines
+    .filter((line) => /^(출처|source)\s*[:：]\s*https?:\/\//i.test(line))
+    .map((line) => line.replace(/^(출처|source)\s*[:：]\s*/i, '').trim())
+    .filter((url) => /^https?:\/\/\S+$/i.test(url));
+  return products.length >= 3 && sourceUrls.length >= 3;
 }
 
 async function generateAlternativesOnce(
@@ -150,12 +166,12 @@ async function generateAlternativesOnce(
       signal: controller.signal,
       body: JSON.stringify({
         model,
-        temperature: 0.2,
+        temperature: 0,
         messages: [
           {
             role: 'system',
             content:
-              '웹 검색 결과를 우선 참고해 답하세요. 빈칸 없이 한국에서 구하기 쉬운 대안을 3개 제시하세요.',
+              '웹 검색으로 확인된 실제 제품명만 답하세요. 불확실하면 제품명을 비워두고 추측하지 마세요.',
           },
           { role: 'user', content: prompt },
         ],
@@ -224,9 +240,9 @@ export async function fetchAlternativesWithPerplexity(
   const relaxedPrompt =
     prompt +
     '\n\n[재시도 규칙]\n' +
-    '- 반드시 3개를 채워서 제시한다. 빈칸 금지.\n' +
-    '- 완전 일치 제품이 부족하면, 한국에서 유통되는 같은 식품군의 대표 제품(브랜드+제품명)을 제안한다.\n' +
-    '- "찾지 못했어요" 문장은 쓰지 말고, 가장 가까운 현실적 대안을 적는다.\n';
+    '- 확인된 제품명만 적는다. 추측 금지.\n' +
+    '- 1~3 모든 항목에 제품명과 출처 URL을 반드시 포함한다.\n' +
+    '- 브랜드명+제품명 임의 조합을 절대 만들지 않는다.\n';
   const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, relaxedPrompt);
   return second.text;
 }
