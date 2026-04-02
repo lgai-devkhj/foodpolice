@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { BmiTier } from '@/lib/gemini-prompts';
 import {
-  buildAlternativeFoodWebSearchPrompt,
-  buildNutritionHintForAlternatives,
-  fetchAlternativesWithPerplexity,
-  type AlternativesNutritionPayload,
-} from '@/lib/gemini-alternative-search';
+  engineRecommendationsToAlternativeJson,
+  inferFoodType,
+  runRecommendationPipeline,
+  type RecommendationEngineInput,
+} from '@/lib/alternative-recommendation-engine';
+import type { AlternativesNutritionPayload } from '@/lib/gemini-alternative-search';
 
 export const runtime = 'nodejs';
-/** 그라운딩 최대 2회(각 ~28s)까지 허용 */
 export const maxDuration = 60;
 
 interface AlternativesBody {
@@ -18,48 +19,46 @@ interface AlternativesBody {
   novaSubgroup?: string | null;
   briefDescription?: string | null;
   rawMaterials?: string;
-  /** 분석 결과 nutrition의 숫자 필드만 전달 */
   nutrition?: AlternativesNutritionPayload | null;
+  concernIngredients?: Array<{ name?: string; explanation?: string }> | null;
+  bmiTier?: BmiTier | null;
+}
+
+function isBmiTier(v: unknown): v is BmiTier {
+  return (
+    v === 'underweight' ||
+    v === 'normal' ||
+    v === 'overweight' ||
+    v === 'obese'
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const key =
-      process.env.PERPLEXITY_API_KEY ||
-      process.env.PPLX_API_KEY ||
-      process.env.GEMINI_API_KEY;
-    if (!key || key.length === 0) {
-      return NextResponse.json(
-        { error: 'Perplexity API 키를 설정해 주세요. (PERPLEXITY_API_KEY 또는 PPLX_API_KEY)' },
-        { status: 500 }
-      );
-    }
-
     const body: AlternativesBody = await request.json();
     const novaGroup = Math.min(4, Math.max(1, parseInt(String(body.novaGroup), 10) || 4));
-    const nutritionHint = buildNutritionHintForAlternatives(body.nutrition ?? undefined);
-    const ctx = {
+
+    const input: RecommendationEngineInput = {
       productName: (body.productName || '').trim(),
-      companyName: (body.companyName || '').trim(),
+      companyName: body.companyName?.trim() ?? null,
       foodCategory: body.foodCategory ?? null,
       novaGroup,
       novaSubgroup: body.novaSubgroup ? String(body.novaSubgroup).trim().toUpperCase() : null,
       briefDescription: body.briefDescription ? String(body.briefDescription).trim() : null,
       rawMaterials: (body.rawMaterials || '').trim(),
-      nutritionHint,
+      nutrition: body.nutrition ?? null,
+      concernIngredients: body.concernIngredients ?? null,
+      bmiTier: isBmiTier(body.bmiTier) ? body.bmiTier : null,
     };
 
-    const prompt = buildAlternativeFoodWebSearchPrompt(ctx);
-    const alternativeFoodText = await fetchAlternativesWithPerplexity(
-      key,
-      prompt,
-      ctx.productName || '',
-      { rawMaterials: ctx.rawMaterials, foodCategory: ctx.foodCategory }
-    );
+    const recs = runRecommendationPipeline(input);
+    const alternativeFoodText =
+      recs.length > 0 ? JSON.stringify(engineRecommendationsToAlternativeJson(input, recs)) : null;
 
     return NextResponse.json({
-      alternativeFoodText: alternativeFoodText || null,
-      alternativeFoodFromWebSearch: !!alternativeFoodText,
+      alternativeFoodText,
+      alternativeFoodFromWebSearch: false,
+      inferredFoodType: inferFoodType(input),
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '서버 오류';

@@ -10,6 +10,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { getClientId } from '@/lib/clientId';
+import type { BmiTier } from '@/lib/gemini-prompts';
 import {
   loadState,
   setProfile as saveProfile,
@@ -521,7 +522,7 @@ function buildAlternativeFoodHtml(
             return true;
           })
           .slice(0, 3);
-        if (gridItems.length >= 3) {
+        if (gridItems.length >= 1) {
           const grid = gridItems
             .map((it) => {
               const kicker = escapeHtml(tierLabel[it.tier] || it.tier || '');
@@ -541,7 +542,7 @@ function buildAlternativeFoodHtml(
             '<p class="alt-disclaimer">' +
             (fromWebSearch
               ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
-              : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
+              : '먹는 맥락(유형)·라벨 분석을 바탕으로 한 참고용 유형 제안이에요. 특정 브랜드 SKU가 아니라, 마트에서 같은 축으로 찾을 만한 방향이에요. 링크는 검색용이에요.') +
             '</p>';
           return '<div class="alt-block">' + topMeta.join('') + `<div class="alt-grid">${grid}</div>` + disclaimer + '</div>';
         }
@@ -767,6 +768,7 @@ function requestAlternativesFromApi(
   clientId: string,
   historyId: string,
   baseResult: AnalysisResult,
+  profile: Profile,
   analysisSeconds: number,
   refreshHistory: () => void,
   currentHistoryIdRef: MutableRefObject<string | null>,
@@ -788,6 +790,8 @@ function requestAlternativesFromApi(
       novaSubgroup: baseResult.novaSubgroup || null,
       briefDescription: baseResult.briefDescription || null,
       rawMaterials: baseResult.product?.rawMaterials || '',
+      bmiTier: profileToBmiTier(profile),
+      concernIngredients: baseResult.concernIngredients ?? [],
       nutrition: baseResult.nutrition
         ? {
             caloriesKcal: baseResult.nutrition.caloriesKcal ?? null,
@@ -851,6 +855,16 @@ function formatRelativeTime(iso: string): string {
   if (sec < 86400) return Math.floor(sec / 3600) + '시간 전';
   if (sec < 2592000) return Math.floor(sec / 86400) + '일 전';
   return d.toLocaleDateString('ko-KR');
+}
+
+function profileToBmiTier(profile: Profile): BmiTier | null {
+  const p = getProfileWithLatestMeasurement(profile);
+  const b = computeBmi(p.heightCm ?? 0, p.weightKg ?? 0);
+  if (b == null) return null;
+  if (b < 18.5) return 'underweight';
+  if (b <= 22.9) return 'normal';
+  if (b <= 24.9) return 'overweight';
+  return 'obese';
 }
 
 function computeBmi(heightCm: number, weightKg: number): number | null {
@@ -1183,6 +1197,7 @@ export default function App() {
             clientId,
             id,
             result,
+            profile,
             sec,
             refreshHistory,
             currentHistoryIdRef,
@@ -1262,6 +1277,7 @@ export default function App() {
             clientId,
             id,
             result,
+            profile,
             sec,
             refreshHistory,
             currentHistoryIdRef,
@@ -1554,6 +1570,7 @@ export default function App() {
       clientId,
       currentHistoryId,
       patched,
+      profile,
       sec,
       refreshHistory,
       currentHistoryIdRef,
@@ -1565,6 +1582,7 @@ export default function App() {
     currentHistoryId,
     currentResult,
     lastAnalysisSeconds,
+    profile,
     refreshHistory,
     renderResult,
   ]);

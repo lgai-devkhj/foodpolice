@@ -18,8 +18,9 @@ export type AlternativeFoodJsonRoot = {
   alternatives: AlternativeFoodJsonItem[];
 };
 
+/** 오픈마켓·대형마트·브랜드관 등(Perplexity가 주는 링크 호스트 다양성 대응) */
 const SHOP_URL_HOST_PATH_RE =
-  /(shopping|product|item|goods|mall|store|mart|market|coupang|ssg|emart|gmarket|11st|auction|kurly|naver\.com)/i;
+  /(shopping|smartstore|brand\.naver|product|products|\/item\/|\/goods\/|\/p\/|goods|mall|store|mart|market|coupang|ssg\.|emart|gmarket|11st|auction|kurly|lotteon|lotte|costco|homeplus|gsfresh|gs25|traders|interpark|danawa|cjonstyle|hmall|thehyundai|akmall|lfmall|oliveyoung|\.naver\.com|store\.kakao|11번가)/i;
 
 export function isPurchaseableProductUrl(raw: string): boolean {
   const s = String(raw || '').trim();
@@ -27,7 +28,16 @@ export function isPurchaseableProductUrl(raw: string): boolean {
   try {
     const u = new URL(s);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    return SHOP_URL_HOST_PATH_RE.test(`${u.hostname}${u.pathname}`);
+    const hp = `${u.hostname}${u.pathname}`.toLowerCase();
+    if (SHOP_URL_HOST_PATH_RE.test(hp)) return true;
+    if (
+      /(\/product\/|\/products\/|\/item\/|\/goods\/|\/goodsdetail|mall\.product|\/p\/|\/shopping\/)/i.test(
+        u.pathname
+      )
+    ) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -171,9 +181,12 @@ export function alternativeLikelyWrongFoodCategory(
 
   const hasDrinkCue =
     /\b\d+\s*(ml|m[lL]|ℓ|l)\b/i.test(n) ||
-    /주스|juice|에이드|ade|탄산|사이다|콜라|환타|스프라이트|펩시|이온음료|게토레이|파워에이드|생수|\b물\b|drink|스무디|smoothie|\b티\b|tea|아이스티|\b커피|coffee|\b라떼|latte|\b우유\b|milk|\b두유/i.test(
+    /주스|juice|에이드|ade|탄산|사이다|콜라|환타|스프라이트|펩시|이온음료|게토레이|파워에이드|생수|drink|스무디|smoothie|아이스티|\b라떼|latte|\b우유\b|milk|\b두유/i.test(
       n
     );
+  const looksLikeTeaOrCoffeeDrink =
+    /\b차\s*음료|헛개차\s*\d|보리차\s*\d|아이스(?:티|커피)\s*\d/i.test(n) ||
+    (/\btea\b|\bcoffee\b|latte|americano|espresso/i.test(n) && /\d+\s*(ml|m[lL])|리터|페트|pet|병|캔/i.test(n));
 
   const hasMealCue =
     /라면|컵라면|도시락|햄버거|샌드위치|김밥|삼각김밥|주먹밥|볶음밥|컵밥|덮밥|짜장|카레|즉석밥|백반|비빔|한끼밥|볶음우동/i.test(n);
@@ -194,19 +207,23 @@ export function alternativeLikelyWrongFoodCategory(
   switch (cat) {
     case '음료':
       if (hasMealCue && !hasDrinkCue) return true;
-      if (hasSnackCue && !hasDrinkCue && !/젤리\s*음료|리얼\s*젤리|액상/i.test(n)) return true;
+      if (hasSnackCue && !hasDrinkCue && !/젤리\s*음료|리얼\s*젤리|액상|드링크/i.test(n)) return true;
       if (hasBreadCerealCue && !hasDrinkCue) return true;
       return false;
 
-    case '간편한 한 끼':
-      if (hasDrinkCue && !hasMealCue && !hasSnackCue && !hasBreadCerealCue) return true;
-      return false;
+    case '간편한 한 끼': {
+      const drinkOnly =
+        hasDrinkCue &&
+        !hasMealCue &&
+        !hasSnackCue &&
+        !hasBreadCerealCue &&
+        /주스|탄산|콜라|사이다|\d+\s*(ml|m[lL]|ℓ)|아이스티|생수|이온|게토레이|파워에이드/i.test(n);
+      return drinkOnly;
+    }
 
     case '빵·시리얼류':
       if (hasMealCue && !hasBreadCerealCue) return true;
       if (hasDrinkCue && !hasBreadCerealCue && !/\b우유\b|milk|\b두유|요거트\s*음료/i.test(n)) return true;
-      if (hasSnackCue && !hasBreadCerealCue && /과자|칩|팝콘|젤리|캔디|사탕|오징어|육포/i.test(n))
-        return true;
       return false;
 
     case '유제품·디저트':
@@ -220,11 +237,11 @@ export function alternativeLikelyWrongFoodCategory(
       if (
         hasDrinkCue &&
         !hasSnackCue &&
-        /주스|탄산|콜라|사이다|아이스티|\b티\b|커피|\d+\s*(ml|m[lL]|ℓ)|\b페트\b|pet/i.test(n)
+        /주스|탄산|콜라|사이다|아이스티|\d+\s*(ml|m[lL]|ℓ)|\b페트\b|pet/i.test(n)
       ) {
         return true;
       }
-      if (hasBreadCerealCue && !hasSnackCue && /식빵|베이글|시리얼|토스트용/i.test(n)) return true;
+      if (hasDrinkCue && !hasSnackCue && looksLikeTeaOrCoffeeDrink) return true;
       return false;
 
     default:

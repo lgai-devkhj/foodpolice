@@ -98,7 +98,7 @@ const JSON_OUTPUT_SPEC =
     0
   ) +
   '\n' +
-  '필수: alternatives는 정확히 3개. tier는 slight, better, best 각 1개씩.\n' +
+  '필수: alternatives는 **최소 1개**(가능하면 정확히 3개). tier는 slight, better, best 중 가능한 것만 채우되, 3개면 각 tier 1개씩 권장.\n' +
   '필수: purchaseUrl은 http(s) 로 시작하고, 눌렀을 때 상품·스토어로 이동 가능한 링크.\n';
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
@@ -112,7 +112,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const categoryLockBlock =
     '[식품군 고정 — 필수]\n' +
     `- 현재 **foodCategory는 "${cat}"** 입니다.\n` +
-    '- alternatives **3개 모두** 이 카테고리와 **같은 식품군**(같은 용도·같은 먹는 방식)이어야 합니다. 카테고리를 바꾸는 추천은 금지입니다.\n' +
+    '- 넣는 **모든 alternative**는 이 카테고리와 **같은 식품군**(같은 용도·같은 먹는 방식)이어야 합니다. 카테고리를 바꾸는 추천은 금지입니다.\n' +
     '- 금지 예시: **음료**인데 과자·라면·도시락·빵만 추천 / **간식**인데 주스·탄산만·한 끼 식사·시리얼 봉지 식사만 추천 / **한 끼**인데 음료·초소형 캔디만 추천 / **빵·시리얼**인데 라면·과자 봉지만·탄산음료만 추천 / **유제품·디저트**인데 라면·육포·칩만 추천.\n' +
     '- **달콤한 간식·짭짤한 간식**이면 손으로 집어먹는 형태(통·봉지)를 유지하고, **잼·초콜릿 스프레드·넛버터 통**(발라 먹는 형태)으로 바꾸지 마세요.\n' +
     (cat === '미분류'
@@ -123,7 +123,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   return (
     '**필수:** 웹 검색으로 실제 판매 페이지를 확인한 뒤, JSON만 출력하세요.\n\n' +
     '[핵심 기준]\n' +
-    '1. 추천 3개는 모두 **촬영·분석한 제품보다 건강/가공 관점에서 나은 실제 유통품**이어야 합니다.\n' +
+    '1. 추천 **각 품목**은 모두 **촬영·분석한 제품보다 건강/가공 관점에서 나은 실제 유통품**이어야 합니다.\n' +
     '2. **같은 제품**, **중량·용량·개입 수만 다른 제품**, **동일 라인·동일 품목의 다른 용량**은 절대 넣지 마세요.\n' +
     `3. 비교 대상(금지 대상) 상품명: "${scanned || '(라벨 미확인)'}" — 이와 동일 계열·용량 변형으로 보이면 배제하세요.\n` +
     '4. productName은 반드시 **브랜드 + 공식 출시명**(검색 스니펫·상세에 나오는 그대로)이어야 합니다. 일반명만 쓰지 마세요.\n' +
@@ -171,7 +171,7 @@ function normalizeAlternativesPayload(
   const currentFood = o.currentFood != null ? String(o.currentFood).trim() : '';
   const processingStage = o.processingStage != null ? String(o.processingStage).trim() : '';
   const rawAlts = o.alternatives;
-  if (!Array.isArray(rawAlts) || rawAlts.length < 3) return null;
+  if (!Array.isArray(rawAlts) || rawAlts.length < 1) return null;
 
   const items: AlternativeFoodJsonItem[] = [];
   const seenCores = new Set<string>();
@@ -206,18 +206,19 @@ function normalizeAlternativesPayload(
     items.push({ tier: e.tier, productName, reason, purchaseUrl });
   }
 
-  const need = new Set<AlternativeFoodJsonItem['tier']>(['slight', 'better', 'best']);
   const byTier = new Map<AlternativeFoodJsonItem['tier'], AlternativeFoodJsonItem>();
   for (const it of items) {
-    if (need.has(it.tier) && !byTier.has(it.tier)) byTier.set(it.tier, it);
+    if (!byTier.has(it.tier)) byTier.set(it.tier, it);
   }
-  if (byTier.size < 3) return null;
+  if (byTier.size < 1) return null;
 
-  const ordered: AlternativeFoodJsonItem[] = [
-    byTier.get('slight')!,
-    byTier.get('better')!,
-    byTier.get('best')!,
-  ];
+  const tierSeq: AlternativeFoodJsonItem['tier'][] = ['slight', 'better', 'best'];
+  const ordered: AlternativeFoodJsonItem[] = [];
+  for (const t of tierSeq) {
+    const it = byTier.get(t);
+    if (it) ordered.push(it);
+  }
+  if (ordered.length === 0) return null;
 
   return {
     currentFood: currentFood || scannedProductName,
@@ -356,7 +357,7 @@ export async function fetchAlternativesWithPerplexity(
     prompt +
     '\n\n[재시도]\n' +
     '- JSON만 출력.\n' +
-    '- alternatives 정확히 3개, tier는 slight/better/best 각 1개.\n' +
+    '- alternatives 최소 1개(권장 3개), tier slight/better/best 가능한 만큼.\n' +
     '- 각 purchaseUrl은 http(s) 실제 상품·스토어 페이지.\n' +
     '- 촬영 제품과 동일하거나 중량·개입만 다른 SKU는 배제.\n' +
     '- 반드시 촬영 제품보다 나은 다른 SKU만.\n' +
