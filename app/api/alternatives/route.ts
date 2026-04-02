@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     const alternativeFoodText = await fetchAlternativesWithPerplexity(
       key,
       prompt,
-      ctx.productName || ''
+      ctx.productName || '',
+      { rawMaterials: ctx.rawMaterials, foodCategory: ctx.foodCategory }
     );
 
     return NextResponse.json({

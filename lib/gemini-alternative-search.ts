@@ -5,9 +5,12 @@
 import {
   type AlternativeFoodJsonItem,
   type AlternativeFoodJsonRoot,
+  alternativeLikelyWrongFoodCategory,
+  alternativeLooksLikeSpreadJarOrPaste,
   isPurchaseableProductUrl,
   isSameProductLineOrWeightOnlyVariant,
   productIdentityCore,
+  scannedLooksLikeHandheldPieceSnack,
   unwrapModelJsonBlock,
 } from '@/lib/alternative-food-json';
 
@@ -106,6 +109,16 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const desc = (ctx.briefDescription || '').slice(0, 300);
   const nut = ctx.nutritionHint ? `\n(1회 제공량·표 기준 추정) ${ctx.nutritionHint}\n` : '';
   const scanned = (ctx.productName || '').trim();
+  const categoryLockBlock =
+    '[식품군 고정 — 필수]\n' +
+    `- 현재 **foodCategory는 "${cat}"** 입니다.\n` +
+    '- alternatives **3개 모두** 이 카테고리와 **같은 식품군**(같은 용도·같은 먹는 방식)이어야 합니다. 카테고리를 바꾸는 추천은 금지입니다.\n' +
+    '- 금지 예시: **음료**인데 과자·라면·도시락·빵만 추천 / **간식**인데 주스·탄산만·한 끼 식사·시리얼 봉지 식사만 추천 / **한 끼**인데 음료·초소형 캔디만 추천 / **빵·시리얼**인데 라면·과자 봉지만·탄산음료만 추천 / **유제품·디저트**인데 라면·육포·칩만 추천.\n' +
+    '- **달콤한 간식·짭짤한 간식**이면 손으로 집어먹는 형태(통·봉지)를 유지하고, **잼·초콜릿 스프레드·넛버터 통**(발라 먹는 형태)으로 바꾸지 마세요.\n' +
+    (cat === '미분류'
+      ? '- foodCategory가 미분류면 제품명·원재료로 보이는 **용도(마심/집어 먹음/한 끼 등)** 를 유지한 **같은 축**의 실제 유통 품목만 추천하세요.\n'
+      : '') +
+    '\n';
 
   return (
     '**필수:** 웹 검색으로 실제 판매 페이지를 확인한 뒤, JSON만 출력하세요.\n\n' +
@@ -134,6 +147,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
       : ctx.novaGroup <= 2
         ? '[가공 단계] Group I~II라도 사용자 요청 시 같은 식품군의 실제 제품명을 제안합니다.\n\n'
         : '[가공 단계] Group IV면 한 단계 덜 가공된 방향(4C→4B 등)을 고려하되, 반드시 다른 SKU여야 합니다.\n\n') +
+    categoryLockBlock +
     JSON_OUTPUT_SPEC
   );
 }
@@ -142,9 +156,15 @@ function isValidTier(v: unknown): v is AlternativeFoodJsonItem['tier'] {
   return v === 'slight' || v === 'better' || v === 'best';
 }
 
+export type AlternativesScanContext = {
+  rawMaterials?: string;
+  foodCategory?: string | null;
+};
+
 function normalizeAlternativesPayload(
   data: unknown,
-  scannedProductName: string
+  scannedProductName: string,
+  scanContext?: AlternativesScanContext | null
 ): AlternativeFoodJsonRoot | null {
   if (!data || typeof data !== 'object') return null;
   const o = data as Record<string, unknown>;
@@ -166,6 +186,20 @@ function normalizeAlternativesPayload(
     if (!productName || !reason || !purchaseUrl) continue;
     if (!isPurchaseableProductUrl(purchaseUrl)) continue;
     if (isSameProductLineOrWeightOnlyVariant(productName, scannedProductName)) continue;
+    if (scanContext && alternativeLikelyWrongFoodCategory(productName, scanContext.foodCategory)) {
+      continue;
+    }
+    if (
+      scanContext &&
+      scannedLooksLikeHandheldPieceSnack(
+        scannedProductName,
+        scanContext.rawMaterials,
+        scanContext.foodCategory
+      ) &&
+      alternativeLooksLikeSpreadJarOrPaste(productName)
+    ) {
+      continue;
+    }
     const core = productIdentityCore(productName);
     if (!core || seenCores.has(core)) continue;
     seenCores.add(core);
@@ -192,7 +226,11 @@ function normalizeAlternativesPayload(
   };
 }
 
-function acceptAlternativeModelJson(text: string, scannedProductName: string): string | null {
+function acceptAlternativeModelJson(
+  text: string,
+  scannedProductName: string,
+  scanContext?: AlternativesScanContext | null
+): string | null {
   const t = text.trim();
   if (!t) return null;
   if (/더\s*건강한\s*식품은\s*찾지\s*못했어요/i.test(t)) return null;
@@ -204,7 +242,7 @@ function acceptAlternativeModelJson(text: string, scannedProductName: string): s
     return null;
   }
 
-  const normalized = normalizeAlternativesPayload(parsed, scannedProductName);
+  const normalized = normalizeAlternativesPayload(parsed, scannedProductName, scanContext);
   if (!normalized) return null;
   return JSON.stringify(normalized);
 }
@@ -213,7 +251,8 @@ async function generateAlternativesOnce(
   perplexityApiKey: string,
   model: string,
   prompt: string,
-  scannedProductName: string
+  scannedProductName: string,
+  scanContext?: AlternativesScanContext | null
 ): Promise<{
   text: string | null;
   ok: boolean;
@@ -279,7 +318,7 @@ async function generateAlternativesOnce(
     return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
   }
 
-  const normalized = acceptAlternativeModelJson(t, scannedProductName);
+  const normalized = acceptAlternativeModelJson(t, scannedProductName, scanContext);
   if (normalized) {
     return {
       text: normalized,
@@ -301,13 +340,15 @@ async function generateAlternativesOnce(
 export async function fetchAlternativesWithPerplexity(
   perplexityApiKey: string,
   prompt: string,
-  scannedProductName: string
+  scannedProductName: string,
+  scanContext?: AlternativesScanContext | null
 ): Promise<string | null> {
   const first = await generateAlternativesOnce(
     perplexityApiKey,
     PERPLEXITY_MODEL,
     prompt,
-    scannedProductName
+    scannedProductName,
+    scanContext
   );
   if (first.text) return first.text;
 
@@ -318,12 +359,14 @@ export async function fetchAlternativesWithPerplexity(
     '- alternatives 정확히 3개, tier는 slight/better/best 각 1개.\n' +
     '- 각 purchaseUrl은 http(s) 실제 상품·스토어 페이지.\n' +
     '- 촬영 제품과 동일하거나 중량·개입만 다른 SKU는 배제.\n' +
-    '- 반드시 촬영 제품보다 나은 다른 SKU만.\n';
+    '- 반드시 촬영 제품보다 나은 다른 SKU만.\n' +
+    '- **foodCategory(식품군)는 반드시 지킬 것.** 다른 카테고리 상품으로 바꾸지 말 것.\n';
   const second = await generateAlternativesOnce(
     perplexityApiKey,
     PERPLEXITY_MODEL,
     relaxedPrompt,
-    scannedProductName
+    scannedProductName,
+    scanContext
   );
   return second.text;
 }
