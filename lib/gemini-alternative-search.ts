@@ -7,7 +7,7 @@ import { ALT_FOOD_OPTION_LINE_RE } from '@/lib/alternative-food-normalize';
 export const PERPLEXITY_MODEL = 'sonar';
 
 /** 한 번의 Perplexity 호출 최대 대기 */
-const PER_ATTEMPT_TIMEOUT_MS = 28_000;
+const PER_ATTEMPT_TIMEOUT_MS = 18_000;
 
 /** /api/alternatives 요청 본문에서 넘기는 축약 영양(표 숫자 필드) */
 export type AlternativesNutritionPayload = {
@@ -126,7 +126,6 @@ function acceptAlternativeModelText(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
   if (/더\s*건강한\s*식품은\s*찾지\s*못했어요/.test(t)) return false;
-  if (/검색\s*근거\s*부족/.test(t)) return false;
 
   const lines = t.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const products = lines
@@ -134,11 +133,7 @@ function acceptAlternativeModelText(text: string): boolean {
     .filter((m): m is RegExpMatchArray => !!m)
     .map((m) => (m[3] || '').trim())
     .filter((name) => /[가-힣A-Za-z0-9]/.test(name) && !/^[:：•·\-\–—,./\\|(){}\[\]]+$/.test(name));
-  const sourceUrls = lines
-    .filter((line) => /^(출처|source)\s*[:：]\s*https?:\/\//i.test(line))
-    .map((line) => line.replace(/^(출처|source)\s*[:：]\s*/i, '').trim())
-    .filter((url) => /^https?:\/\/\S+$/i.test(url));
-  return products.length >= 3 && sourceUrls.length >= 3;
+  return products.length >= 3;
 }
 
 async function generateAlternativesOnce(
@@ -171,7 +166,7 @@ async function generateAlternativesOnce(
           {
             role: 'system',
             content:
-              '웹 검색으로 확인된 실제 제품명만 답하세요. 불확실하면 제품명을 비워두고 추측하지 마세요.',
+              '한국에서 실제로 구매 가능한 제품 3개를 반드시 제시하세요. 추측 금지, 임의 조합 금지, 빈칸 금지.',
           },
           { role: 'user', content: prompt },
         ],
@@ -240,8 +235,8 @@ export async function fetchAlternativesWithPerplexity(
   const relaxedPrompt =
     prompt +
     '\n\n[재시도 규칙]\n' +
-    '- 확인된 제품명만 적는다. 추측 금지.\n' +
-    '- 1~3 모든 항목에 제품명과 출처 URL을 반드시 포함한다.\n' +
+    '- 1~3을 반드시 채워서 제시한다. 빈칸 금지.\n' +
+    '- 한국에서 구매 가능한 실제 제품명만 쓴다.\n' +
     '- 브랜드명+제품명 임의 조합을 절대 만들지 않는다.\n';
   const second = await generateAlternativesOnce(perplexityApiKey, PERPLEXITY_MODEL, relaxedPrompt);
   return second.text;
