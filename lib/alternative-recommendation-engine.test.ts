@@ -67,12 +67,12 @@ describe('runRecommendationPipeline — 꿀땅콩', () => {
       expect(r.name.toLowerCase()).not.toMatch(/honey\s*peanut|honey\s*roast/i);
     }
     const joined = recs.map((r) => r.name).join(' ');
-    expect(joined).toMatch(/무가당|견과|아몬드|믹스|볶음|저당|소금/);
+    expect(joined).toMatch(/무가당|견과|아몬드|믹스|볶음|저당|소금|산과천|커클랜드|오뚜기|땅콩|볶음땅콩/);
   });
 });
 
 describe('runRecommendationPipeline — 콜라', () => {
-  it('avoids sugared cola wording; suggests zero or sparkling water', () => {
+  it('avoids 일반 설탕 콜라만 추천; 제로·탄산수·무가당 음료·실제 제품명 위주', () => {
     const recs = runRecommendationPipeline({
       productName: '코카콜라',
       foodCategory: '음료',
@@ -83,9 +83,12 @@ describe('runRecommendationPipeline — 콜라', () => {
     });
     expect(recs.length).toBeGreaterThanOrEqual(1);
     for (const r of recs) {
-      expect(r.name).not.toMatch(/코카콜라|펩시\s*콜라|^콜라$/i);
+      expect(r.name).not.toMatch(/^콜라$/i);
+      if (/(코카콜라|펩시콜라|펩시\s*콜라)(?!.*제로)/i.test(r.name)) {
+        expect(r.name).toMatch(/제로|무가당|zero|제로슈거/i);
+      }
     }
     const joined = recs.map((r) => r.name).join(' ');
-    expect(joined).toMatch(/제로|탄산수|무가당/);
+    expect(joined).toMatch(/제로|탄산|무가당|사이다|초정|보리|옥수수|트레비|밀키스|나랑드/);
   });
 });

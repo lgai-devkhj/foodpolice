@@ -730,14 +730,16 @@ function applyAlternativesFetchResult(
     r: AnalysisResult,
     historyItem: HistoryItem | null,
     opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
-  ) => void
+  ) => void,
+  /** 서버가 Perplexity 등 실제 검색 근거 응답을 줬을 때만 true */
+  fromWebSearch?: boolean
 ): void {
   const alt = altRaw.trim();
   const merged: AnalysisResult = {
     ...baseResult,
     alternativeFoodNotice: null,
     alternativeFoodText: alt || null,
-    alternativeFoodFromWebSearch: httpOk && !!alt,
+    alternativeFoodFromWebSearch: Boolean(httpOk && alt && fromWebSearch),
     alternativeFoodLoaded: true,
   };
   updateHistoryResult(clientId, historyId, {
@@ -816,6 +818,7 @@ function requestAlternativesFromApi(
       }
       const alt =
         r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
+      const fromWebSearch = d.alternativeFoodFromWebSearch === true;
       applyAlternativesFetchResult(
         clientId,
         historyId,
@@ -826,7 +829,8 @@ function requestAlternativesFromApi(
         refreshHistory,
         currentHistoryIdRef,
         setCurrentResult,
-        renderResult
+        renderResult,
+        fromWebSearch
       );
     })
     .catch(() => {
@@ -840,7 +844,8 @@ function requestAlternativesFromApi(
         refreshHistory,
         currentHistoryIdRef,
         setCurrentResult,
-        renderResult
+        renderResult,
+        false
       );
     });
 }

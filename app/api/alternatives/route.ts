@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import {
-  engineRecommendationsToAlternativeJson,
   inferFoodType,
-  runRecommendationPipeline,
   type RecommendationEngineInput,
 } from '@/lib/alternative-recommendation-engine';
-import type { AlternativesNutritionPayload } from '@/lib/gemini-alternative-search';
+import {
+  type AlternativesNutritionPayload,
+  buildAlternativeFoodWebSearchPrompt,
+  buildNutritionHintForAlternatives,
+  fetchAlternativesWithPerplexity,
+} from '@/lib/gemini-alternative-search';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -51,14 +54,42 @@ export async function POST(request: NextRequest) {
       bmiTier: isBmiTier(body.bmiTier) ? body.bmiTier : null,
     };
 
-    const recs = runRecommendationPipeline(input);
-    const alternativeFoodText =
-      recs.length > 0 ? JSON.stringify(engineRecommendationsToAlternativeJson(input, recs)) : null;
+    const inferredFoodType = inferFoodType(input);
+    const perplexityKey = process.env.PERPLEXITY_API_KEY?.trim() ?? '';
+
+    if (perplexityKey.length === 0) {
+      return NextResponse.json({
+        alternativeFoodText: null,
+        alternativeFoodFromWebSearch: false,
+        inferredFoodType,
+      });
+    }
+
+    const scanned = input.productName;
+    const webJson = await fetchAlternativesWithPerplexity(
+      perplexityKey,
+      buildAlternativeFoodWebSearchPrompt({
+        productName: scanned,
+        companyName: input.companyName ?? '',
+        foodCategory: input.foodCategory ?? null,
+        novaGroup: input.novaGroup,
+        novaSubgroup: input.novaSubgroup ?? null,
+        briefDescription: input.briefDescription ?? null,
+        rawMaterials: input.rawMaterials ?? '',
+        nutritionHint: buildNutritionHintForAlternatives(body.nutrition ?? null),
+        bmiTier: input.bmiTier ?? null,
+      }),
+      scanned,
+      {
+        rawMaterials: input.rawMaterials ?? '',
+        foodCategory: input.foodCategory ?? null,
+      }
+    );
 
     return NextResponse.json({
-      alternativeFoodText,
-      alternativeFoodFromWebSearch: false,
-      inferredFoodType: inferFoodType(input),
+      alternativeFoodText: webJson,
+      alternativeFoodFromWebSearch: Boolean(webJson),
+      inferredFoodType,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '서버 오류';

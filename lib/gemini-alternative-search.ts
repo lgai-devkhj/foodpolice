@@ -13,6 +13,7 @@ import {
   scannedLooksLikeHandheldPieceSnack,
   unwrapModelJsonBlock,
 } from '@/lib/alternative-food-json';
+import type { BmiTier } from '@/lib/gemini-prompts';
 
 export const PERPLEXITY_MODEL = 'sonar';
 
@@ -65,6 +66,8 @@ export interface AlternativeSearchContext {
   rawMaterials: string;
   /** 분석 API가 채운 숫자 영양 — 대안 선정 시 나트륨·당 등 비교에 사용 */
   nutritionHint: string | null;
+  /** 프로필 BMI 구간 — 추천 방향·제품 유형 힌트 */
+  bmiTier?: BmiTier | null;
 }
 
 const JSON_OUTPUT_SPEC =
@@ -109,6 +112,15 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const desc = (ctx.briefDescription || '').slice(0, 300);
   const nut = ctx.nutritionHint ? `\n(1회 제공량·표 기준 추정) ${ctx.nutritionHint}\n` : '';
   const scanned = (ctx.productName || '').trim();
+  const bmiHint =
+    ctx.bmiTier === 'overweight' || ctx.bmiTier === 'obese'
+      ? '\n[사용자 맞춤 — BMI] 과체중/비만 구간입니다. 같은 식품군에서 **당·나트륨·에너지(칼로리) 부담이 상대적으로 낮은** 실제 유통품을 우선하고, reason에 그 근거를 한 문장 넣으세요.\n'
+      : ctx.bmiTier === 'underweight'
+        ? '\n[사용자 맞춤 — BMI] 저체중 구간입니다. **포만감·에너지가 함께 따라오는** 실제 제품도 균형 있게 포함하고, 무조건 제로·무맛만 고르지 마세요.\n'
+        : ctx.bmiTier === 'normal'
+          ? '\n[사용자 맞춤 — BMI] 정상 체중입니다. **비슷한 용도에서 가공·당·염을 한 단계 덜한** 실제 제품을 제안하세요.\n'
+          : '';
+
   const categoryLockBlock =
     '[식품군 고정 — 필수]\n' +
     `- 현재 **foodCategory는 "${cat}"** 입니다.\n` +
@@ -136,6 +148,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     (desc ? `한 줄 설명: ${desc}\n` : '') +
     (raw ? `원재료 일부: ${raw}\n` : '') +
     (nut ? `영양(숫자):${nut}` : '') +
+    bmiHint +
     '\n[한국 온라인 — 검색]\n' +
     '- 네이버 쇼핑, 쿠팡, SSG, 대형마트 채널 등에서 **실제 상품 URL**이 나올 때까지 쿼리를 조정하세요.\n' +
     (ctx.nutritionHint
