@@ -91,6 +91,48 @@ function compactKorean(s: string): string {
     .replace(/[^a-z0-9가-힣]/gi, '');
 }
 
+function editDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+
+  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+function containsApproxPhrase(haystack: string, phrase: string, toleranceRatio = 0.24): boolean {
+  const h = compactKorean(haystack);
+  const p = compactKorean(phrase);
+  if (!h || !p) return false;
+  if (h.includes(p)) return true;
+
+  const minWindow = Math.max(2, p.length - 1);
+  const maxWindow = Math.min(h.length, p.length + 1);
+  const allowed = Math.max(1, Math.floor(p.length * toleranceRatio));
+
+  for (let size = minWindow; size <= maxWindow; size++) {
+    for (let i = 0; i + size <= h.length; i++) {
+      const chunk = h.slice(i, i + size);
+      if (editDistance(chunk, p) <= allowed) return true;
+    }
+  }
+  return false;
+}
+
+function containsApproxAny(haystack: string, phrases: string[], toleranceRatio = 0.24): boolean {
+  return phrases.some((p) => containsApproxPhrase(haystack, p, toleranceRatio));
+}
+
 function stripPackagingUnits(s: string): string {
   return safeString(s)
     .replace(/\b\d+(\.\d+)?\s?(ml|l|g|kg|mg|개입|입|봉|봉지|팩|캔|병|정|포)\b/gi, ' ')
@@ -348,7 +390,7 @@ export function inferFoodType(input: RecommendationEngineInput): string {
   }
 
   if (
-    /(꿀\s*땅콩|꿀땅콩|허니\s*땅콩|honey\s*peanut|honey\s*roast|코팅\s*땅콩|견과\s*류\s*스낵|믹스\s*넛|견과\s*스낵)/i.test(h) ||
+    containsApproxAny(h, ['꿀땅콩', '허니땅콩', 'honey peanut', 'honey roast', '코팅 땅콩'], 0.26) ||
     (/(땅콩|아몬드|호두|캐슈|피칸|견과|너트|nut)/i.test(h) &&
       /(꿀|허니|honey|시럽|코팅|캔디|카라멜)/i.test(h))
   ) {
@@ -449,24 +491,7 @@ export function isCategoryCompatible(foodType: string, candidateFoodType: string
 }
 
 function levenshtein(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
-  if (!m) return n;
-  if (!n) return m;
-
-  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-    }
-  }
-
-  return dp[m][n];
+  return editDistance(a, b);
 }
 
 function similarityRatio(a: string, b: string): number {
@@ -528,9 +553,11 @@ export function isDuplicateOrSameProduct(
     if (sup.includes(sub) && sub.length / sup.length >= 0.78) return true;
   }
 
-  const honeyPeanutPhrase = /(꿀땅콩|허니땅콩|허니\s*땅콩|꿀\s*땅콩|honey\s*peanut|honey\s*roast|honeyroast)/i;
-  const srcHoney = honeyPeanutPhrase.test(pn) || honeyPeanutPhrase.test(raw);
-  const candHoney = honeyPeanutPhrase.test(cn);
+  const srcHoney = containsApproxAny(`${pn} ${raw}`, ['꿀땅콩', '허니땅콩', 'honey peanut', 'honey roast'], 0.26);
+  const candHoneyRaw = containsApproxAny(cn, ['꿀땅콩', '허니땅콩', 'honey peanut', 'honey roast'], 0.26);
+  const candHoneyNegated =
+    /(꿀\s*없|허니\s*없|코팅\s*없|무코팅|honey\s*free|no\s*honey|unsweetened)/i.test(cn);
+  const candHoney = candHoneyRaw && !candHoneyNegated;
   if (srcHoney && candHoney) return true;
 
   const colaPhrase = /(코카콜라|콜라|펩시|환타|사이다|콜라\s*맛|coke|cola|pepsi)/i;

@@ -36,6 +36,25 @@ describe('inferFoodType', () => {
       })
     ).toBe('sweet_carbonated_drink');
   });
+
+  it('handles OCR typo variants of honey peanut', () => {
+    expect(
+      inferFoodType({
+        productName: '오리온 달콤왕 골땅콩',
+        foodCategory: '달콤한 간식',
+        novaGroup: 4,
+        rawMaterials: '땅콩, 설탕, 물엿, 꿀',
+      })
+    ).toBe('sweet_nut_snack');
+    expect(
+      inferFoodType({
+        productName: '꿀땀콩 스낵',
+        foodCategory: '달콤한 간식',
+        novaGroup: 4,
+        rawMaterials: '땅콩, 시럽, 꿀',
+      })
+    ).toBe('sweet_nut_snack');
+  });
 });
 
 describe('isDuplicateOrSameProduct', () => {

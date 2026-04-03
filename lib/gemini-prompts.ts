@@ -276,10 +276,12 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- productName: 제품명. 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 "".\n' +
     '- rawMaterials: 원재료 표기 전체 한 줄. 없으면 "".\n' +
+    '- OCR/철자 보정: productName/rawMaterials/concernIngredients.name에 OCR로 보이는 철자 깨짐(예: 글자 1~2개 수준의 오인식)이 있으면, 의미가 바뀌지 않는 범위에서 표준 표기로 정정한다. 다만 없는 원재료를 새로 추정하거나, 의미가 달라지는 변경은 금지한다.\n' +
+    '- 보정 판단 기준: 라벨 원문에서 식품군을 식별하는 핵심 키워드(예: 특정 원재료명/제품군 단어)가 함께 보이면, 그 키워드의 철자만 정정하는 방식으로 보정한다.\n' +
     '- novaGroup: 1~4.\n' +
     '- novaSubgroup: novaGroup이 4일 때만 "4A" | "4B" | "4C". 그 외는 "".\n' +
     '- judgmentReason: 반드시 한 문장.\n' +
-    '- concernIngredients: 주의 원재료 최대 3개. 없으면 [].\n' +
+    '- concernIngredients: 주의 원재료 최대 3개. 없으면 []. (주의: concernIngredients.name도 위 OCR/철자 보정 범위에서만 정정 허용)\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
@@ -346,10 +348,13 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- productName: 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
     '- companyName: 제조사·수입자. 정확히 보이지 않으면 "".\n' +
     '- rawMaterials: 원재료 표기 전체 한 줄. 없으면 "".\n' +
+    '- OCR/철자 보정: productName/rawMaterials/concernIngredients.name에 OCR로 보이는 철자 깨짐(예: 글자 1~2개 수준의 오인식)이 있으면, 의미가 바뀌지 않는 범위에서 표준 표기로 정정한다. 다만 없는 원재료를 새로 추정하거나, 의미가 달라지는 변경은 금지한다.\n' +
+    '- 보정 판단 기준: 라벨 원문에서 식품군을 식별하는 핵심 키워드(예: 특정 원재료명/제품군 단어)가 함께 보이면, 그 키워드의 철자만 정정하는 방식으로 보정한다.\n' +
     '- novaGroup: 1~4.\n' +
     '- novaSubgroup: novaGroup이 4일 때만 "4A" | "4B" | "4C". 그 외는 "".\n' +
     '- judgmentReason: 반드시 한 문장.\n' +
     '- concernIngredients: 최대 3개. 없으면 [].\n' +
+    '- concernIngredients.name도 위 OCR/철자 보정 범위에서만 정정 허용 (의미 변경 금지)\n' +
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +

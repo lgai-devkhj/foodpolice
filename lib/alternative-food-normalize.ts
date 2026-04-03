@@ -1,5 +1,5 @@
 /** 대체 식품 없음 — 모델·UI 공통 */
-export const ALTERNATIVE_NOT_FOUND_MESSAGE = '더 건강한 식품은 찾지 못했어요.';
+export const ALTERNATIVE_NOT_FOUND_MESSAGE = '조건에 맞는 실판매 대체 식품을 아직 찾지 못했어요.';
 
 /** 모델 출력·클라이언트 파싱 공통 (마크다운·공백 변형 허용) */
 export const ALT_FOOD_OPTION_LINE_RE =
