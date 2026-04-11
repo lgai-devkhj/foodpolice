@@ -1,4 +1,30 @@
 import { STORE_PREFIX } from './constants';
+import {
+  normalizeAnalysisStreak,
+  advanceStreakAfterAnalysis,
+  getEffectiveAnalysisStreak,
+  emptyAnalysisStreak,
+  type AnalysisStreak,
+} from './analysis-streak';
+import {
+  normalizeQuestsSlice,
+  questAfterAnalyze,
+  questAfterAlternative,
+  questAfterTutorial,
+  questAfterKnova,
+  questAfterBodyMeasurement,
+  resolveQuestSlice,
+  buildQuestBoard,
+  buildWeekStreakView,
+  ensureDailyForToday,
+  toLocalYmd as questDayYmd,
+  type QuestsSlice,
+  type WeekDayCell,
+} from './daily-quests';
+
+export type { AnalysisStreak };
+export type { QuestsSlice };
+export type { QuestBoardUi, QuestRowUi, WeekDayCell } from './daily-quests';
 
 export interface BodyMeasurement {
   date: string; // ISO
@@ -166,6 +192,10 @@ export interface AppState {
   onboardingCompleted: boolean;
   profile: Profile;
   history: HistoryItem[];
+  /** 연속 분석 일수(로컬 저장). 없으면 normalize 시 빈 값 */
+  analysisStreak?: AnalysisStreak;
+  /** 일일 퀘스트·첫 사용 시각 등 */
+  quests?: QuestsSlice;
 }
 
 function getStoreKey(clientId: string): string {
@@ -174,10 +204,23 @@ function getStoreKey(clientId: string): string {
 
 export function loadState(clientId: string): AppState {
   if (typeof window === 'undefined')
-    return { onboardingCompleted: false, profile: {}, history: [] };
+    return {
+      onboardingCompleted: false,
+      profile: {},
+      history: [],
+      analysisStreak: emptyAnalysisStreak(),
+      quests: {},
+    };
   const key = getStoreKey(clientId);
   const json = localStorage.getItem(key);
-  if (!json) return { onboardingCompleted: false, profile: {}, history: [] };
+  if (!json)
+    return {
+      onboardingCompleted: false,
+      profile: {},
+      history: [],
+      analysisStreak: emptyAnalysisStreak(),
+      quests: {},
+    };
   try {
     const parsed = JSON.parse(json);
     const profile = normalizeProfileFields(parsed.profile || {});
@@ -220,9 +263,17 @@ export function loadState(clientId: string): AppState {
       onboardingCompleted: !!parsed.onboardingCompleted,
       profile,
       history: Array.isArray(parsed.history) ? parsed.history : [],
+      analysisStreak: normalizeAnalysisStreak(parsed.analysisStreak),
+      quests: normalizeQuestsSlice(parsed.quests),
     };
   } catch {
-    return { onboardingCompleted: false, profile: {}, history: [] };
+    return {
+      onboardingCompleted: false,
+      profile: {},
+      history: [],
+      analysisStreak: emptyAnalysisStreak(),
+      quests: {},
+    };
   }
 }
 
@@ -273,7 +324,116 @@ export function getHistory(clientId: string): HistoryItem[] {
   return loadState(clientId).history || [];
 }
 
-export function addToHistory(clientId: string, result: AnalysisResult): { id: string; item: HistoryItem } {
+/** 화면 표시용: 끊긴 스트릭은 0일로 표시 */
+export function getAnalysisStreak(clientId: string): { displayCurrent: number; longest: number } {
+  const s = loadState(clientId);
+  return getEffectiveAnalysisStreak(normalizeAnalysisStreak(s.analysisStreak));
+}
+
+export function getQuestBoard(clientId: string) {
+  const state = loadState(clientId);
+  return buildQuestBoard(resolveQuestSlice(state), new Date());
+}
+
+/** 스트릭 UI·토스트용 스냅샷(증가 없음) */
+export function getStreakToastSnapshot(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const s = loadState(clientId);
+  return {
+    displayCurrent: getEffectiveAnalysisStreak(normalizeAnalysisStreak(s.analysisStreak)).displayCurrent,
+    didIncrease: false,
+  };
+}
+
+/**
+ * 매일 고정 2개(포장 분석 + 대체 식품)를 모두 완료했을 때만 연속 일수를 올림.
+ * 추가 미션(튜토리얼·K-NOVA·체중)은 스트릭에 영향 없음.
+ */
+export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const state = loadState(clientId);
+  const slice = resolveQuestSlice(state);
+  const daily = ensureDailyForToday(slice, questDayYmd(new Date()));
+  if (!daily.analyzeDone || !daily.alternativeDone) {
+    return getStreakToastSnapshot(clientId);
+  }
+  const ymd = daily.dateYmd;
+  const qs = normalizeQuestsSlice(state.quests);
+  const dateSet = new Set(qs.dailyPairCompleteYmds || []);
+  if (!dateSet.has(ymd)) {
+    dateSet.add(ymd);
+    state.quests = {
+      ...qs,
+      dailyPairCompleteYmds: Array.from(dateSet).sort().slice(-120),
+    };
+  }
+  const oldNorm = normalizeAnalysisStreak(state.analysisStreak);
+  const beforeDisplay = getEffectiveAnalysisStreak(oldNorm).displayCurrent;
+  const newStreak = advanceStreakAfterAnalysis(oldNorm, new Date());
+  const afterDisplay = getEffectiveAnalysisStreak(newStreak).displayCurrent;
+  const didIncrease = afterDisplay > beforeDisplay;
+  state.analysisStreak = newStreak;
+  saveState(clientId, state);
+  return { displayCurrent: afterDisplay, didIncrease };
+}
+
+export function getWeekStreakSheetData(clientId: string): {
+  displayStreak: number;
+  longest: number;
+  week: WeekDayCell[];
+} {
+  const state = loadState(clientId);
+  const slice = normalizeQuestsSlice(state.quests);
+  const st = normalizeAnalysisStreak(state.analysisStreak);
+  const displayStreak = getEffectiveAnalysisStreak(st).displayCurrent;
+  const week = buildWeekStreakView(slice.dailyPairCompleteYmds, new Date());
+  return { displayStreak, longest: st.longest, week };
+}
+
+export function markQuestAlternativeReceived(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const state = loadState(clientId);
+  state.quests = questAfterAlternative(normalizeQuestsSlice(state.quests), new Date());
+  saveState(clientId, state);
+  return tryAdvanceStreakIfAllQuestsDone(clientId);
+}
+
+export function markQuestTutorialDone(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const state = loadState(clientId);
+  state.quests = questAfterTutorial(normalizeQuestsSlice(state.quests));
+  saveState(clientId, state);
+  return tryAdvanceStreakIfAllQuestsDone(clientId);
+}
+
+export function markQuestKnovaLearnDone(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const state = loadState(clientId);
+  const prev = normalizeQuestsSlice(state.quests);
+  if (prev.lifetime?.knovaLearnDone) return getStreakToastSnapshot(clientId);
+  state.quests = questAfterKnova(prev);
+  saveState(clientId, state);
+  return tryAdvanceStreakIfAllQuestsDone(clientId);
+}
+
+export function addToHistory(
+  clientId: string,
+  result: AnalysisResult,
+): {
+  id: string;
+  item: HistoryItem;
+  streak: { displayCurrent: number; didIncrease: boolean };
+} {
   const state = loadState(clientId);
   const list = state.history || [];
   const itemId = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
@@ -288,8 +448,10 @@ export function addToHistory(clientId: string, result: AnalysisResult): { id: st
   };
   list.unshift(item);
   state.history = list.slice(0, 100);
+  state.quests = questAfterAnalyze(normalizeQuestsSlice(state.quests), item.scannedAt, new Date());
   saveState(clientId, state);
-  return { id: itemId, item };
+  const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
+  return { id: itemId, item, streak };
 }
 
 export function updateProductName(
@@ -338,6 +500,8 @@ export function clearAllData(clientId: string): void {
   state.history = [];
   state.profile = {};
   state.onboardingCompleted = false;
+  state.analysisStreak = emptyAnalysisStreak();
+  state.quests = {};
   saveState(clientId, state);
 }
 
@@ -345,8 +509,8 @@ export function addBodyMeasurement(
   clientId: string,
   date: string,
   heightCm: number,
-  weightKg: number
-): void {
+  weightKg: number,
+): { displayCurrent: number; didIncrease: boolean } {
   const state = loadState(clientId);
   const p = state.profile || {};
   const list = Array.isArray(p.bodyMeasurements) ? [...p.bodyMeasurements] : [];
@@ -373,7 +537,9 @@ export function addBodyMeasurement(
     pr.heightCm != null &&
     pr.weightKg != null
   );
+  state.quests = questAfterBodyMeasurement(normalizeQuestsSlice(state.quests), new Date());
   saveState(clientId, state);
+  return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
 /** index: 목록을 날짜 내림차순 정렬했을 때의 순서(0 = 최신) */

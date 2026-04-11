@@ -17,6 +17,13 @@ import {
   getProfile,
   getHistory,
   addToHistory,
+  getAnalysisStreak,
+  getWeekStreakSheetData,
+  getQuestBoard,
+  getStreakToastSnapshot,
+  markQuestAlternativeReceived,
+  markQuestTutorialDone,
+  markQuestKnovaLearnDone,
   updateHistoryResult,
   updateProductName,
   deleteFromHistory,
@@ -67,6 +74,7 @@ import {
   IconPalette,
   IconLock,
   IconCheck,
+  IconFlame,
 } from '@/components/ui-icons';
 
 /** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
@@ -174,16 +182,16 @@ function tutorialCoachMessage(phase: TutorialPhase, desk: boolean): string {
   switch (phase) {
     case 'fab':
       return desk
-        ? '아래 업로드를 눌러 주세요. 예시 보고 원재료 → 영양표 순으로 두 장 고르면 돼요.'
-        : '아래 촬영을 눌러 주세요. 예시 확인하고 원재료 → 영양표 순으로 찍으면 돼요.';
+        ? '아래에서 사진 두 장만 올려주세요. 원재료 → 영양표 순이에요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.'
+        : '아래 촬영 눌러서, 원재료 → 영양표만 찍어주세요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.';
     case 'preview_ingredient':
       return desk
-        ? '이 사진으로 갈까요? 다음을 누르면 영양표 사진 고르는 단계예요.'
-        : '괜찮으면 다음을 눌러 주세요. 이어서 영양표를 찍을게요.';
+        ? '이 사진으로 갈까요? 다음 누르면 영양표 고르는 단계로 넘어가요.'
+        : '괜찮으면 다음 눌러주세요. 이어서 영양표 찍을게요.';
     case 'preview_analyze':
       return desk
-        ? '마지막이에요. 분석하기를 누르면 결과가 나와요.'
-        : '분석하기를 누르면 NOVA랑 영양 비율을 볼 수 있어요.';
+        ? '마지막이에요. 분석하기 누르면 결과 나와요. 첫 번째 퀘스트 끝! 결과에서 대체 식품까지 보면 오늘 스트릭 채워져요.'
+        : '분석하기 누르면 NOVA랑 영양 볼 수 있어요. 첫 번째 퀘스트 끝! 대체 식품까지 보면 오늘 스트릭 채워져요.';
     default:
       return '';
   }
@@ -732,7 +740,8 @@ function applyAlternativesFetchResult(
     opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
   ) => void,
   /** 서버가 Perplexity 등 실제 검색 근거 응답을 줬을 때만 true */
-  fromWebSearch?: boolean
+  fromWebSearch?: boolean,
+  onStreakFromQuest?: (s: { displayCurrent: number; didIncrease: boolean }) => void,
 ): void {
   const alt = altRaw.trim();
   const merged: AnalysisResult = {
@@ -748,7 +757,10 @@ function applyAlternativesFetchResult(
     alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
     alternativeFoodLoaded: true,
   });
+  const streak =
+    httpOk && alt ? markQuestAlternativeReceived(clientId) : getStreakToastSnapshot(clientId);
   refreshHistory();
+  if (streak.didIncrease) onStreakFromQuest?.(streak);
   if (currentHistoryIdRef.current !== historyId) return;
   const resultContainer = document.getElementById('resultContent');
   const altDetails = resultContainer
@@ -779,7 +791,8 @@ function requestAlternativesFromApi(
     r: AnalysisResult,
     historyItem: HistoryItem | null,
     opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
-  ) => void
+  ) => void,
+  onStreakFromQuest?: (s: { displayCurrent: number; didIncrease: boolean }) => void,
 ): void {
   void fetch('/api/alternatives', {
     method: 'POST',
@@ -830,7 +843,8 @@ function requestAlternativesFromApi(
         currentHistoryIdRef,
         setCurrentResult,
         renderResult,
-        fromWebSearch
+        fromWebSearch,
+        onStreakFromQuest,
       );
     })
     .catch(() => {
@@ -845,7 +859,8 @@ function requestAlternativesFromApi(
         currentHistoryIdRef,
         setCurrentResult,
         renderResult,
-        false
+        false,
+        onStreakFromQuest,
       );
     });
 }
@@ -943,6 +958,19 @@ export default function App() {
   const [showDesktopRecommendModal, setShowDesktopRecommendModal] = useState(false);
   const [profile, setProfileState] = useState<Profile>({});
   const [history, setHistoryList] = useState<HistoryItem[]>([]);
+  /** 로컬 달력 기준 연속 분석 일수(듀오링고 스트릭) */
+  const [analysisStreak, setAnalysisStreak] = useState({ displayCurrent: 0, longest: 0 });
+  const [streakToast, setStreakToast] = useState<string | null>(null);
+  const [showStreakWeekSheet, setShowStreakWeekSheet] = useState(false);
+  const [weekStreakSheet, setWeekStreakSheet] = useState<ReturnType<typeof getWeekStreakSheetData> | null>(
+    null,
+  );
+  const [questBoard, setQuestBoard] = useState<ReturnType<typeof getQuestBoard>>({
+    dailyRows: [],
+    dailyCompleted: 0,
+    dailyTotal: 2,
+    bonusRows: [],
+  });
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
@@ -1060,6 +1088,8 @@ export default function App() {
     const state = loadState(clientId);
     setProfileState(state.profile || {});
     setHistoryList(state.history || []);
+    setAnalysisStreak(getAnalysisStreak(clientId));
+    setQuestBoard(getQuestBoard(clientId));
     setOnboardingCompleted(state.onboardingCompleted);
     setShowOnboarding(!state.onboardingCompleted);
     setShowPrivacyConsentGate(
@@ -1144,7 +1174,38 @@ export default function App() {
   const refreshHistory = useCallback(() => {
     if (!clientId) return;
     setHistoryList(getHistory(clientId));
+    setAnalysisStreak(getAnalysisStreak(clientId));
+    setQuestBoard(getQuestBoard(clientId));
   }, [clientId]);
+
+  const notifyStreakFromQuest = useCallback(
+    (streak: { displayCurrent: number; didIncrease: boolean }) => {
+      if (!streak.didIncrease) return;
+      setStreakToast(
+        `오늘 퀘스트 2개, 다 해냈어요. ${streak.displayCurrent}일 연속이에요.`,
+      );
+      window.setTimeout(() => setStreakToast(null), 2600);
+    },
+    [],
+  );
+
+  const openStreakWeekSheet = useCallback(() => {
+    if (!clientId) return;
+    setWeekStreakSheet(getWeekStreakSheetData(clientId));
+    setShowStreakWeekSheet(true);
+  }, [clientId]);
+
+  useEffect(() => {
+    if (!showStreakWeekSheet || !clientId) return;
+    setWeekStreakSheet(getWeekStreakSheetData(clientId));
+  }, [showStreakWeekSheet, clientId, analysisStreak.displayCurrent]);
+
+  useEffect(() => {
+    if (!clientId || !showInfoCriteria) return;
+    const s = markQuestKnovaLearnDone(clientId);
+    setQuestBoard(getQuestBoard(clientId));
+    notifyStreakFromQuest(s);
+  }, [clientId, showInfoCriteria, notifyStreakFromQuest]);
 
   const runAnalyze = useCallback(
     async (base64: string, mimeType: string) => {
@@ -1182,12 +1243,13 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
-        const { id, item } = addToHistory(clientId, result);
+        const { id, item, streak } = addToHistory(clientId, result);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
+        notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
@@ -1207,7 +1269,8 @@ export default function App() {
             refreshHistory,
             currentHistoryIdRef,
             setCurrentResult,
-            renderResult
+            renderResult,
+            notifyStreakFromQuest,
           );
         }
       } catch (err) {
@@ -1216,7 +1279,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest]
   );
 
   const runAnalyzeTwoImages = useCallback(
@@ -1262,12 +1325,13 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
-        const { id, item } = addToHistory(clientId, result);
+        const { id, item, streak } = addToHistory(clientId, result);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
+        notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
@@ -1287,7 +1351,8 @@ export default function App() {
             refreshHistory,
             currentHistoryIdRef,
             setCurrentResult,
-            renderResult
+            renderResult,
+            notifyStreakFromQuest,
           );
         }
       } catch (err) {
@@ -1296,7 +1361,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest]
   );
 
   const renderResult = useCallback(
@@ -1580,7 +1645,8 @@ export default function App() {
       refreshHistory,
       currentHistoryIdRef,
       setCurrentResult,
-      renderResult
+      renderResult,
+      notifyStreakFromQuest,
     );
   }, [
     clientId,
@@ -1590,6 +1656,7 @@ export default function App() {
     profile,
     refreshHistory,
     renderResult,
+    notifyStreakFromQuest,
   ]);
 
   useEffect(() => {
@@ -1710,7 +1777,12 @@ export default function App() {
     setTutorialPhase('fab');
     setTutorialHoleRect(null);
     setTutorialFocusDecoration(null);
-  }, []);
+    if (clientId) {
+      const s = markQuestTutorialDone(clientId);
+      setQuestBoard(getQuestBoard(clientId));
+      notifyStreakFromQuest(s);
+    }
+  }, [clientId, notifyStreakFromQuest]);
 
   useLayoutEffect(() => {
     if (!tutorialCoachActive) {
@@ -2621,6 +2693,15 @@ export default function App() {
         </div>
       )}
 
+      {streakToast && (
+        <div className="streak-toast" role="status" aria-live="polite">
+          <span className="streak-toast-flame" aria-hidden>
+            <IconFlame size={24} />
+          </span>
+          <span className="streak-toast-text">{streakToast}</span>
+        </div>
+      )}
+
       <div id="app">
         <div id="homeView" className={showHome ? '' : 'hidden'}>
           <div className="home-scroll" id="homeScroll">
@@ -2635,26 +2716,41 @@ export default function App() {
               !showMeasurementHistory &&
               !showBmiGraph && (
                 <div className="home-top-bar">
-                  <button
-                    type="button"
-                    className="btn-tutorial-text"
-                    onClick={() => {
-                      setTutorialPhase('fab');
-                      setShowTutorial(true);
-                    }}
-                  >
-                    사용법
-                  </button>
-                  <button
-                    type="button"
-                    id="tutorial-target-settings"
-                    className="btn-settings-home"
-                    title="설정"
-                    aria-label="설정"
-                    onClick={openSettings}
-                  >
-                    <IconSettings size={22} />
-                  </button>
+                  <div className="home-top-bar-left">
+                    <button
+                      type="button"
+                      className="home-streak-chip"
+                      onClick={openStreakWeekSheet}
+                      aria-label={`연속 ${analysisStreak.displayCurrent}일, 일주일 기록 보기`}
+                    >
+                      <span className="home-streak-emoji" aria-hidden>
+                        🔥
+                      </span>
+                      <span className="home-streak-num">{analysisStreak.displayCurrent}</span>
+                    </button>
+                  </div>
+                  <div className="home-top-bar-right">
+                    <button
+                      type="button"
+                      className="btn-tutorial-text"
+                      onClick={() => {
+                        setTutorialPhase('fab');
+                        setShowTutorial(true);
+                      }}
+                    >
+                      사용 가이드
+                    </button>
+                    <button
+                      type="button"
+                      id="tutorial-target-settings"
+                      className="btn-settings-home"
+                      title="설정"
+                      aria-label="설정"
+                      onClick={openSettings}
+                    >
+                      <IconSettings size={22} />
+                    </button>
+                  </div>
                 </div>
               )}
             <div className="hero-section" aria-label="소개">
@@ -2669,15 +2765,82 @@ export default function App() {
                 원재료·NOVA·영양 비율을 알려 드릴게요
               </h2>
             </div>
+            {onboardingCompleted &&
+              !showOnboarding &&
+              (questBoard.dailyTotal > 0 || questBoard.bonusRows.length > 0) &&
+              showHome &&
+              !showResult &&
+              !showCamera &&
+              !capturedPreviewDataUrl &&
+              !showSettings &&
+              !showInfoIngredient &&
+              !showInfoPhoto &&
+              !showAddMeasurement &&
+              !showMeasurementHistory &&
+              !showBmiGraph && (
+                <div className="daily-quest-card" aria-label="오늘의 퀘스트">
+                  <div className="daily-quest-header">
+                    <span className="daily-quest-icon" aria-hidden>
+                      <IconClipboard size={22} />
+                    </span>
+                    <span className="daily-quest-title">오늘의 퀘스트</span>
+                    <span className="daily-quest-count">
+                      {questBoard.dailyCompleted}/{questBoard.dailyTotal}
+                    </span>
+                  </div>
+                  <p className="daily-quest-lead">매일 2개만 하면 돼요. 다 하면 스트릭이 올라가요.</p>
+                  <ul className="daily-quest-list">
+                    {questBoard.dailyRows.map((q) => (
+                      <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
+                        <span className="daily-quest-check" aria-hidden>
+                          {q.done ? <IconCheck size={18} /> : <span className="daily-quest-dot" />}
+                        </span>
+                        <span className="daily-quest-text">
+                          <span className="daily-quest-row-title">{q.title}</span>
+                          {q.subtitle ? (
+                            <span className="daily-quest-row-sub">{q.subtitle}</span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {questBoard.bonusRows.length > 0 && (
+                    <>
+                      <div className="daily-quest-bonus-head">
+                        <span className="daily-quest-bonus-title">추가 미션</span>
+                        <span className="daily-quest-bonus-hint">선택</span>
+                      </div>
+                      <ul className="daily-quest-list daily-quest-list--bonus">
+                        {questBoard.bonusRows.map((q) => (
+                          <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
+                            <span className="daily-quest-check" aria-hidden>
+                              {q.done ? <IconCheck size={18} /> : <span className="daily-quest-dot" />}
+                            </span>
+                            <span className="daily-quest-text">
+                              <span className="daily-quest-row-title">{q.title}</span>
+                              {q.subtitle ? (
+                                <span className="daily-quest-row-sub">{q.subtitle}</span>
+                              ) : null}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              )}
             {loading && (
               <div className="loading-callout-wrap">
-                <div className="card" id="loadingCard">
+                <div className="card loading-card" id="loadingCard">
                   <div className="loading">
                     <span className="loading-spinner" aria-hidden>
                       <IconSpinner size={28} />
                     </span>
                     <span id="loadingText">{loadingText}</span>
                   </div>
+                  <p className="loading-close-hint" role="status">
+                    분석 끝날 때까지 이 화면 나가면 안 돼요.
+                  </p>
                 </div>
               </div>
             )}
@@ -2903,6 +3066,8 @@ export default function App() {
                     const state = loadState(clientId);
                     setProfileState(state.profile || {});
                     setHistoryList(state.history || []);
+                    setAnalysisStreak(getAnalysisStreak(clientId));
+                    setQuestBoard(getQuestBoard(clientId));
                     setOnboardingCompleted(false);
                     setShowOnboarding(true);
                     setShowSettings(false);
@@ -3079,6 +3244,49 @@ export default function App() {
                 })()}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showStreakWeekSheet && weekStreakSheet && (
+        <div
+          className="modal info-sheet visible"
+          role="dialog"
+          aria-label="일주일 스트릭 기록"
+          onClick={(e) => e.target === e.currentTarget && setShowStreakWeekSheet(false)}
+        >
+          <div className="modal-panel streak-week-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-header">
+              <h2 className="sheet-title">이번 주 기록</h2>
+              <button
+                type="button"
+                className="sheet-close-x"
+                aria-label="닫기"
+                onClick={() => setShowStreakWeekSheet(false)}
+              >
+                ×
+              </button>
+            </div>
+            <p className="streak-week-lead">
+              🔥 <strong>{weekStreakSheet.displayStreak}</strong>일 연속 · 최장{' '}
+              <strong>{weekStreakSheet.longest}</strong>일
+            </p>
+            <p className="streak-week-hint">일일 퀘스트 2개를 다 한 날만 불이 켜져요.</p>
+            <div className="streak-week-grid" role="list">
+              {weekStreakSheet.week.map((cell) => (
+                <div
+                  key={cell.ymd}
+                  role="listitem"
+                  className={`streak-week-cell ${cell.done ? 'streak-week-cell--done' : ''} ${cell.isToday ? 'streak-week-cell--today' : ''}`}
+                >
+                  <span className="streak-week-dow">{cell.weekdayLabel}</span>
+                  <span className="streak-week-daynum">{cell.dayNum}</span>
+                  <span className="streak-week-flame" aria-hidden>
+                    {cell.done ? '🔥' : '·'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -3272,8 +3480,10 @@ export default function App() {
         <AddBodyMeasurementSheet
           onAdd={(date, h, w) => {
             if (clientId) {
-              addBodyMeasurement(clientId, date, h, w);
+              const s = addBodyMeasurement(clientId, date, h, w);
               setProfileState(loadState(clientId).profile || {});
+              refreshHistory();
+              notifyStreakFromQuest(s);
             }
             setShowAddMeasurement(false);
           }}

@@ -298,3 +298,22 @@ export function IconPencil({ size = 24, className, ...p }: UiIconProps) {
     </svg>
   );
 }
+
+/** 연속 분석 스트릭(듀오링고 스타일) */
+export function IconFlame({ size = 24, className, ...p }: UiIconProps) {
+  return (
+    <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M12 21c3.5 0 6-2.6 6-6 0-4-4-7-6-11-2 4-6 7-6 11 0 3.4 2.5 6 6 6Z"
+        stroke="currentColor"
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 17.5a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6Z"
+        fill="currentColor"
+        opacity={0.35}
+      />
+    </svg>
+  );
+}
