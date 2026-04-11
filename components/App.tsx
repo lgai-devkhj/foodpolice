@@ -77,6 +77,10 @@ import {
   IconFlame,
 } from '@/components/ui-icons';
 
+/** 대체 식품 퀘스트: 스크롤하는 동안만 경과 시간(초) 누적 */
+const ALT_QUEST_REQUIRED_SEC = 5;
+const ALT_SCROLL_ACTIVITY_MS = 340;
+
 /** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
   const list = profile.bodyMeasurements || [];
@@ -1045,10 +1049,15 @@ export default function App() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const resultContentRef = useRef<HTMLDivElement>(null);
   const altQuestDetailsOpenRef = useRef(false);
-  const [altQuestScrollProgress, setAltQuestScrollProgress] = useState(0);
-  /** -1: 아직 측정 전. 0 이상이면 result-scroll 최대 스크롤(px) */
-  const [altQuestMaxScroll, setAltQuestMaxScroll] = useState(-1);
+  /** 스크롤 활동 중에만 누적되는 초 (실시간) */
+  const altQuestAccumSecRef = useRef(0);
+  const altQuestLastScrollRef = useRef(0);
+  const altQuestRafRef = useRef(0);
+  const [altQuestScrollSecAccum, setAltQuestScrollSecAccum] = useState(0);
+  /** 배너에서 '스크롤 안 함' 판별용 리렌더 */
+  const [altQuestBannerClock, setAltQuestBannerClock] = useState(0);
   const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
@@ -1190,11 +1199,7 @@ export default function App() {
   const tryCompleteAltQuest = useCallback(() => {
     if (!clientId || !currentResult) return;
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
-    const scrollEl = resultScrollRef.current;
-    if (!scrollEl) return;
-    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-    const p = max <= 8 ? 1 : Math.min(1, scrollEl.scrollTop / max);
-    if (max > 8 && p < 0.97) return;
+    if (altQuestAccumSecRef.current < ALT_QUEST_REQUIRED_SEC - 0.05) return;
     if (!altQuestDetailsOpenRef.current) return;
     const r = currentResult;
     if ((r.novaGroup === 3 || r.novaGroup === 4) && r.alternativeFoodLoaded === false) return;
@@ -1671,7 +1676,7 @@ export default function App() {
 
   useEffect(() => {
     if (!resultContentHtml) return;
-    const container = document.getElementById('resultContent');
+    const container = resultContentRef.current;
     if (!container) return;
     container.innerHTML = resultContentHtml;
     const cleanups: Array<() => void> = [];
@@ -1727,12 +1732,29 @@ export default function App() {
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
     const g = currentResult.novaGroup ?? 0;
     if (g < 1 || g > 4) return;
+    const t = window.setInterval(() => setAltQuestBannerClock((c) => c + 1), 280);
+    return () => clearInterval(t);
+  }, [showResult, clientId, currentResult, questBoard, resultContentHtml]);
+
+  useEffect(() => {
+    if (!showResult || !clientId || !currentResult) return;
+    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const g = currentResult.novaGroup ?? 0;
+    if (g < 1 || g > 4) return;
 
     const scrollEl = resultScrollRef.current;
     if (!scrollEl) return;
 
+    altQuestAccumSecRef.current = 0;
+    altQuestLastScrollRef.current = 0;
+    setAltQuestScrollSecAccum(0);
+    altQuestDetailsOpenRef.current = false;
+    setAltQuestDetailsOpen(false);
+
+    let lastFrameTs = performance.now();
+
     const syncDetailsOpenFromDom = () => {
-      const rc = document.getElementById('resultContent');
+      const rc = resultContentRef.current;
       if (!rc) return;
       const details = Array.from(rc.querySelectorAll('details.result-details')).find((el) => {
         const s = el.querySelector('summary');
@@ -1743,13 +1765,23 @@ export default function App() {
       setAltQuestDetailsOpen(open);
     };
 
-    const updateScroll = () => {
-      const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-      const p = max <= 8 ? 1 : Math.min(1, scrollEl.scrollTop / max);
-      setAltQuestScrollProgress(p);
-      setAltQuestMaxScroll(max);
+    const onScroll = () => {
+      altQuestLastScrollRef.current = performance.now();
       syncDetailsOpenFromDom();
+    };
+
+    const tick = (now: number) => {
+      const dt = Math.min(0.08, (now - lastFrameTs) / 1000);
+      lastFrameTs = now;
+      if (now - altQuestLastScrollRef.current < ALT_SCROLL_ACTIVITY_MS) {
+        const next = Math.min(ALT_QUEST_REQUIRED_SEC, altQuestAccumSecRef.current + dt);
+        if (Math.abs(next - altQuestAccumSecRef.current) > 0.0005) {
+          altQuestAccumSecRef.current = next;
+          setAltQuestScrollSecAccum(next);
+        }
+      }
       tryCompleteAltQuest();
+      altQuestRafRef.current = requestAnimationFrame(tick);
     };
 
     const onToggle = (e: Event) => {
@@ -1763,24 +1795,23 @@ export default function App() {
       tryCompleteAltQuest();
     };
 
-    setAltQuestScrollProgress(0);
-    setAltQuestMaxScroll(-1);
-    altQuestDetailsOpenRef.current = false;
-    setAltQuestDetailsOpen(false);
-
-    scrollEl.addEventListener('scroll', updateScroll, { passive: true });
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
     scrollEl.addEventListener('toggle', onToggle, true);
 
-    const ro = new ResizeObserver(() => updateScroll());
+    const ro = new ResizeObserver(() => {
+      syncDetailsOpenFromDom();
+      tryCompleteAltQuest();
+    });
     ro.observe(scrollEl);
-    const rc = document.getElementById('resultContent');
+    const rc = resultContentRef.current;
     if (rc) ro.observe(rc);
 
-    const raf = requestAnimationFrame(() => updateScroll());
+    lastFrameTs = performance.now();
+    altQuestRafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      cancelAnimationFrame(raf);
-      scrollEl.removeEventListener('scroll', updateScroll);
+      cancelAnimationFrame(altQuestRafRef.current);
+      scrollEl.removeEventListener('scroll', onScroll);
       scrollEl.removeEventListener('toggle', onToggle, true);
       ro.disconnect();
     };
@@ -1799,12 +1830,16 @@ export default function App() {
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return null;
     const ng = currentResult.novaGroup ?? 0;
     if (ng < 1 || ng > 4) return null;
-    const scrollMet =
-      altQuestMaxScroll >= 0 &&
-      (altQuestMaxScroll <= 8 || altQuestScrollProgress >= 0.97);
-    const secLeft = Math.max(0, Math.ceil((1 - altQuestScrollProgress) * 5));
+    const scrollMet = altQuestScrollSecAccum >= ALT_QUEST_REQUIRED_SEC - 0.02;
+    const secLeft = Math.max(0, Math.ceil(ALT_QUEST_REQUIRED_SEC - altQuestScrollSecAccum));
+    const recentlyScrolling =
+      performance.now() - altQuestLastScrollRef.current < ALT_SCROLL_ACTIVITY_MS;
     const altLoading = (ng === 3 || ng === 4) && currentResult.alternativeFoodLoaded === false;
-    if (!scrollMet) return `약 ${secLeft}초 남았어요 · 스크롤하면 줄어요`;
+    void altQuestBannerClock;
+    if (!scrollMet) {
+      if (!recentlyScrolling) return '스크롤해야 줄어요';
+      return `약 ${secLeft}초 남았어요`;
+    }
     if (altLoading) return '대체 식품 불러오는 중… 잠시만 기다려 주세요';
     if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
     return null;
@@ -1812,9 +1847,9 @@ export default function App() {
     showResult,
     currentResult,
     clientId,
-    altQuestMaxScroll,
-    altQuestScrollProgress,
+    altQuestScrollSecAccum,
     altQuestDetailsOpen,
+    altQuestBannerClock,
   ]);
 
   const startCamera = useCallback(() => {
@@ -3064,7 +3099,7 @@ export default function App() {
                 </div>
               </div>
             )}
-            <div id="resultContent" dangerouslySetInnerHTML={{ __html: resultContentHtml }} />
+            <div id="resultContent" ref={resultContentRef} />
             {showDeleteArea && (
               <div style={{ marginTop: 16 }}>
                 <button

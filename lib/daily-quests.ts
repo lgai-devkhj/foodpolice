@@ -116,42 +116,42 @@ const QUEST_FLAVORS: Array<{
 }> = [
   {
     lead: '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.',
-    analyze: { title: '포장 분석하기', subtitle: '하루 1번이면 충분해요' },
-    alt: { title: '대체 식품 추천 받기', subtitle: '결과 화면에서 확인할 수 있어요' },
+    analyze: { title: '「삼각김밥」 포장 찍기', subtitle: '편의점에서 자주 사 먹는 것도 OK' },
+    alt: { title: '대체 식품 추천 받기', subtitle: '결과에서 스크롤 후 「대체 식품」 열기' },
   },
   {
     lead: '오늘은 이렇게만 해볼까요?',
-    analyze: { title: '라벨 한 번 찍기', subtitle: '원재료·영양표 촬영하면 돼요' },
+    analyze: { title: '「바나나우유」 찍어보기', subtitle: '가공이 덜해 보여도 라벨 확인해봐요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '대체 식품 문구가 뜨면 돼요' },
   },
   {
     lead: '짧게 끝내고 스트릭 챙기기.',
-    analyze: { title: '포장 사진 분석', subtitle: '카메라로 바로 촬영' },
+    analyze: { title: '「샌드위치」 포장 찍기', subtitle: '아침에 먹는 것도 분석해볼까요' },
     alt: { title: '대안 식품 둘러보기', subtitle: '결과 카드에서 열 수 있어요' },
   },
   {
     lead: '오늘의 루틴 — 2개만 체크하면 끝.',
-    analyze: { title: '포장 분석 완료하기', subtitle: '스캔 한 번이면 OK' },
+    analyze: { title: '「요거트」 뚜껑 찍기', subtitle: '건강해 보여도 NOVA는 따로예요' },
     alt: { title: '추천 식품 확인하기', subtitle: '분석 후 화면에서 확인' },
   },
   {
     lead: '매일 조금씩, 쌓이는 스트릭.',
-    analyze: { title: '제품 포장 읽기', subtitle: 'NOVA·원재료까지 한 번에' },
+    analyze: { title: '「시리얼」 박스 찍기', subtitle: '달달한 아침 식사도 한번에' },
     alt: { title: '대체 추천 받기', subtitle: '결과 화면 하단에서' },
   },
   {
     lead: '오늘도 가볍게! 두 가지만.',
-    analyze: { title: '포장 분석하기', subtitle: '하루 1회면 충분해요' },
+    analyze: { title: '「콜라·쥬스」 라벨 찍기', subtitle: '음료도 숨은 당이 많아요' },
     alt: { title: '대체 식품 보기', subtitle: '추천 문구가 나오면 완료' },
   },
   {
     lead: '스트릭은 오늘의 2개로 올라가요.',
-    analyze: { title: '라벨 스캔하기', subtitle: '영양표·성분표 촬영' },
+    analyze: { title: '「냉동만두」 포장 찍기', subtitle: '집에 있는 것도 괜찮아요' },
     alt: { title: '비슷한 대안 찾기', subtitle: '결과에서 추천 확인' },
   },
   {
     lead: '루틴 유지 중이에요? 오늘도 2개.',
-    analyze: { title: '포장 분석', subtitle: '한 번이면 스트릭에 반영돼요' },
+    analyze: { title: '「아이스크림」 포장 찍기', subtitle: '간식도 가공도는 알고 먹기' },
     alt: { title: '대체 식품 추천', subtitle: '결과 화면에서 열기' },
   },
 ];
