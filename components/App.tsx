@@ -11,6 +11,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { getClientId } from '@/lib/clientId';
+import { getTodayAnalyzeLabel } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import {
   loadState,
@@ -1059,6 +1060,8 @@ export default function App() {
   /** 배너에서 '스크롤 안 함' 판별용 리렌더 */
   const [altQuestBannerClock, setAltQuestBannerClock] = useState(0);
   const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
+  /** 결과 화면: 방금 분석(scan) vs 기록에서 재오픈(history). 대체 식품 퀘스트 UI는 scan일 때만 */
+  const [resultEntrySource, setResultEntrySource] = useState<'scan' | 'history' | null>(null);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
@@ -1252,6 +1255,7 @@ export default function App() {
             clientId,
             imageBase64: base64,
             mimeType,
+            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
             ...(profilePayload ? { profile: profilePayload } : {}),
           }),
         });
@@ -1273,6 +1277,7 @@ export default function App() {
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
         setShowResult(true);
+        setResultEntrySource('scan');
         setShowDeleteArea(true);
         setCaptureStep(1);
         setRawImageBase64(null);
@@ -1333,6 +1338,7 @@ export default function App() {
             rawMimeType,
             nutritionImageBase64: nutritionBase64,
             nutritionMimeType,
+            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
             ...(profilePayload ? { profile: profilePayload } : {}),
           }),
         });
@@ -1354,6 +1360,7 @@ export default function App() {
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
         setShowResult(true);
+        setResultEntrySource('scan');
         setShowDeleteArea(true);
         setCaptureStep(1);
         setRawImageBase64(null);
@@ -1729,15 +1736,17 @@ export default function App() {
 
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
+    if (resultEntrySource !== 'scan') return;
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
     const g = currentResult.novaGroup ?? 0;
     if (g < 1 || g > 4) return;
     const t = window.setInterval(() => setAltQuestBannerClock((c) => c + 1), 280);
     return () => clearInterval(t);
-  }, [showResult, clientId, currentResult, questBoard, resultContentHtml]);
+  }, [showResult, clientId, currentResult, questBoard, resultContentHtml, resultEntrySource]);
 
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
+    if (resultEntrySource !== 'scan') return;
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
     const g = currentResult.novaGroup ?? 0;
     if (g < 1 || g > 4) return;
@@ -1823,9 +1832,11 @@ export default function App() {
     currentResult,
     questBoard,
     tryCompleteAltQuest,
+    resultEntrySource,
   ]);
 
   const altQuestBannerLine = useMemo(() => {
+    if (resultEntrySource !== 'scan') return null;
     if (!showResult || !currentResult || !clientId) return null;
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return null;
     const ng = currentResult.novaGroup ?? 0;
@@ -1850,6 +1861,7 @@ export default function App() {
     altQuestScrollSecAccum,
     altQuestDetailsOpen,
     altQuestBannerClock,
+    resultEntrySource,
   ]);
 
   const startCamera = useCallback(() => {
@@ -2985,6 +2997,7 @@ export default function App() {
                         renderResult(item.result, item);
                         setShowHome(false);
                         setShowResult(true);
+                        setResultEntrySource('history');
                         setShowDeleteArea(true);
                       }}
                       role="button"
@@ -3050,6 +3063,7 @@ export default function App() {
               aria-label="닫기"
               onClick={() => {
                 setShowResult(false);
+                setResultEntrySource(null);
                 setShowHome(true);
                 setShowDeleteArea(false);
                 setCurrentHistoryId(null);
@@ -3112,6 +3126,7 @@ export default function App() {
                     deleteFromHistory(clientId, currentHistoryId);
                     setCurrentHistoryId(null);
                     setShowResult(false);
+                    setResultEntrySource(null);
                     setShowHome(true);
                     setShowDeleteArea(false);
                     refreshHistory();
@@ -3197,6 +3212,7 @@ export default function App() {
                     setShowSettings(false);
                     setShowHome(true);
                     setShowResult(false);
+                    setResultEntrySource(null);
                     setShowDeleteArea(false);
                     setCurrentHistoryId(null);
                     setCurrentResult(null);

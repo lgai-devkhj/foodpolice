@@ -368,6 +368,26 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
   );
 }
 
+/** 일일 첫 퀘스트: AI가 촬영 제품이 미션 종류와 맞는지 판단하도록 프롬프트에 삽입 */
+export function getDailyQuestProductMatchBlock(targetLabel: string): string {
+  return (
+    '\n\n[오늘의 미션 제품 일치 — 반드시 판단]\n' +
+    `앱에서 사용자는 오늘 첫 미션으로 「${targetLabel}」를 촬영하라고 안내받았다.\n` +
+    '이미지(원재료·앞면·포장 형태)를 보고, 실제로 그 종류의 식품이면 dailyQuestProductMatch: true, 아니면 false.\n' +
+    '판단 기준(이미지에 보이는 정보로만, 추측 최소화):\n' +
+    '- 삼각김밥: 편의점 삼각김밥·삼각 포장 조미 김밥류\n' +
+    '- 샌드위치: 빵 사이에 속재료가 있는 샌드위치·햄치즈샌드 등\n' +
+    '- 시리얼: 아침 시리얼·그래놀라·콘푸로스트 등 박스·봉지 시리얼\n' +
+    '- 요거트: 요거트·요구르트·그릭요거트 등 유제품 요거트\n' +
+    '- 냉동만두: 만두·교자·군만두·물만두 등 만두류\n' +
+    '- 에너지바: 에너지바·프로틴바·그래놀라바 등 막대형 에너지·단백 간식\n' +
+    '- 바나나우유: 바나나맛 우유·바나나우유\n' +
+    '- 쥬스: 과일·채소 주스·갈아만든 배 등 마시는 주스(탄산 콜라·사이다·일반 탄산음료는 쥬스 아님)\n' +
+    '다른 종류의 식품이거나 애매하면 false.\n' +
+    '반드시 JSON 루트에 "dailyQuestProductMatch": true 또는 false 를 포함한다.\n'
+  );
+}
+
 export function normalizeGeminiJson(response: string): string {
   if (typeof response !== 'string') return '';
   return response

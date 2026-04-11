@@ -186,6 +186,8 @@ export interface AnalysisResult {
   alternativeFoodNotice?: string | null;
   /** NOVA 1~2: 사용자가 「그래도 받기」로 웹 추천을 요청함 */
   alternativeFoodUserRequested?: boolean;
+  /** 일일 첫 퀘스트: AI가 오늘 미션 식품 종류와 실제 촬영 제품이 맞는다고 판단한 경우 */
+  dailyQuestProductMatch?: boolean;
 }
 
 export interface AppState {
@@ -445,7 +447,12 @@ export function addToHistory(
   };
   list.unshift(item);
   state.history = list.slice(0, 100);
-  state.quests = questAfterAnalyze(normalizeQuestsSlice(state.quests), item.scannedAt, new Date());
+  state.quests = questAfterAnalyze(
+    normalizeQuestsSlice(state.quests),
+    item.scannedAt,
+    new Date(),
+    result.dailyQuestProductMatch === true,
+  );
   saveState(clientId, state);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
   return { id: itemId, item, streak };

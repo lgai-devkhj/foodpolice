@@ -306,7 +306,7 @@
     @media (max-width: 360px) {
       html { font-size: 7px; }
       .home-scroll { padding: 0 20px 260px; }
-      .hero-icon-cluster { width: 128px; height: 128px; margin-bottom: 14px; }
+      .hero-icon-cluster { width: 128px; height: 128px; margin-bottom: 8px; }
       .hero-icon-core svg { width: 64px; height: 64px; }
       .hero-section .hero-title { font-size: 2.25rem; }
       .info-cards-wrap .info-card { padding: 26px 22px; font-size: 1.25rem; }
@@ -325,7 +325,7 @@
     }
 
     .daily-quest-card {
-      margin: 8px 0 6px;
+      margin: 4px 0 6px;
       padding: 12px 14px 10px;
       border-radius: 18px;
       background: hsla(0, 0%, 100%, 0.75);
@@ -351,13 +351,13 @@
     .daily-quest-title {
       flex: 1;
       font-weight: 800;
-      font-size: 1.05rem;
+      font-size: 1.09rem;
       letter-spacing: -0.02em;
       color: var(--text);
     }
     .daily-quest-lead {
       margin: 0 0 8px;
-      font-size: 0.85rem;
+      font-size: 0.89rem;
       line-height: 1.4;
       color: var(--text2);
     }
@@ -372,11 +372,11 @@
     }
     .daily-quest-bonus-title {
       font-weight: 800;
-      font-size: 0.95rem;
+      font-size: 0.99rem;
       color: var(--text);
     }
     .daily-quest-bonus-hint {
-      font-size: 0.78rem;
+      font-size: 0.81rem;
       font-weight: 700;
       color: var(--text3);
       padding: 0.2em 0.55em;
@@ -388,7 +388,7 @@
     }
     .daily-quest-count {
       font-weight: 800;
-      font-size: 0.95rem;
+      font-size: 0.99rem;
       font-variant-numeric: tabular-nums;
       color: var(--text2);
     }
@@ -446,19 +446,19 @@
     }
     .daily-quest-row-title {
       font-weight: 700;
-      font-size: 0.98rem;
+      font-size: 1.02rem;
       line-height: 1.35;
       color: var(--text);
     }
     .daily-quest-row-sub {
-      font-size: 0.82rem;
+      font-size: 0.86rem;
       line-height: 1.35;
       color: var(--text3);
     }
 
     .hero-section {
       text-align: center;
-      padding: 8px 0 6px;
+      padding: 6px 0 2px;
     }
     .hero-icon-cluster {
       display: flex;
@@ -466,7 +466,7 @@
       justify-content: center;
       width: 92px;
       height: 92px;
-      margin: 0 auto 8px;
+      margin: 0 auto 4px;
     }
     .hero-icon-core {
       color: var(--primary);

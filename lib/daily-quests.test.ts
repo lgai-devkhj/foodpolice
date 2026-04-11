@@ -7,6 +7,8 @@ import {
   emptyQuestDaily,
   ensureDailyForToday,
   toLocalYmd,
+  getTodayAnalyzeLabel,
+  DAILY_QUEST_ANALYZE_LABELS,
 } from './daily-quests';
 
 describe('daily-quests', () => {
@@ -70,12 +72,20 @@ describe('daily-quests', () => {
     expect(week[4]?.done).toBe(false);
   });
 
-  it('분석 완료 시 오늘 날짜에 analyzeDone', () => {
+  it('첫 퀘스트: AI 일치(dailyQuestProductMatch)가 true일 때만 analyzeDone', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
     const now = new Date();
-    const next = questAfterAnalyze({}, '2026-06-15T12:00:00.000Z', now);
-    const daily = ensureDailyForToday(next, '2026-06-15');
-    expect(daily.analyzeDone).toBe(true);
+    const no = questAfterAnalyze({}, '2026-06-15T12:00:00.000Z', now, false);
+    expect(ensureDailyForToday(no, '2026-06-15').analyzeDone).toBe(false);
+    const yes = questAfterAnalyze({}, '2026-06-15T12:00:00.000Z', now, true);
+    expect(ensureDailyForToday(yes, '2026-06-15').analyzeDone).toBe(true);
+  });
+
+  it('getTodayAnalyzeLabel은 8종 중 하나', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const label = getTodayAnalyzeLabel('user-x', new Date());
+    expect(DAILY_QUEST_ANALYZE_LABELS).toContain(label);
   });
 });

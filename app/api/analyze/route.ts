@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getPackageImagePrompt,
   getTwoImagePackagePrompt,
+  getDailyQuestProductMatchBlock,
   normalizeGeminiJson,
   GEMINI_MODEL,
 } from '@/lib/gemini-prompts';
+import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import {
   computeBmiServer,
   bmiCategoryKo,
@@ -32,6 +34,8 @@ interface AnalyzeBody {
     birthDate?: string | null;
     gender?: string | null;
   };
+  /** 오늘 첫 퀘스트 미션 식품(8종 중 하나). 있으면 AI가 일치 여부를 판단 */
+  dailyQuestTarget?: string;
 }
 
 function requireClientId(clientId: string): void {
@@ -204,8 +208,14 @@ export async function POST(request: NextRequest) {
       nutritionImageBase64,
       nutritionMimeType = 'image/jpeg',
       profile,
+      dailyQuestTarget: dailyQuestTargetRaw,
     } = body;
     requireClientId(clientId);
+    const dailyQuestTarget =
+      typeof dailyQuestTargetRaw === 'string' ? dailyQuestTargetRaw.trim() : '';
+    const questTargetValid = (DAILY_QUEST_ANALYZE_LABELS as readonly string[]).includes(
+      dailyQuestTarget,
+    );
     const hasTwoImages = !!rawImageBase64 && !!nutritionImageBase64;
     if (!imageBase64 && !hasTwoImages) {
       return NextResponse.json({ error: '이미지가 없습니다.' }, { status: 400 });
@@ -233,7 +243,8 @@ export async function POST(request: NextRequest) {
           `BMI 약 ${bmiPre.toFixed(1)} (${catPre}). 과체중·비만이면 당류·지방·초가공에 더 엄격히, 저체중·정상은 일반 기준으로 평가.\n\n`;
       }
     }
-    const prompt = profileHint + basePrompt;
+    const dailyQuestBlock = questTargetValid ? getDailyQuestProductMatchBlock(dailyQuestTarget) : '';
+    const prompt = profileHint + basePrompt + dailyQuestBlock;
 
     const res = await fetch(url, {
       method: 'POST',
@@ -327,6 +338,9 @@ export async function POST(request: NextRequest) {
     let alternativeFoodText: string | null = null;
     let alternativeFoodFromWebSearch = false;
 
+    const dailyQuestProductMatch =
+      questTargetValid && parsed.dailyQuestProductMatch === true;
+
     const result = {
       product,
       novaGroup,
@@ -342,6 +356,7 @@ export async function POST(request: NextRequest) {
       personalizedIntakeFootnote,
       alternativeFoodText,
       alternativeFoodFromWebSearch,
+      dailyQuestProductMatch,
     };
 
     return NextResponse.json(result);

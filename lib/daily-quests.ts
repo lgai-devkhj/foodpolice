@@ -109,6 +109,20 @@ export interface QuestBoardUi {
   dailyTotal: number;
 }
 
+/** 일일 첫 퀘스트 대상 식품(순서 고정, 8개). AI가 촬영 제품이 맞는지 판단 */
+export const DAILY_QUEST_ANALYZE_LABELS = [
+  '삼각김밥',
+  '샌드위치',
+  '시리얼',
+  '요거트',
+  '냉동만두',
+  '에너지바',
+  '바나나우유',
+  '쥬스',
+] as const;
+
+export type DailyQuestAnalyzeLabel = (typeof DAILY_QUEST_ANALYZE_LABELS)[number];
+
 const QUEST_FLAVORS: Array<{
   lead: string;
   analyze: { title: string; subtitle: string };
@@ -116,54 +130,64 @@ const QUEST_FLAVORS: Array<{
 }> = [
   {
     lead: '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.',
-    analyze: { title: '「삼각김밥」 포장 찍기', subtitle: '편의점에서 자주 사 먹는 것도 OK' },
-    alt: { title: '대체 식품 추천 받기', subtitle: '결과에서 스크롤 후 「대체 식품」 열기' },
+    analyze: {
+      title: '「삼각김밥」 찍기',
+      subtitle: 'AI가 포장을 보고 삼각김밥이 맞는지 판단해요',
+    },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘은 이렇게만 해볼까요?',
-    analyze: { title: '「바나나우유」 찍어보기', subtitle: '가공이 덜해 보여도 라벨 확인해봐요' },
-    alt: { title: '더 나은 선택 찾기', subtitle: '대체 식품 문구가 뜨면 돼요' },
+    analyze: { title: '「샌드위치」 찍기', subtitle: 'AI가 샌드위치 포장인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '짧게 끝내고 스트릭 챙기기.',
-    analyze: { title: '「샌드위치」 포장 찍기', subtitle: '아침에 먹는 것도 분석해볼까요' },
-    alt: { title: '대안 식품 둘러보기', subtitle: '결과 카드에서 열 수 있어요' },
+    analyze: { title: '「시리얼」 찍기', subtitle: 'AI가 시리얼·그래놀라 박스인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘의 루틴 — 2개만 체크하면 끝.',
-    analyze: { title: '「요거트」 뚜껑 찍기', subtitle: '건강해 보여도 NOVA는 따로예요' },
-    alt: { title: '추천 식품 확인하기', subtitle: '분석 후 화면에서 확인' },
+    analyze: { title: '「요거트」 찍기', subtitle: 'AI가 요거트·요구르트인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '매일 조금씩, 쌓이는 스트릭.',
-    analyze: { title: '「시리얼」 박스 찍기', subtitle: '달달한 아침 식사도 한번에' },
-    alt: { title: '대체 추천 받기', subtitle: '결과 화면 하단에서' },
+    analyze: { title: '「냉동만두」 찍기', subtitle: 'AI가 만두·교자류인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘도 가볍게! 두 가지만.',
-    analyze: { title: '「콜라·쥬스」 라벨 찍기', subtitle: '음료도 숨은 당이 많아요' },
-    alt: { title: '대체 식품 보기', subtitle: '추천 문구가 나오면 완료' },
+    analyze: { title: '「에너지바」 찍기', subtitle: 'AI가 에너지바·프로틴바·그래놀라바인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '스트릭은 오늘의 2개로 올라가요.',
-    analyze: { title: '「냉동만두」 포장 찍기', subtitle: '집에 있는 것도 괜찮아요' },
-    alt: { title: '비슷한 대안 찾기', subtitle: '결과에서 추천 확인' },
+    analyze: { title: '「바나나우유」 찍기', subtitle: 'AI가 바나나우유인지 판단해요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '루틴 유지 중이에요? 오늘도 2개.',
-    analyze: { title: '「아이스크림」 포장 찍기', subtitle: '간식도 가공도는 알고 먹기' },
-    alt: { title: '대체 식품 추천', subtitle: '결과 화면에서 열기' },
+    analyze: { title: '「쥬스」 찍기', subtitle: 'AI가 과일·채소 주스인지 판단해요(탄산음료 제외)' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
 ];
 
-function questFlavorIndex(ymd: string, clientId: string): number {
+export function questFlavorIndex(ymd: string, clientId: string): number {
   const seed = `${clientId || 'local'}|${ymd}`;
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return Math.abs(h) % QUEST_FLAVORS.length;
+  return Math.abs(h) % DAILY_QUEST_ANALYZE_LABELS.length;
+}
+
+/** API `/api/analyze`에 넘길 오늘 미션 식품 라벨 */
+export function getTodayAnalyzeLabel(clientId: string, now: Date): string {
+  const ymd = toLocalYmd(now);
+  const idx = questFlavorIndex(ymd, clientId);
+  return DAILY_QUEST_ANALYZE_LABELS[idx] ?? DAILY_QUEST_ANALYZE_LABELS[0];
 }
 
 export function buildQuestBoard(slice: QuestsSlice, now: Date, clientId = ''): QuestBoardUi {
@@ -202,15 +226,21 @@ export function resolveQuestSlice(state: {
   return n;
 }
 
-export function questAfterAnalyze(prev: QuestsSlice, scannedAtIso: string, now: Date): QuestsSlice {
+export function questAfterAnalyze(
+  prev: QuestsSlice,
+  scannedAtIso: string,
+  now: Date,
+  dailyQuestProductMatch: boolean,
+): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
   const firstUseAt =
     !prev.firstUseAt || scannedAtIso < prev.firstUseAt ? scannedAtIso : prev.firstUseAt;
+  const analyzeDone = daily.analyzeDone || dailyQuestProductMatch;
   return {
     ...prev,
     firstUseAt,
-    daily: { ...daily, analyzeDone: true },
+    daily: { ...daily, analyzeDone },
   };
 }
 
