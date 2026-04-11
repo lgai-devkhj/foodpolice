@@ -2866,11 +2866,33 @@ export default function App() {
       )}
 
       {streakToast && (
-        <div className="streak-toast" role="status" aria-live="polite">
-          <span className="streak-toast-flame" aria-hidden>
-            <IconFlame size={24} />
-          </span>
-          <span className="streak-toast-text">{streakToast}</span>
+        <div className="streak-toast-overlay">
+          <div className="streak-toast-fire-canvas" aria-hidden>
+            <div className="streak-toast-fire streak-toast-fire--fill" />
+            <div className="streak-toast-fire streak-toast-fire--rim" />
+            <div className="streak-toast-fire streak-toast-fire--swirl" />
+            <div className="streak-toast-fire streak-toast-fire--ember" />
+            {[...Array(22)].map((_, i) => (
+              <span
+                key={i}
+                className="streak-toast-spark"
+                style={
+                  {
+                    left: `${(i * 41 + 11) % 88}%`,
+                    bottom: `${12 + (i % 6) * 11}%`,
+                    animationDelay: `${i * 0.055}s`,
+                    '--spark-dx': `${(((i * 5) % 9) - 4) * 18}px`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
+          <div className="streak-toast" role="status" aria-live="polite">
+            <span className="streak-toast-flame" aria-hidden>
+              <IconFlame size={28} />
+            </span>
+            <span className="streak-toast-text">{streakToast}</span>
+          </div>
         </div>
       )}
 

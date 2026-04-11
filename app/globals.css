@@ -215,104 +215,195 @@
       animation: duo-cell-flame 1.6s ease-in-out infinite;
       filter: drop-shadow(0 0 4px rgba(255, 152, 0, 0.55));
     }
-    .streak-toast {
+    /* 스트릭 완료 — 전체 화면 불·불꽽 (듀오링고식) */
+    .streak-toast-overlay {
       position: fixed;
-      left: 50%;
-      bottom: calc(24px + var(--safe-bottom));
-      transform: translateX(-50%);
-      z-index: 70;
+      inset: 0;
+      z-index: 85;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 14px 20px;
-      max-width: min(92vw, 360px);
-      background: var(--card);
-      border: 1px solid rgba(230, 81, 0, 0.42);
-      border-radius: 18px;
+      justify-content: center;
+      padding: calc(12px + var(--safe-top)) calc(12px + var(--safe-right)) calc(20px + var(--safe-bottom))
+        calc(12px + var(--safe-left));
+      pointer-events: none;
+      animation: streak-overlay-reveal 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .streak-toast-fire-canvas {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .streak-toast-fire {
+      position: absolute;
+      pointer-events: none;
+    }
+    .streak-toast-fire--fill {
+      inset: 0;
+      background:
+        radial-gradient(ellipse 110% 75% at 50% 105%, rgba(255, 70, 0, 0.52) 0%, transparent 52%),
+        radial-gradient(ellipse 65% 55% at 12% 95%, rgba(255, 40, 0, 0.28) 0%, transparent 48%),
+        radial-gradient(ellipse 65% 55% at 88% 95%, rgba(255, 160, 0, 0.26) 0%, transparent 48%),
+        linear-gradient(to top, rgba(20, 8, 0, 0.35) 0%, rgba(40, 18, 6, 0.12) 38%, transparent 72%);
+      animation: streak-fire-fill-pulse 1.15s ease-in-out infinite;
+    }
+    .streak-toast-fire--rim {
+      inset: -40%;
+      transform-origin: 50% 50%;
+      background: conic-gradient(
+        from 0deg at 50% 55%,
+        transparent 0deg,
+        rgba(255, 200, 60, 0.45) 45deg,
+        rgba(255, 60, 0, 0.5) 110deg,
+        transparent 160deg,
+        rgba(255, 180, 40, 0.35) 220deg,
+        rgba(255, 100, 0, 0.42) 300deg,
+        transparent 360deg
+      );
+      animation: streak-fire-rim-spin 2.4s linear infinite;
+      opacity: 0.55;
+      mix-blend-mode: screen;
+    }
+    .streak-toast-fire--swirl {
+      bottom: -25%;
+      left: -45%;
+      width: 190%;
+      height: 85%;
+      transform-origin: 50% 100%;
+      background: repeating-conic-gradient(
+        from 0deg at 50% 100%,
+        rgba(255, 140, 0, 0.14) 0deg 6deg,
+        transparent 6deg 14deg
+      );
+      animation: streak-fire-swirl 3.2s linear infinite;
+      opacity: 0.5;
+      mix-blend-mode: screen;
+    }
+    .streak-toast-fire--ember {
+      inset: 0;
+      background: radial-gradient(ellipse 90% 45% at 50% 100%, rgba(255, 230, 150, 0.22) 0%, transparent 50%);
+      animation: streak-ember-flicker 0.35s ease-in-out infinite alternate;
+    }
+    .streak-toast-spark {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      margin-left: -2.5px;
+      border-radius: 50%;
+      background: #fffde7;
       box-shadow:
-        0 8px 28px rgba(12, 48, 28, 0.12),
-        0 0 0 1px rgba(255, 193, 7, 0.15),
-        0 0 28px -4px rgba(255, 152, 0, 0.45),
-        0 0 48px -8px rgba(255, 87, 34, 0.3);
+        0 0 6px 2px #ffab40,
+        0 0 14px 5px rgba(255, 87, 34, 0.55);
+      animation: streak-spark-rise 1.05s ease-out infinite;
+    }
+    [data-theme='dark'] .streak-toast-fire--fill {
+      background:
+        radial-gradient(ellipse 110% 75% at 50% 105%, rgba(255, 90, 0, 0.42) 0%, transparent 52%),
+        radial-gradient(ellipse 65% 55% at 12% 95%, rgba(255, 50, 0, 0.22) 0%, transparent 48%),
+        radial-gradient(ellipse 65% 55% at 88% 95%, rgba(255, 170, 0, 0.2) 0%, transparent 48%),
+        linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(30, 12, 4, 0.25) 42%, transparent 75%);
+    }
+    .streak-toast {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      box-sizing: border-box;
+      min-width: 0;
+      width: calc(100vw - 28px - var(--safe-left) - var(--safe-right));
+      max-width: 520px;
+      background: var(--card);
+      border: 1px solid rgba(230, 81, 0, 0.38);
+      border-radius: 20px;
+      box-shadow:
+        0 16px 48px rgba(0, 0, 0, 0.22),
+        0 0 0 1px rgba(255, 235, 59, 0.2),
+        0 0 40px rgba(255, 120, 0, 0.35);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
-      animation:
-        streak-toast-in 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-        streak-toast-fire-glow 1.85s ease-in-out infinite 0.5s;
-      overflow: visible;
-    }
-    .streak-toast::before {
-      content: '';
-      position: absolute;
-      inset: -4px;
-      border-radius: 22px;
-      z-index: 0;
-      pointer-events: none;
-      background: conic-gradient(
-        from 0deg,
-        var(--duo-fire-orange),
-        var(--duo-fire-gold),
-        var(--duo-fire-green),
-        var(--duo-fire-mint),
-        var(--duo-fire-amber),
-        var(--duo-fire-orange)
-      );
-      animation: duo-fire-spin 2.2s linear infinite;
-      opacity: 0.75;
-      padding: 3px;
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      mask-composite: exclude;
-    }
-    .streak-toast > * {
-      position: relative;
-      z-index: 1;
+      animation: streak-toast-card-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
     }
     .streak-toast-flame {
       display: flex;
       flex-shrink: 0;
       color: #e65100;
-      filter: drop-shadow(0 0 8px rgba(255, 152, 0, 0.9));
-      animation: duo-flame-icon-pulse 0.55s ease-in-out infinite alternate;
+      filter: drop-shadow(0 0 10px rgba(255, 152, 0, 0.95));
+      animation: duo-flame-icon-pulse 0.45s ease-in-out infinite alternate;
     }
     [data-theme='dark'] .streak-toast-flame {
       color: #ffa726;
     }
     .streak-toast-text {
+      flex: 1;
+      min-width: 0;
       font-weight: 700;
-      font-size: 0.98rem;
+      font-size: 1.02rem;
       color: var(--text);
-      line-height: 1.35;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
     }
-    @keyframes streak-toast-in {
+    @keyframes streak-overlay-reveal {
       from {
         opacity: 0;
-        transform: translateX(-50%) translateY(16px) scale(0.92);
-      }
-      60% {
-        transform: translateX(-50%) translateY(-4px) scale(1.03);
       }
       to {
         opacity: 1;
-        transform: translateX(-50%) translateY(0) scale(1);
       }
     }
-    @keyframes streak-toast-fire-glow {
+    @keyframes streak-fire-fill-pulse {
       0%,
       100% {
-        box-shadow:
-          0 8px 28px rgba(12, 48, 28, 0.12),
-          0 0 0 1px rgba(255, 193, 7, 0.12),
-          0 0 22px -4px rgba(255, 152, 0, 0.35),
-          0 0 40px -10px rgba(255, 87, 34, 0.22);
+        filter: brightness(1) saturate(1);
+        transform: scale(1);
       }
       50% {
-        box-shadow:
-          0 8px 28px rgba(12, 48, 28, 0.12),
-          0 0 0 1px rgba(255, 235, 59, 0.35),
-          0 0 36px 2px rgba(255, 152, 0, 0.55),
-          0 0 56px -4px rgba(255, 109, 0, 0.4);
+        filter: brightness(1.12) saturate(1.15);
+        transform: scale(1.02);
+      }
+    }
+    @keyframes streak-fire-rim-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes streak-fire-swirl {
+      to {
+        transform: rotate(-360deg);
+      }
+    }
+    @keyframes streak-ember-flicker {
+      from {
+        opacity: 0.75;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes streak-spark-rise {
+      0% {
+        transform: translate(var(--spark-dx, 0px), 0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(calc(var(--spark-dx, 0px) * 1.75), calc(-1 * min(38vh, 220px))) scale(0.12);
+        opacity: 0;
+      }
+    }
+    @keyframes streak-toast-card-pop {
+      from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.92);
+      }
+      65% {
+        transform: translateY(-6px) scale(1.02);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
       }
     }
     @keyframes duo-fire-spin {
@@ -367,11 +458,12 @@
       .home-streak-chip,
       .home-streak-emoji,
       .streak-week-cell--done .streak-week-flame,
+      .streak-toast-overlay,
+      .streak-toast-fire-canvas,
+      .streak-toast-fire,
+      .streak-toast-spark,
       .streak-toast,
-      .streak-toast::before,
       .streak-toast-flame,
-      .daily-quest-card,
-      .daily-quest-card::before,
       .daily-quest-row.done,
       .daily-quest-row.done .daily-quest-check,
       .fab-pulse {
@@ -381,11 +473,14 @@
         animation: none !important;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
       }
-      .streak-toast {
-        box-shadow: 0 8px 28px rgba(12, 48, 28, 0.12);
+      .streak-toast-overlay {
+        background: rgba(0, 0, 0, 0.4);
       }
-      .daily-quest-card {
-        box-shadow: var(--glass-shadow);
+      .streak-toast-fire-canvas {
+        opacity: 0.35;
+      }
+      .streak-toast {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
       }
       .home-streak-chip {
         box-shadow: 0 2px 10px rgba(191, 54, 12, 0.12);
@@ -490,21 +585,6 @@
         box-shadow: 0 0 28px 6px rgba(255, 87, 34, 0);
       }
     }
-    @keyframes daily-quest-card-glow {
-      0%,
-      100% {
-        box-shadow:
-          var(--glass-shadow),
-          0 0 24px -10px rgba(255, 152, 0, 0.18),
-          0 0 40px -14px rgba(102, 187, 66, 0.08);
-      }
-      50% {
-        box-shadow:
-          var(--glass-shadow),
-          0 0 36px -6px rgba(255, 152, 0, 0.32),
-          0 0 52px -8px rgba(255, 193, 7, 0.18);
-      }
-    }
     @keyframes duo-quest-row-pop {
       0% {
         transform: scale(1);
@@ -530,57 +610,24 @@
       }
     }
 
+    /* 듀오링고 홈 미션 카드 느낌: 왼쪽 악센트 + 정적 그림자, 회전·글로우 없음 */
     .daily-quest-card {
       margin: 4px 0 6px;
-      padding: 12px 14px 10px;
-      border-radius: 18px;
-      background: hsla(0, 0%, 100%, 0.75);
-      border: 1px solid transparent;
-      box-shadow:
-        var(--glass-shadow),
-        0 0 28px -8px rgba(255, 152, 0, 0.22),
-        0 0 48px -12px rgba(102, 187, 66, 0.12);
+      padding: 12px 14px 10px 13px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-left: 5px solid #58cc02;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       position: relative;
-      isolation: isolate;
-      animation: daily-quest-card-glow 3.2s ease-in-out infinite;
-    }
-    .daily-quest-card::before {
-      content: '';
-      position: absolute;
-      inset: -3px;
-      border-radius: 21px;
-      z-index: 0;
-      pointer-events: none;
-      background: conic-gradient(
-        from 120deg,
-        var(--duo-fire-orange),
-        var(--duo-fire-amber),
-        var(--duo-fire-gold),
-        var(--duo-fire-green),
-        var(--primary),
-        var(--duo-fire-mint),
-        var(--duo-fire-orange)
-      );
-      animation: duo-fire-spin 5s linear infinite;
-      opacity: 0.62;
-      padding: 2px;
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      mask-composite: exclude;
-    }
-    .daily-quest-card > * {
-      position: relative;
-      z-index: 1;
     }
     [data-theme='dark'] .daily-quest-card {
-      background: hsla(22, 12%, 18%, 0.72);
-      border-color: transparent;
-    }
-    [data-theme='dark'] .daily-quest-card::before {
-      opacity: 0.72;
+      background: hsla(22, 12%, 16%, 0.92);
+      border-color: rgba(255, 255, 255, 0.1);
+      border-left-color: #89e219;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
     }
     .daily-quest-header {
       display: flex;
@@ -2896,7 +2943,11 @@
       flex-direction: column;
       align-items: center;
       gap: 12px;
-      padding: 24px 32px;
+      padding: 24px 22px;
+      box-sizing: border-box;
+      width: calc(100vw - 24px - var(--safe-left) - var(--safe-right));
+      max-width: 100%;
+      min-width: 0;
       background: var(--card);
       border: 1px solid var(--card-stroke);
       border-radius: 20px;
@@ -2924,6 +2975,10 @@
       font-size: 1.15rem;
       font-weight: 600;
       color: var(--text);
+      text-align: center;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     @keyframes onboarding-toast-in {
       from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
