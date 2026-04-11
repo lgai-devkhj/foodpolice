@@ -19,10 +19,12 @@ import {
   getProfile,
   getHistory,
   addToHistory,
+  addCompareToHistory,
   getAnalysisStreak,
   getWeekStreakSheetData,
   getQuestBoard,
   markQuestAlternativeReceived,
+  markQuestCompareDone,
   markQuestTutorialDone,
   markQuestKnovaLearnDone,
   updateHistoryResult,
@@ -76,6 +78,8 @@ import {
   IconCheck,
   IconFlame,
   IconCompare,
+  IconEye,
+  IconEyeOff,
 } from '@/components/ui-icons';
 
 /** 대체 식품 퀘스트: 스크롤하는 동안만 경과 시간(초) 누적 */
@@ -135,6 +139,7 @@ type CoachRect = { top: number; left: number; width: number; height: number };
 
 /** 튜토리얼 진행 단계 (코치 말풍선은 fab·미리보기 두 구간만) */
 const TUTORIAL_PHASE_SEQUENCE = [
+  'tutorial_mode_pick',
   'fab',
   'overlay_ingredient',
   'camera_ingredient',
@@ -186,20 +191,55 @@ function tutorialPhaseIndex(phase: TutorialPhase): number {
   return TUTORIAL_PHASE_SEQUENCE.indexOf(phase);
 }
 
-function tutorialCoachMessage(phase: TutorialPhase, desk: boolean): string {
+function tutorialCoachMessage(
+  phase: TutorialPhase,
+  desk: boolean,
+  ctx: {
+    homeProductMode: 'analyze' | 'compare';
+    compareSlot: 'A' | 'B';
+    captureStep: 1 | 2;
+  }
+): string {
+  const { homeProductMode, compareSlot, captureStep } = ctx;
   switch (phase) {
+    case 'tutorial_mode_pick':
+      return '';
     case 'fab':
+      if (homeProductMode === 'compare') {
+        return desk
+          ? '비교는 제품 두 개예요. 아래에서 A 원재료 → A 영양표 → B 원재료 → B 영양표 순으로 네 장을 준비해 주세요.'
+          : '비교는 제품 두 개예요. 촬영으로 A 원재료부터 네 장 차례로 찍어 주세요.';
+      }
       return desk
         ? '아래에서 사진 두 장만 올려주세요. 원재료 → 영양표 순이에요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.'
         : '아래 촬영 눌러서, 원재료 → 영양표만 찍어주세요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.';
-    case 'preview_ingredient':
+    case 'preview_ingredient': {
+      if (homeProductMode === 'compare') {
+        const who = compareSlot === 'A' ? '제품 A' : '제품 B';
+        return desk
+          ? `${who} 원재료예요. 다음 누르면 ${who} 영양표 단계로 넘어가요.`
+          : `괜찮으면 다음 눌러 주세요. 이어서 ${who} 영양표 찍을게요.`;
+      }
       return desk
         ? '이 사진으로 갈까요? 다음 누르면 영양표 고르는 단계로 넘어가요.'
         : '괜찮으면 다음 눌러주세요. 이어서 영양표 찍을게요.';
-    case 'preview_analyze':
+    }
+    case 'preview_analyze': {
+      if (homeProductMode === 'compare') {
+        const who = compareSlot === 'A' ? '제품 A' : '제품 B';
+        if (compareSlot === 'A' && captureStep === 2) {
+          return desk
+            ? `${who} 영양표예요. 다음 누르면 제품 B 원재료 단계로 넘어가요.`
+            : '다음은 제품 B 원재료를 찍어 주세요.';
+        }
+        return desk
+          ? '마지막이에요. 비교하기 누르면 두 제품 NOVA를 비교해 드려요. 첫 번째 퀘스트 끝이에요!'
+          : '비교하기 누르면 결과를 볼 수 있어요. 첫 번째 퀘스트 끝!';
+      }
       return desk
         ? '마지막이에요. 분석하기 누르면 결과 나와요. 첫 번째 퀘스트 끝! 결과에서 대체 식품까지 보면 오늘 스트릭 채워져요.'
         : '분석하기 누르면 NOVA랑 영양 볼 수 있어요. 첫 번째 퀘스트 끝! 대체 식품까지 보면 오늘 스트릭 채워져요.';
+    }
     default:
       return '';
   }
@@ -209,6 +249,53 @@ type TutorialFocusDecoration =
   | { kind: 'arrow'; rect: CoachRect }
   | { kind: 'ring'; rect: CoachRect }
   | null;
+
+/** 비교 결과 패널: 단일 제품 NOVA + Group IV 시 4A·4B·4C 그래프(분석 결과와 동일) */
+function CompareProductNovaCard({ label, result }: { label: string; result: AnalysisResult }) {
+  const nova = result.novaGroup || 4;
+  const sub = (result.novaSubgroup || '').trim().toUpperCase();
+  const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
+  const name = (result.product?.productName || '').trim() || label;
+  const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
+  return (
+    <div className="compare-result-card">
+      <div className="compare-result-label">{label}</div>
+      <div className="compare-result-name">{name}</div>
+      <div className={`card card-nova card-nova-${nova} compare-result-nova-inner`}>
+        <div className="nova-result-slab">
+          <div className="nova-result-title-row">
+            <div className="card-title nova-result-title">한국형 NOVA</div>
+          </div>
+          <div className={`nova-badge nova-${nova}`}>
+            <img src={NOVA_IMG[nova] || ''} alt="" className="nova-icon" referrerPolicy="no-referrer" />
+            {NOVA_NAMES[nova]}
+            {nova === 4 ? (
+              <div className="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">
+                {subGraphItems.map((k) => {
+                  const nodeLabel = subKey === k && NOVA_SUBGROUP_NAMES[k] ? NOVA_SUBGROUP_NAMES[k] : k;
+                  return (
+                    <span key={k} style={{ display: 'inline' }}>
+                      <span className={`nova-subgroup-node${subKey === k ? ' active' : ''}`}>{nodeLabel}</span>
+                      {k !== '4C' ? (
+                        <span className="nova-subgroup-link" aria-hidden="true">
+                          {' '}
+                          -{' '}
+                        </span>
+                      ) : null}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+          {subKey && NOVA_SUBGROUP_HINTS[subKey] ? (
+            <div className="nova-result-hint">{NOVA_SUBGROUP_HINTS[subKey]}</div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /** 화살표·말풍선만 (스포트라이트 딤 없음) */
 function TutorialCoachOverlay({
@@ -1030,6 +1117,8 @@ export default function App() {
   const [profileGender, setProfileGender] = useState('male');
   const [profileHeight, setProfileHeight] = useState('');
   const [profileWeight, setProfileWeight] = useState('');
+  /** 설정·프로필에서 키·몸무게·BMI 숫자 표시(기본 숨김) */
+  const [revealBodyMetrics, setRevealBodyMetrics] = useState(false);
   const [obStep, setObStep] = useState(0);
   const [obBirthYear, setObBirthYear] = useState(() => Math.max(1900, new Date().getFullYear() - 15));
   const [obGender, setObGender] = useState('male');
@@ -1091,7 +1180,21 @@ export default function App() {
       capturedPreviewDataUrl,
       captureStep,
     });
-  const tutorialMessage = tutorialCoachActive ? tutorialCoachMessage(tutorialPhase, isLikelyDesktop) : '';
+  const tutorialMessage = useMemo(() => {
+    if (!tutorialCoachActive) return '';
+    return tutorialCoachMessage(tutorialPhase, isLikelyDesktop, {
+      homeProductMode,
+      compareSlot,
+      captureStep,
+    });
+  }, [
+    tutorialCoachActive,
+    tutorialPhase,
+    isLikelyDesktop,
+    homeProductMode,
+    compareSlot,
+    captureStep,
+  ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -1260,7 +1363,8 @@ export default function App() {
 
   const tryCompleteAltQuest = useCallback(() => {
     if (!clientId || !currentResult) return;
-    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const altQuestRow = getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative');
+    if (!altQuestRow || altQuestRow.done) return;
     if (altQuestAccumSecRef.current < ALT_QUEST_REQUIRED_SEC - ALT_QUEST_SEC_EPSILON) return;
     if (!altQuestDetailsOpenRef.current) return;
     const r = currentResult;
@@ -1493,15 +1597,30 @@ export default function App() {
           cameraStreamRef.current = null;
         }
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-        setCompareApiResult(
-          data as {
-            productA: AnalysisResult;
-            productB: AnalysisResult;
-            betterChoice: 'A' | 'B' | 'similar';
-            comparisonSummary: string;
-            recommendationLine: string;
+        const streak = markQuestCompareDone(clientId);
+        setQuestBoard(getQuestBoard(clientId));
+        notifyStreakFromQuest(streak);
+        const comparePayload = {
+          productA: data.productA as AnalysisResult,
+          productB: data.productB as AnalysisResult,
+          betterChoice: data.betterChoice as 'A' | 'B' | 'similar',
+          comparisonSummary: String(data.comparisonSummary ?? ''),
+          recommendationLine: String(data.recommendationLine ?? ''),
+        };
+        addCompareToHistory(clientId, comparePayload);
+        refreshHistory();
+        setCompareApiResult(comparePayload);
+        if (showTutorialRef.current) {
+          setShowTutorial(false);
+          setTutorialPhase('fab');
+          setTutorialHoleRect(null);
+          setTutorialFocusDecoration(null);
+          if (clientId) {
+            const s = markQuestTutorialDone(clientId);
+            setQuestBoard(getQuestBoard(clientId));
+            notifyStreakFromQuest(s);
           }
-        );
+        }
         setShowCompareResult(true);
         setShowHome(false);
         setShowCamera(false);
@@ -1520,7 +1639,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, profile]
+    [clientId, profile, notifyStreakFromQuest, refreshHistory]
   );
 
   const renderResult = useCallback(
@@ -1887,7 +2006,8 @@ export default function App() {
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
     if (resultEntrySource !== 'scan') return;
-    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const altQuestRowBanner = getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative');
+    if (!altQuestRowBanner || altQuestRowBanner.done) return;
     const g = currentResult.novaGroup ?? 0;
     if (g < 1 || g > 4) return;
     const t = window.setInterval(() => setAltQuestBannerClock((c) => c + 1), 280);
@@ -1897,7 +2017,8 @@ export default function App() {
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
     if (resultEntrySource !== 'scan') return;
-    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const altQuestRowEffect = getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative');
+    if (!altQuestRowEffect || altQuestRowEffect.done) return;
     const g = currentResult.novaGroup ?? 0;
     if (g < 1 || g > 4) return;
 
@@ -1991,7 +2112,8 @@ export default function App() {
   const altQuestBannerLine = useMemo(() => {
     if (resultEntrySource !== 'scan') return null;
     if (!showResult || !currentResult || !clientId) return null;
-    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return null;
+    const altQuestRowMemo = getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative');
+    if (!altQuestRowMemo || altQuestRowMemo.done) return null;
     const ng = currentResult.novaGroup ?? 0;
     if (ng < 1 || ng > 4) return null;
     const scrollMet = altQuestScrollSecAccum >= ALT_QUEST_REQUIRED_SEC - ALT_QUEST_SEC_EPSILON;
@@ -2040,6 +2162,10 @@ export default function App() {
   }, []);
 
   const triggerUpload = useCallback(() => {
+    if (showTutorial && tutorialPhase === 'tutorial_mode_pick') {
+      setError('먼저 분석할지 비교할지 골라 주세요.');
+      return;
+    }
     if (showTutorial && tutorialPhase === 'fab') {
       setTutorialPhase('overlay_ingredient');
     }
@@ -2277,7 +2403,7 @@ export default function App() {
     const mime = capturedPreviewMimeType || 'image/jpeg';
     setCapturedPreviewDataUrl(null);
 
-    if (homeProductMode === 'compare' && !showTutorial) {
+    if (homeProductMode === 'compare') {
       if (captureStep === 1) {
         setRawImageBase64(base64 || '');
         rawImageBase64Ref.current = base64 || '';
@@ -2394,7 +2520,7 @@ export default function App() {
         const mime = (file.type || 'image/jpeg').toLowerCase();
         const normalizedMime = mime.startsWith('image/') ? mime : 'image/jpeg';
         const currentStep = captureStepRef.current;
-        const isCompare = homeProductModeRef.current === 'compare' && !showTutorialRef.current;
+        const isCompare = homeProductModeRef.current === 'compare';
 
         if (isCompare) {
           if (currentStep === 1) {
@@ -2683,7 +2809,7 @@ export default function App() {
                 aria-hidden
               />
               <span className="camera-guide-label">
-                {homeProductMode === 'compare' && !showTutorial
+                {homeProductMode === 'compare'
                   ? compareSlot === 'A'
                     ? captureStep === 1
                       ? '제품 A · 원재료명이 보이게 찍어 주세요'
@@ -2704,7 +2830,7 @@ export default function App() {
               <span className="step-sep">/</span>
               <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
               <span className="step-text">
-                {homeProductMode === 'compare' && !showTutorial
+                {homeProductMode === 'compare'
                   ? compareSlot === 'A'
                     ? captureStep === 1
                       ? '1/4 · 제품 A 원재료'
@@ -2765,7 +2891,7 @@ export default function App() {
               </button>
             )}
             <p className="camera-hint">
-              {homeProductMode === 'compare' && !showTutorial
+              {homeProductMode === 'compare'
                 ? compareSlot === 'A'
                   ? captureStep === 1
                     ? '1/4: 제품 A 원재료'
@@ -2793,7 +2919,17 @@ export default function App() {
         >
           <div id="tutorial-capture-overlay-card" className="capture-step-overlay-card">
             <p className="capture-step-overlay-badge" aria-hidden>
-              {captureStepGuide === 1 ? '1 / 2' : '2 / 2'}
+              {homeProductMode === 'compare' && showTutorial
+                ? compareSlot === 'A'
+                  ? captureStepGuide === 1
+                    ? '1 / 4'
+                    : '2 / 4'
+                  : captureStepGuide === 1
+                    ? '3 / 4'
+                    : '4 / 4'
+                : captureStepGuide === 1
+                  ? '1 / 2'
+                  : '2 / 2'}
             </p>
             {captureStepGuide === 1 ? (
               <>
@@ -2871,7 +3007,7 @@ export default function App() {
             onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
           />
           <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
-            {homeProductMode === 'compare' && !showTutorial
+            {homeProductMode === 'compare'
               ? compareSlot === 'A'
                 ? captureStep === 1
                   ? '1/4 · 제품 A 원재료'
@@ -2895,7 +3031,7 @@ export default function App() {
             >
               {captureStep === 1
                 ? '다음(영양정보 표)'
-                : homeProductMode === 'compare' && !showTutorial
+                : homeProductMode === 'compare'
                   ? compareSlot === 'A'
                     ? '다음(제품 B)'
                     : '비교하기'
@@ -3144,7 +3280,7 @@ export default function App() {
                       refreshHistory();
                       /* 토스트(약 2.2초) 이후 코치 튜토리얼 자동 시작 */
                       window.setTimeout(() => {
-                        setTutorialPhase('fab');
+                        setTutorialPhase('tutorial_mode_pick');
                         setShowTutorial(true);
                       }, 2350);
                     }}
@@ -3193,6 +3329,54 @@ export default function App() {
         </div>
       )}
 
+      {showTutorial && tutorialPhase === 'tutorial_mode_pick' && (
+        <div
+          className="tutorial-mode-pick-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tutorial-mode-pick-title"
+        >
+          <div className="tutorial-mode-pick-panel">
+            <h2 id="tutorial-mode-pick-title" className="tutorial-mode-pick-title">
+              무엇을 연습할까요?
+            </h2>
+            <p className="tutorial-mode-pick-lead">
+              한 제품만 분석할지, 두 제품을 비교할지 먼저 골라 주세요. 아래에서 선택하면 촬영 안내로 이어져요.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary btn-full tutorial-mode-pick-btn"
+              onClick={() => {
+                setHomeProductMode('analyze');
+                setTutorialPhase('fab');
+                setError('');
+              }}
+            >
+              <IconCamera size={20} aria-hidden />
+              한 제품 분석하기
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-full tutorial-mode-pick-btn"
+              onClick={() => {
+                setHomeProductMode('compare');
+                setCompareSlot('A');
+                setComparePairA(null);
+                comparePairARef.current = null;
+                setTutorialPhase('fab');
+                setError('');
+              }}
+            >
+              <IconCompare size={20} aria-hidden />
+              두 제품 비교하기
+            </button>
+            <button type="button" className="btn-tutorial-text tutorial-mode-pick-skip" onClick={finishTutorial}>
+              건너뛰기
+            </button>
+          </div>
+        </div>
+      )}
+
       <div id="app">
         <div id="homeView" className={showHome ? '' : 'hidden'}>
           <div className="home-scroll" id="homeScroll">
@@ -3226,7 +3410,7 @@ export default function App() {
                       type="button"
                       className="btn-tutorial-text"
                       onClick={() => {
-                        setTutorialPhase('fab');
+                        setTutorialPhase('tutorial_mode_pick');
                         setShowTutorial(true);
                       }}
                     >
@@ -3262,6 +3446,7 @@ export default function App() {
                   className={`home-mode-btn${homeProductMode === 'analyze' ? ' home-mode-btn--active' : ''}`}
                   onClick={() => setHomeProductMode('analyze')}
                 >
+                  <IconCamera size={18} aria-hidden />
                   상품 분석하기
                 </button>
                 <button
@@ -3278,6 +3463,19 @@ export default function App() {
                   상품 비교하기
                 </button>
               </div>
+              {homeProductMode === 'compare' && (
+                <div className="home-compare-callout" role="note">
+                  <span className="home-compare-callout-badge" aria-hidden>
+                    2제품 · 4장
+                  </span>
+                  <p className="home-compare-callout-title">
+                    <strong>제품 A</strong> 원재료 → 영양표, 이어서 <strong>제품 B</strong>도 같은 순서로 찍어 주세요.
+                  </p>
+                  <p className="home-compare-callout-sub">
+                    한 제품당 사진 2장(원재료·영양표), 두 제품이면 <strong>총 4장</strong>이 필요해요. 순서를 지키면 비교가 정확해요.
+                  </p>
+                </div>
+              )}
             </div>
             {onboardingCompleted &&
               !showOnboarding &&
@@ -3357,6 +3555,16 @@ export default function App() {
                       className="history-item"
                       data-id={item.id}
                       onClick={() => {
+                        if (item.entryKind === 'compare' && item.comparePayload) {
+                          setCompareApiResult(item.comparePayload);
+                          setCurrentHistoryId(item.id);
+                          setShowCompareResult(true);
+                          setShowHome(false);
+                          setShowResult(false);
+                          setResultEntrySource(null);
+                          setShowDeleteArea(false);
+                          return;
+                        }
                         setCurrentResult(item.result);
                         setCurrentHistoryId(item.id);
                         renderResult(item.result, item);
@@ -3578,41 +3786,9 @@ export default function App() {
             <h2 id="compare-result-title" className="compare-result-title">
               제품 비교 결과
             </h2>
-            <div className="compare-result-grid">
-              <div className="compare-result-card">
-                <div className="compare-result-label">제품 A</div>
-                <div className="compare-result-name">
-                  {(compareApiResult.productA.product?.productName || '').trim() || '제품 A'}
-                </div>
-                <div className="compare-result-nova">
-                  {NOVA_IMG[compareApiResult.productA.novaGroup ?? 4] ? (
-                    <img
-                      src={NOVA_IMG[compareApiResult.productA.novaGroup ?? 4]}
-                      alt=""
-                      className="compare-result-nova-img"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : null}
-                  <span className="compare-result-nova-num">NOVA {compareApiResult.productA.novaGroup ?? '—'}</span>
-                </div>
-              </div>
-              <div className="compare-result-card">
-                <div className="compare-result-label">제품 B</div>
-                <div className="compare-result-name">
-                  {(compareApiResult.productB.product?.productName || '').trim() || '제품 B'}
-                </div>
-                <div className="compare-result-nova">
-                  {NOVA_IMG[compareApiResult.productB.novaGroup ?? 4] ? (
-                    <img
-                      src={NOVA_IMG[compareApiResult.productB.novaGroup ?? 4]}
-                      alt=""
-                      className="compare-result-nova-img"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : null}
-                  <span className="compare-result-nova-num">NOVA {compareApiResult.productB.novaGroup ?? '—'}</span>
-                </div>
-              </div>
+            <div className="compare-result-grid compare-result-grid--nova">
+              <CompareProductNovaCard label="제품 A" result={compareApiResult.productA} />
+              <CompareProductNovaCard label="제품 B" result={compareApiResult.productB} />
             </div>
             <div
               className={`compare-result-verdict compare-result-verdict--${compareApiResult.betterChoice}`}
@@ -3822,26 +3998,42 @@ export default function App() {
                   </div>
                 )}
                 <div className="form-group" style={{ padding: '16px 20px', background: 'var(--card)', border: '1px solid var(--card-stroke)', borderRadius: 14, marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
                     <span style={{ fontWeight: 600, color: 'var(--text)' }}>키·몸무게</span>
-                    <button
-                      type="button"
-                      className="icon-btn-circle"
-                      aria-label="기록 목록"
-                      onClick={() => setShowMeasurementHistory(true)}
-                      style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--card-stroke)', background: 'var(--card)', color: 'var(--accent)' }}
-                    >
-                      <span aria-hidden>
-                        <IconClipboard size={18} />
-                      </span>
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        type="button"
+                        className="icon-btn-circle"
+                        aria-label={revealBodyMetrics ? '키·몸무게·BMI 숨기기' : '키·몸무게·BMI 보기'}
+                        aria-pressed={revealBodyMetrics}
+                        onClick={() => setRevealBodyMetrics((v) => !v)}
+                        style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--card-stroke)', background: 'var(--card)', color: 'var(--accent)' }}
+                      >
+                        <span aria-hidden>{revealBodyMetrics ? <IconEye size={18} /> : <IconEyeOff size={18} />}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn-circle"
+                        aria-label="기록 목록"
+                        onClick={() => setShowMeasurementHistory(true)}
+                        style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--card-stroke)', background: 'var(--card)', color: 'var(--accent)' }}
+                      >
+                        <span aria-hidden>
+                          <IconClipboard size={18} />
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ color: 'var(--text2)', fontSize: '1rem', marginBottom: 12 }}>
+                  <div
+                    className={revealBodyMetrics ? '' : 'body-metrics-masked'}
+                    style={{ color: 'var(--text2)', fontSize: '1rem', marginBottom: 12 }}
+                  >
                     {(() => {
                       const { heightCm: h, weightKg: w } = getLatestHeightWeight(profile);
-                      return h != null && h > 0 && w != null && w > 0
+                      if (h == null || h <= 0 || w == null || w <= 0) return '아직 없어요';
+                      return revealBodyMetrics
                         ? `키 ${Math.round(h)} cm · 몸무게 ${w.toFixed(1)} kg`
-                        : '아직 없어요';
+                        : '키 ••• cm · 몸무게 ••• kg';
                     })()}
                   </div>
                   <button
@@ -3861,8 +4053,21 @@ export default function App() {
                     <div className="bmi-display" style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--card)', border: '1px solid var(--card-stroke)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                       <div>
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>BMI (현재)</span>
-                        <span style={{ marginLeft: 8, color: 'var(--text2)' }}>{bmiInfo.bmi.toFixed(1)} · {bmiInfo.category}</span>
-                        {isObeseByProfile(effectiveProfile) && <span style={{ marginLeft: 6, fontSize: '0.9rem', color: 'var(--risk)' }}>(비만)</span>}
+                        <span
+                          className={revealBodyMetrics ? '' : 'body-metrics-masked'}
+                          style={{ marginLeft: 8, color: 'var(--text2)' }}
+                        >
+                          {revealBodyMetrics ? (
+                            <>
+                              {bmiInfo.bmi.toFixed(1)} · {bmiInfo.category}
+                              {isObeseByProfile(effectiveProfile) ? (
+                                <span style={{ marginLeft: 6, fontSize: '0.9rem', color: 'var(--risk)' }}>(비만)</span>
+                              ) : null}
+                            </>
+                          ) : (
+                            '••• · ···'
+                          )}
+                        </span>
                       </div>
                       <button
                         type="button"

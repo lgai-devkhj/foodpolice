@@ -3,6 +3,7 @@ import {
   buildQuestBoard,
   buildWeekStreakView,
   questAfterAnalyze,
+  questAfterCompare,
   resolveQuestSlice,
   emptyQuestDaily,
   ensureDailyForToday,
@@ -12,6 +13,8 @@ import {
   displayedFlavorIndexForLocalYmd,
   addDaysToYmd,
   DAILY_QUEST_ANALYZE_LABELS,
+  pickDailyQuestPair,
+  isDailyQuestPairComplete,
 } from './daily-quests';
 
 describe('daily-quests', () => {
@@ -19,23 +22,25 @@ describe('daily-quests', () => {
     vi.useRealTimers();
   });
 
-  it('일일 퀘스트는 항상 2개(분석·대체), 문구는 날짜·clientId에 따라 바뀜', () => {
+  it('일일 퀘스트는 3종 중 2개 조합·항상 2줄, 문구는 날짜·clientId에 따라 바뀜', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const ymd = '2026-06-15';
     const board = buildQuestBoard(
       {
-        daily: emptyQuestDaily('2026-06-15'),
+        daily: emptyQuestDaily(ymd),
         lifetime: {},
       },
       new Date(),
       'user-a',
     );
     expect(board.dailyTotal).toBe(2);
-    expect(board.dailyRows.map((r) => r.id)).toEqual(['analyze', 'alternative']);
+    const pair = pickDailyQuestPair('user-a', ymd);
+    expect(board.dailyRows.map((r) => r.id)).toEqual(pair);
     expect(board.lead.length).toBeGreaterThan(0);
     const same = buildQuestBoard(
       {
-        daily: emptyQuestDaily('2026-06-15'),
+        daily: emptyQuestDaily(ymd),
         lifetime: {},
       },
       new Date(),
@@ -45,15 +50,49 @@ describe('daily-quests', () => {
     const titles = new Set<string>();
     for (let i = 0; i < 60; i++) {
       const dt = new Date(2026, 0, 1 + i);
-      const ymd = toLocalYmd(dt);
+      const dYmd = toLocalYmd(dt);
       const b = buildQuestBoard(
-        { daily: emptyQuestDaily(ymd), lifetime: {} },
+        { daily: emptyQuestDaily(dYmd), lifetime: {} },
         dt,
         'user-a',
       );
       titles.add(b.dailyRows[0]?.title ?? '');
     }
     expect(titles.size).toBeGreaterThan(1);
+  });
+
+  it('pickDailyQuestPair는 clientId에 따라 3종 조합이 나뉘고, 같은 입력은 고정', () => {
+    const byClient = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      byClient.add(pickDailyQuestPair(`device-${i}`, '2026-06-15').join(','));
+    }
+    expect(byClient.size).toBeGreaterThan(1);
+    const p = pickDailyQuestPair('stable-client', '2026-06-15');
+    expect(pickDailyQuestPair('stable-client', '2026-06-15')).toEqual(p);
+  });
+
+  it('questAfterCompare는 compareDone을 켠다', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const now = new Date();
+    const next = questAfterCompare({}, now);
+    expect(ensureDailyForToday(next, '2026-06-15').compareDone).toBe(true);
+  });
+
+  it('isDailyQuestPairComplete는 오늘 배정 2슬롯을 모두 만족할 때만 true', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const ymd = '2026-06-15';
+    const cid = 'user-pair-complete';
+    const pair = pickDailyQuestPair(cid, ymd);
+    let daily = emptyQuestDaily(ymd);
+    expect(isDailyQuestPairComplete(daily, cid, ymd)).toBe(false);
+    for (const k of pair) {
+      if (k === 'analyze') daily = { ...daily, analyzeDone: true };
+      else if (k === 'alternative') daily = { ...daily, alternativeDone: true };
+      else daily = { ...daily, compareDone: true };
+    }
+    expect(isDailyQuestPairComplete(daily, cid, ymd)).toBe(true);
   });
 
   it('resolveQuestSlice는 기록에서 가장 이른 scannedAt을 사용', () => {

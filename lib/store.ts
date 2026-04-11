@@ -10,6 +10,7 @@ import {
   normalizeQuestsSlice,
   questAfterAnalyze,
   questAfterAlternative,
+  questAfterCompare,
   questAfterTutorial,
   questAfterKnova,
   questAfterBodyMeasurement,
@@ -17,6 +18,7 @@ import {
   buildQuestBoard,
   buildWeekStreakView,
   ensureDailyForToday,
+  isDailyQuestPairComplete,
   toLocalYmd as questDayYmd,
   type QuestsSlice,
   type WeekDayCell,
@@ -121,6 +123,15 @@ export interface HistoryItem {
   maxRiskScore: number;
   result: AnalysisResult;
   customProductName?: string | null;
+  /** 기본 analyze. compare면 comparePayload로 비교 결과 재표시 */
+  entryKind?: 'analyze' | 'compare';
+  comparePayload?: {
+    productA: AnalysisResult;
+    productB: AnalysisResult;
+    betterChoice: 'A' | 'B' | 'similar';
+    comparisonSummary: string;
+    recommendationLine: string;
+  };
 }
 
 /** 영양표 한 줄(항목명 + 표기량 문자열). 칼슘·비타민 등 임의 항목 포함 */
@@ -349,7 +360,7 @@ export function getStreakToastSnapshot(clientId: string): {
   };
 }
 
-/** 매일 고정 2개(포장 분석 + 대체 식품)를 모두 완료했을 때만 연속 일수를 올림. */
+/** 매일 배정된 2개 미션을 모두 완료했을 때만 연속 일수를 올림. */
 export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   displayCurrent: number;
   didIncrease: boolean;
@@ -357,10 +368,10 @@ export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   const state = loadState(clientId);
   const slice = resolveQuestSlice(state);
   const daily = ensureDailyForToday(slice, questDayYmd(new Date()));
-  if (!daily.analyzeDone || !daily.alternativeDone) {
+  const ymd = daily.dateYmd;
+  if (!isDailyQuestPairComplete(daily, clientId, ymd)) {
     return getStreakToastSnapshot(clientId);
   }
-  const ymd = daily.dateYmd;
   const qs = normalizeQuestsSlice(state.quests);
   const dateSet = new Set(qs.dailyPairCompleteYmds || []);
   if (!dateSet.has(ymd)) {
@@ -399,6 +410,16 @@ export function markQuestAlternativeReceived(clientId: string): {
 } {
   const state = loadState(clientId);
   state.quests = questAfterAlternative(normalizeQuestsSlice(state.quests), new Date());
+  saveState(clientId, state);
+  return tryAdvanceStreakIfAllQuestsDone(clientId);
+}
+
+export function markQuestCompareDone(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+} {
+  const state = loadState(clientId);
+  state.quests = questAfterCompare(normalizeQuestsSlice(state.quests), new Date());
   saveState(clientId, state);
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
@@ -456,6 +477,32 @@ export function addToHistory(
   saveState(clientId, state);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
   return { id: itemId, item, streak };
+}
+
+/** 비교 결과를 최근 기록에 남김(퀘스트·스트릭은 호출부에서 이미 처리된 경우가 많음) */
+export function addCompareToHistory(
+  clientId: string,
+  payload: NonNullable<HistoryItem['comparePayload']>,
+): { id: string; item: HistoryItem } {
+  const state = loadState(clientId);
+  const list = state.history || [];
+  const itemId = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+  const na = (payload.productA.product?.productName || '').trim() || '제품 A';
+  const nb = (payload.productB.product?.productName || '').trim() || '제품 B';
+  const item: HistoryItem = {
+    id: itemId,
+    productName: `비교: ${na} · ${nb}`,
+    scannedAt: new Date().toISOString(),
+    maxRiskScore: Math.max(payload.productA.novaGroup || 4, payload.productB.novaGroup || 4),
+    result: payload.productA,
+    customProductName: null,
+    entryKind: 'compare',
+    comparePayload: payload,
+  };
+  list.unshift(item);
+  state.history = list.slice(0, 100);
+  saveState(clientId, state);
+  return { id: itemId, item };
 }
 
 export function updateProductName(

@@ -283,6 +283,37 @@ export function IconLock({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
+/** 표시 중 — 키·몸무게·BMI 보기 모드 */
+export function IconEye({ size = 24, className, ...p }: UiIconProps) {
+  return (
+    <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"
+        stroke="currentColor"
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={sw} />
+    </svg>
+  );
+}
+
+/** 숨김 — 가림 상태(눌러서 보기) */
+export function IconEyeOff({ size = 24, className, ...p }: UiIconProps) {
+  return (
+    <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"
+        stroke="currentColor"
+        strokeWidth={sw}
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={sw} />
+      <path d="M4 4l16 16" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /** 맞춤 안내 등 — 동심원 파동 느낌 */
 export function IconTargetRipple({ size = 24, className, ...p }: UiIconProps) {
   return (

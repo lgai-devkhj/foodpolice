@@ -1019,6 +1019,49 @@
       background: rgba(40, 52, 44, 0.95);
     }
 
+    .home-compare-callout {
+      margin: 8px 16px 0;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1.5px solid rgba(46, 125, 50, 0.35);
+      background: linear-gradient(145deg, rgba(46, 125, 50, 0.12) 0%, rgba(255, 255, 255, 0.55) 100%);
+      box-shadow: 0 6px 20px rgba(12, 48, 28, 0.08);
+      text-align: left;
+    }
+    [data-theme='dark'] .home-compare-callout,
+    html:not([data-theme='light']) .home-compare-callout {
+      background: linear-gradient(145deg, rgba(46, 125, 50, 0.22) 0%, rgba(30, 38, 34, 0.92) 100%);
+      border-color: rgba(102, 187, 106, 0.35);
+    }
+    .home-compare-callout-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--primary);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+    }
+    .home-compare-callout-title {
+      margin: 0 0 8px;
+      font-size: 1.02rem;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--text);
+    }
+    .home-compare-callout-sub {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      color: var(--text2);
+    }
+
     .compare-result-overlay {
       position: fixed;
       inset: 0;
@@ -1145,6 +1188,76 @@
     }
     .compare-result-done {
       margin-top: 4px;
+    }
+    .compare-result-grid--nova {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    @media (min-width: 520px) {
+      .compare-result-grid--nova {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .compare-result-nova-inner {
+      margin-top: 8px;
+      padding: 12px 14px;
+    }
+    .compare-result-nova-inner .nova-result-slab {
+      margin: 0;
+    }
+    .compare-result-nova-inner .nova-badge {
+      margin-top: 4px;
+    }
+
+    .tutorial-mode-pick-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 130;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      padding-bottom: calc(24px + var(--safe-bottom));
+      background: rgba(12, 22, 16, 0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .tutorial-mode-pick-panel {
+      width: 100%;
+      max-width: 380px;
+      padding: 24px 20px;
+      border-radius: 20px;
+      background: var(--card);
+      border: 1px solid var(--card-stroke);
+      box-shadow: var(--glass-shadow);
+    }
+    .tutorial-mode-pick-title {
+      margin: 0 0 10px;
+      font-size: 1.35rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--text);
+    }
+    .tutorial-mode-pick-lead {
+      margin: 0 0 18px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text2);
+      text-align: center;
+    }
+    .tutorial-mode-pick-btn {
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .tutorial-mode-pick-skip {
+      display: block;
+      margin: 14px auto 0;
+      width: 100%;
+      text-align: center;
+    }
+
+    .body-metrics-masked {
+      user-select: none;
     }
 
     .info-cards-wrap { margin-top: 0; }

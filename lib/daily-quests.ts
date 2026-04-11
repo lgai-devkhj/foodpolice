@@ -2,7 +2,13 @@
  * 듀오링고 스타일 일일 퀘스트(로컬 날짜 기준).
  */
 
-export type QuestId = 'analyze' | 'alternative' | 'tutorial' | 'knova' | 'bodyMeasurement';
+export type QuestId =
+  | 'analyze'
+  | 'alternative'
+  | 'compare'
+  | 'tutorial'
+  | 'knova'
+  | 'bodyMeasurement';
 
 export interface QuestLifetime {
   tutorialDone?: boolean;
@@ -13,6 +19,8 @@ export interface QuestDaily {
   dateYmd: string;
   analyzeDone: boolean;
   alternativeDone: boolean;
+  /** 상품 비교하기(제품 A·B 각 원재료+영양표) 완료 */
+  compareDone: boolean;
   bodyMeasurementDone: boolean;
 }
 
@@ -44,6 +52,7 @@ export function emptyQuestDaily(todayYmd: string): QuestDaily {
     dateYmd: todayYmd,
     analyzeDone: false,
     alternativeDone: false,
+    compareDone: false,
     bodyMeasurementDone: false,
   };
 }
@@ -71,6 +80,7 @@ export function normalizeQuestsSlice(raw: unknown): QuestsSlice {
       dateYmd,
       analyzeDone: d.analyzeDone === true,
       alternativeDone: d.alternativeDone === true,
+      compareDone: d.compareDone === true,
       bodyMeasurementDone: d.bodyMeasurementDone === true,
     };
   }
@@ -108,7 +118,7 @@ export interface QuestRowUi {
   done: boolean;
 }
 
-/** 매일 고정 2개(분석·대체)만 일일·스트릭에 반영. 문구는 날짜·사용자별로 바뀜 */
+/** 매일 2개(특정 상품·대체·비교 중 무작위 2종)만 일일·스트릭에 반영. 문구는 날짜·사용자별로 바뀜 */
 export interface QuestBoardUi {
   lead: string;
   dailyRows: QuestRowUi[];
@@ -200,6 +210,31 @@ function hashStringFnv(seed: string): number {
   return h;
 }
 
+/** 특정 상품 찍기 / 대체 식품 확인 / 상품 비교하기 — 매일 그중 2개만 배정 */
+export type DailyQuestPairSlot = 'analyze' | 'alternative' | 'compare';
+
+const DAILY_QUEST_PAIRS: Array<[DailyQuestPairSlot, DailyQuestPairSlot]> = [
+  ['analyze', 'alternative'],
+  ['analyze', 'compare'],
+  ['alternative', 'compare'],
+];
+
+/**
+ * 로컬 날짜·기기(clientId)마다 고정된 2슬롯(3종 중 2개 조합).
+ */
+export function pickDailyQuestPair(
+  clientId: string,
+  ymd: string,
+): [DailyQuestPairSlot, DailyQuestPairSlot] {
+  const h = hashStringFnv(`${clientId || 'local'}|${ymd}|pair`);
+  return DAILY_QUEST_PAIRS[Math.abs(h) % DAILY_QUEST_PAIRS.length]!;
+}
+
+const COMPARE_QUEST_UI = {
+  title: '제품 두 개 비교하기',
+  subtitle: '「상품 비교하기」로 A·B 각각 원재료·영양표(총 4장)',
+} as const;
+
 /** 표시 인덱스 체인 시작일(그 전 날은 raw 해시만 이전일 프록시로 사용) */
 const DISPLAY_FLAVOR_EPOCH_YMD = '2020-01-01';
 
@@ -281,25 +316,41 @@ export function buildQuestBoard(slice: QuestsSlice, now: Date, clientId = ''): Q
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(slice, todayYmd);
   const flavor = QUEST_FLAVORS[questFlavorIndexForToday(clientId, now)]!;
+  const pair = pickDailyQuestPair(clientId, todayYmd);
 
-  const dailyRows: QuestRowUi[] = [
-    {
-      id: 'analyze',
-      title: flavor.analyze.title,
-      subtitle: flavor.analyze.subtitle,
-      done: daily.analyzeDone,
-    },
-    {
-      id: 'alternative',
-      title: flavor.alt.title,
-      subtitle: flavor.alt.subtitle,
-      done: daily.alternativeDone,
-    },
-  ];
+  const lead = pair.includes('analyze')
+    ? flavor.lead
+    : '오늘의 미션 2개를 완료하면 스트릭이 올라가요.';
+
+  const dailyRows: QuestRowUi[] = [];
+  for (const slot of pair) {
+    if (slot === 'analyze') {
+      dailyRows.push({
+        id: 'analyze',
+        title: flavor.analyze.title,
+        subtitle: flavor.analyze.subtitle,
+        done: daily.analyzeDone,
+      });
+    } else if (slot === 'alternative') {
+      dailyRows.push({
+        id: 'alternative',
+        title: flavor.alt.title,
+        subtitle: flavor.alt.subtitle,
+        done: daily.alternativeDone,
+      });
+    } else {
+      dailyRows.push({
+        id: 'compare',
+        title: COMPARE_QUEST_UI.title,
+        subtitle: COMPARE_QUEST_UI.subtitle,
+        done: daily.compareDone,
+      });
+    }
+  }
   const dailyCompleted = dailyRows.filter((r) => r.done).length;
   const dailyTotal = dailyRows.length;
 
-  return { lead: flavor.lead, dailyRows, dailyCompleted, dailyTotal };
+  return { lead, dailyRows, dailyCompleted, dailyTotal };
 }
 
 export function resolveQuestSlice(state: {
@@ -335,6 +386,26 @@ export function questAfterAlternative(prev: QuestsSlice, now: Date): QuestsSlice
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
   return { ...prev, daily: { ...daily, alternativeDone: true } };
+}
+
+export function questAfterCompare(prev: QuestsSlice, now: Date): QuestsSlice {
+  const todayYmd = toLocalYmd(now);
+  const daily = ensureDailyForToday(prev, todayYmd);
+  return { ...prev, daily: { ...daily, compareDone: true } };
+}
+
+/** 오늘 배정된 2슬롯을 모두 완료했는지 */
+export function isDailyQuestPairComplete(
+  daily: QuestDaily,
+  clientId: string,
+  ymd: string,
+): boolean {
+  const pair = pickDailyQuestPair(clientId, ymd);
+  return pair.every((kind) => {
+    if (kind === 'analyze') return daily.analyzeDone;
+    if (kind === 'alternative') return daily.alternativeDone;
+    return daily.compareDone;
+  });
 }
 
 export function questAfterTutorial(prev: QuestsSlice): QuestsSlice {
