@@ -368,23 +368,45 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
   );
 }
 
+/** 제품 A·B 각각 원재료+영양표 2장씩, 총 4장 멀티모달 비교 */
+export function getCompareFourImagesPrompt(profile?: PersonalizationInput | null): string {
+  return (
+    getKoreanNovaCriteria(profile) +
+    '\n\n[상품 두 개 비교]\n' +
+    '아래 이미지 네 장은 **순서대로** 다음과 같다.\n' +
+    '1) 제품 A — 원재료·제품 표시(또는 앞면)\n' +
+    '2) 제품 A — 영양정보 표\n' +
+    '3) 제품 B — 원재료·제품 표시(또는 앞면)\n' +
+    '4) 제품 B — 영양정보 표\n\n' +
+    '[제품별 추출]\n' +
+    '제품 A는 JSON의 productA에, 제품 B는 productB에 각각 넣는다. 각 객체는 단일 제품 분석과 **동일한 필드·규칙**을 따른다.\n' +
+    getNutritionServingUnitRulesBlock() +
+    '\n' +
+    getNutritionTableRowsRulesBlock() +
+    '- 각 제품의 영양표가 보이면 nutrition에 숫자·tableRows를 채운다. 없으면 null.\n' +
+    '- OCR·철자 보정은 단일 분석과 동일(의미 유지 범위).\n\n' +
+    '[비교 결론 — 반드시 포함]\n' +
+    '- betterChoice: "A" | "B" | "similar" 중 하나.\n' +
+    '  - 기본: 한국형 NOVA 단계가 **더 낮은**(가공이 덜한) 쪽을 고른다.\n' +
+    '  - 둘 다 같은 novaGroup이면: 당·나트륨·포화지방·당류가 라벨상 유리한 쪽, Group IV면 4A→4B→4C 순으로 덜 강한 가공을 선호하는 경향을 반영한다.\n' +
+    '  - 카테고리가 완전히 달라 직접 비교가 어렵거나 정보가 부족하면 "similar" 또는 더 나은 쪽을 보수적으로 적고 comparisonSummary에 한 줄 이유를 쓴다.\n' +
+    '- comparisonSummary: **3~5문장**, 쉬운 한국어. 두 제품 NOVA·영양(당·나트륨 등) 차이를 짚고, 왜 한 쪽이 더 나은 선택일 수 있는지(또는 비슷한지) 설명한다.\n' +
+    '- recommendationLine: **한 줄** 요약(30자 이내 권장).\n' +
+    '- 의학 진단·치료 약속·섭취 횟수/허용량 숫자 규칙은 단일 분석과 동일하게 금지한다.\n\n' +
+    '응답은 JSON **한 개**만 출력한다.\n' +
+    '{"productA":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
+    '"productB":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
+    '"betterChoice":"A","comparisonSummary":"","recommendationLine":""}'
+  );
+}
+
 /** 일일 첫 퀘스트: AI가 촬영 제품이 미션 종류와 맞는지 판단하도록 프롬프트에 삽입 */
 export function getDailyQuestProductMatchBlock(targetLabel: string): string {
   return (
-    '\n\n[오늘의 미션 제품 일치 — 반드시 판단]\n' +
-    `앱에서 사용자는 오늘 첫 미션으로 「${targetLabel}」를 촬영하라고 안내받았다.\n` +
-    '이미지(원재료·앞면·포장 형태)를 보고, 실제로 그 종류의 식품이면 dailyQuestProductMatch: true, 아니면 false.\n' +
-    '판단 기준(이미지에 보이는 정보로만, 추측 최소화):\n' +
-    '- 삼각김밥: 편의점 삼각김밥·삼각 포장 조미 김밥류\n' +
-    '- 샌드위치: 빵 사이에 속재료가 있는 샌드위치·햄치즈샌드 등\n' +
-    '- 시리얼: 아침 시리얼·그래놀라·콘푸로스트 등 박스·봉지 시리얼\n' +
-    '- 요거트: 요거트·요구르트·그릭요거트 등 유제품 요거트\n' +
-    '- 냉동만두: 만두·교자·군만두·물만두 등 만두류\n' +
-    '- 에너지바: 에너지바·프로틴바·그래놀라바 등 막대형 에너지·단백 간식\n' +
-    '- 바나나우유: 바나나맛 우유·바나나우유\n' +
-    '- 쥬스: 과일·채소 주스·갈아만든 배 등 마시는 주스(탄산 콜라·사이다·일반 탄산음료는 쥬스 아님)\n' +
-    '다른 종류의 식품이거나 애매하면 false.\n' +
-    '반드시 JSON 루트에 "dailyQuestProductMatch": true 또는 false 를 포함한다.\n'
+    '\n\n[오늘 퀘스트 음식 일치 — 반드시 판단]\n' +
+    `오늘 퀘스트 음식은 「${targetLabel}」이다.\n` +
+    '이미지에 보이는 제품이 위 퀘스트 음식이면 dailyQuestProductMatch: true, 아니면 false(애매하면 false).\n' +
+    '추측은 최소화하고, 라벨·포장 형태로 판단한다. JSON 루트에 dailyQuestProductMatch: true|false 를 넣는다.\n'
   );
 }
 

@@ -7,13 +7,8 @@ import {
   GEMINI_MODEL,
 } from '@/lib/gemini-prompts';
 import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
-import {
-  computeBmiServer,
-  bmiCategoryKo,
-  computeDailyPercentages,
-  type NutritionDailyPercent,
-  type NutritionFactsInput,
-} from '@/lib/nutrition-daily';
+import { computeBmiServer, bmiCategoryKo } from '@/lib/nutrition-daily';
+import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -42,158 +37,6 @@ function requireClientId(clientId: string): void {
   if (!clientId || String(clientId).trim().length < 8) {
     throw new Error('clientId가 없습니다.');
   }
-}
-
-function numOrNull(v: unknown): number | null {
-  if (v == null || v === '') return null;
-  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
-  if (!Number.isFinite(n)) return null;
-  return n;
-}
-
-function parseNutritionTableRows(raw: unknown): { name: string; amount: string }[] {
-  const src = Array.isArray(raw) ? raw : null;
-  if (!src) return [];
-  const out: { name: string; amount: string }[] = [];
-  for (const item of src) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Record<string, unknown>;
-    const name = row.name != null ? String(row.name).trim() : '';
-    const amount = row.amount != null ? String(row.amount).trim() : '';
-    if (!name && !amount) continue;
-    out.push({
-      name: name || '항목',
-      amount: amount || '—',
-    });
-  }
-  return out;
-}
-
-function firstNumber(text: string): number | null {
-  const m = String(text).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
-  if (!m) return null;
-  const n = parseFloat(m[0]);
-  return Number.isFinite(n) ? n : null;
-}
-
-function amountToUnitValue(amount: string, expect: 'mg' | 'g' | 'kcal'): number | null {
-  const src = String(amount).replace(/,/g, '').toLowerCase();
-  const m = src.match(/(-?\d+(?:\.\d+)?)\s*(mg|g|kcal|㎎|ｇ|그램|밀리그램)?/);
-  if (!m) return null;
-  const n = parseFloat(m[1]);
-  if (!Number.isFinite(n)) return null;
-  const u = m[2] || '';
-  const unit = u === '㎎' || u === '밀리그램' ? 'mg' : u === 'ｇ' || u === '그램' ? 'g' : u;
-  if (expect === 'kcal') return n;
-  if (!unit) return n;
-  if (expect === unit) return n;
-  if (expect === 'mg' && unit === 'g') return n * 1000;
-  if (expect === 'g' && unit === 'mg') return n / 1000;
-  return n;
-}
-
-function inferFromTableRows(
-  rows: { name: string; amount: string }[],
-  nameRe: RegExp,
-  unit: 'mg' | 'g' | 'kcal'
-): number | null {
-  for (const row of rows) {
-    if (!nameRe.test(row.name)) continue;
-    const byUnit = amountToUnitValue(row.amount, unit);
-    if (byUnit != null) return byUnit;
-    const byNumber = firstNumber(row.amount);
-    if (byNumber != null) return byNumber;
-  }
-  return null;
-}
-
-function parseNutrition(raw: unknown): NutritionFactsInput | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const tableRows = parseNutritionTableRows(o.tableRows ?? o.nutritionTableRows);
-  const caloriesKcal =
-    numOrNull(o.caloriesKcal) ??
-    inferFromTableRows(tableRows, /(열량|칼로리|kcal|energy|calories?)/i, 'kcal');
-  const sodiumMg = numOrNull(o.sodiumMg) ?? inferFromTableRows(tableRows, /(나트륨|sodium)/i, 'mg');
-  const carbsG =
-    numOrNull(o.carbsG) ?? inferFromTableRows(tableRows, /(탄수화물|carb(?:ohydrate)?s?)/i, 'g');
-  const sugarG = numOrNull(o.sugarG) ?? inferFromTableRows(tableRows, /(당류|당\b|sugar)/i, 'g');
-  const proteinG = numOrNull(o.proteinG) ?? inferFromTableRows(tableRows, /(단백질|protein)/i, 'g');
-  const fatG = numOrNull(o.fatG) ?? inferFromTableRows(tableRows, /(^|[^가-힣])지방|total\s*fat/i, 'g');
-  const saturatedFatG =
-    numOrNull(o.saturatedFatG) ?? inferFromTableRows(tableRows, /(포화지방|saturated\s*fat)/i, 'g');
-  const transFatG =
-    numOrNull(o.transFatG) ?? inferFromTableRows(tableRows, /(트랜스지방|trans\s*fat)/i, 'g');
-  const cholesterolMg =
-    numOrNull(o.cholesterolMg) ?? inferFromTableRows(tableRows, /(콜레스테롤|cholesterol)/i, 'mg');
-  const dietaryFiberG =
-    numOrNull(o.dietaryFiberG) ?? inferFromTableRows(tableRows, /(식이섬유|fiber|fibre)/i, 'g');
-  const servingSizeText =
-    o.servingSizeText != null && String(o.servingSizeText).trim() ? String(o.servingSizeText).trim() : null;
-  /* 한국 라벨은 대개 1회 제공량 기준이 많아, 미표기 시 true로 둠 */
-  const basisIsPerServing = o.basisIsPerServing !== false;
-  if (
-    tableRows.length === 0 &&
-    caloriesKcal == null &&
-    sodiumMg == null &&
-    carbsG == null &&
-    sugarG == null &&
-    proteinG == null &&
-    fatG == null &&
-    saturatedFatG == null &&
-    transFatG == null &&
-    cholesterolMg == null &&
-    dietaryFiberG == null &&
-    !servingSizeText
-  ) {
-    return null;
-  }
-  return {
-    caloriesKcal,
-    sodiumMg,
-    carbsG,
-    sugarG,
-    proteinG,
-    fatG,
-    saturatedFatG,
-    transFatG,
-    cholesterolMg,
-    dietaryFiberG,
-    servingSizeText: servingSizeText ?? undefined,
-    basisIsPerServing,
-    tableRows: tableRows.length > 0 ? tableRows : undefined,
-  };
-}
-
-const FOOD_CATEGORIES = [
-  '음료',
-  '달콤한 간식',
-  '짭짤한 간식',
-  '간편한 한 끼',
-  '빵·시리얼류',
-  '유제품·디저트',
-] as const;
-
-function normalizeFoodCategory(v: unknown): string | null {
-  if (v == null) return null;
-  const s = String(v).trim();
-  if (FOOD_CATEGORIES.includes(s as (typeof FOOD_CATEGORIES)[number])) return s;
-  return s.length > 0 ? s : null;
-}
-
-function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
-  if (novaGroup !== 4) return null;
-  const s = v != null ? String(v).trim().toUpperCase() : '';
-  if (s === '4A' || s === '4B' || s === '4C') return s;
-  return null;
-}
-
-function isNutritionLabelLike(name: string): boolean {
-  const n = (name || '').trim().toLowerCase();
-  if (!n) return true;
-  return /(?:나트륨|당류|열량|칼로리|kcal|탄수화물|단백질|지방|포화지방|트랜스지방|콜레스테롤|식이섬유|탄수|protein|fat|carb|sodium|calorie|칼슘|칼륨|인\b|철\b|철분|마그네슘|아연|셀레늄|요오드|엽산|니아신|판토텐|티아민|리보플라빈|피리독신|비오틴|비타민|비타민a|비타민d|비타민c|비타민e|비타민k|비타민 b|회분|수분)/i.test(
-    n
-  );
 }
 
 export async function POST(request: NextRequest) {
@@ -273,6 +116,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.2,
           top_p: 0.95,
           top_k: 40,
+          maxOutputTokens: 2048,
         },
       }),
     });
@@ -307,56 +151,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '응답 파싱 실패' }, { status: 500 });
     }
 
-    const product = {
-      productName: (parsed.productName != null ? String(parsed.productName).trim() : '') as string,
-      companyName: (parsed.companyName != null ? String(parsed.companyName).trim() : '') as string,
-      rawMaterials: (parsed.rawMaterials != null ? String(parsed.rawMaterials).trim() : '') as string,
-    };
-    const novaGroup = Math.min(4, Math.max(1, parseInt(String(parsed.novaGroup), 10) || 4));
-    const concernIngredients = Array.isArray(parsed.concernIngredients)
-      ? (parsed.concernIngredients as Array<{ name?: string; explanation?: string }>)
-          .map((c) => ({ name: (c.name || '').trim(), explanation: (c.explanation || '').trim() }))
-          .filter((c) => c.name.length > 0 && !isNutritionLabelLike(c.name))
-          .slice(0, 3)
-      : [];
+    const dailyQuestProductMatch = questTargetValid && parsed.dailyQuestProductMatch === true;
 
-    const nutritionParsed = parseNutrition(parsed.nutrition);
-    const nutritionDailyPercent: NutritionDailyPercent | null = nutritionParsed
-      ? computeDailyPercentages(nutritionParsed)
-      : null;
-
-    const foodCategory = normalizeFoodCategory(parsed.foodCategory);
-    // 맞춤 참고는 서버 계산으로 재작성하지 않고, Gemini 응답 문구를 그대로 사용
-    const personalizedIntakeNote =
-      parsed.consumptionAdvice != null && String(parsed.consumptionAdvice).trim().length > 0
-        ? String(parsed.consumptionAdvice).trim()
-        : null;
-    const personalizedIntakeFootnote = null;
-
-    const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
-    // 대체 식품은 별도 /api/alternatives에서 비동기로 처리
-    let alternativeFoodText: string | null = null;
-    let alternativeFoodFromWebSearch = false;
-
-    const dailyQuestProductMatch =
-      questTargetValid && parsed.dailyQuestProductMatch === true;
+    const core = buildAnalysisResultFromGeminiObject(parsed, { dailyQuestProductMatch });
 
     const result = {
-      product,
-      novaGroup,
-      novaSubgroup,
-      judgmentReason: (parsed.judgmentReason && String(parsed.judgmentReason).trim()) || null,
-      concernIngredients,
-      briefDescription: (parsed.briefDescription && String(parsed.briefDescription).trim()) || null,
-      consumptionAdvice: (parsed.consumptionAdvice && String(parsed.consumptionAdvice).trim()) || null,
-      foodCategory,
-      nutrition: nutritionParsed,
-      nutritionDailyPercent,
-      personalizedIntakeNote,
-      personalizedIntakeFootnote,
-      alternativeFoodText,
-      alternativeFoodFromWebSearch,
-      dailyQuestProductMatch,
+      ...core,
+      alternativeFoodText: null,
+      alternativeFoodFromWebSearch: false,
     };
 
     return NextResponse.json(result);

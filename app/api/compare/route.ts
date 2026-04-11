@@ -1,0 +1,179 @@
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getCompareFourImagesPrompt,
+  normalizeGeminiJson,
+  GEMINI_MODEL,
+  type BmiTier,
+  type PersonalizationInput,
+} from '@/lib/gemini-prompts';
+import { computeBmiServer } from '@/lib/nutrition-daily';
+import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
+import type { AnalysisResult } from '@/lib/store';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+interface CompareBody {
+  clientId: string;
+  aRawImageBase64: string;
+  aRawMimeType?: string;
+  aNutritionImageBase64: string;
+  aNutritionMimeType?: string;
+  bRawImageBase64: string;
+  bRawMimeType?: string;
+  bNutritionImageBase64: string;
+  bNutritionMimeType?: string;
+  profile?: {
+    heightCm?: number;
+    weightKg?: number;
+    birthYear?: number | null;
+    birthDate?: string | null;
+    gender?: string | null;
+  };
+}
+
+function requireClientId(clientId: string): void {
+  if (!clientId || String(clientId).trim().length < 8) {
+    throw new Error('clientId가 없습니다.');
+  }
+}
+
+function profileToPersonalization(
+  profile?: CompareBody['profile']
+): PersonalizationInput | null {
+  const h = profile?.heightCm;
+  const w = profile?.weightKg;
+  if (h == null || w == null || Number(h) <= 0 || Number(w) <= 0) return null;
+  const bmi = computeBmiServer(Number(h), Number(w));
+  if (bmi == null) return null;
+  let bmiTier: BmiTier =
+    bmi < 18.5 ? 'underweight' : bmi <= 22.9 ? 'normal' : bmi <= 24.9 ? 'overweight' : 'obese';
+  return { bmiValue: bmi, bmiTier };
+}
+
+function normalizeBetterChoice(v: unknown): 'A' | 'B' | 'similar' {
+  const s = v != null ? String(v).trim().toUpperCase() : '';
+  if (s === 'A' || s === 'B') return s;
+  if (s === 'SIMILAR' || s === 'TIE' || s === '동일' || s === '같음') return 'similar';
+  return 'similar';
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body: CompareBody = await request.json();
+    const {
+      clientId,
+      aRawImageBase64,
+      aRawMimeType = 'image/jpeg',
+      aNutritionImageBase64,
+      aNutritionMimeType = 'image/jpeg',
+      bRawImageBase64,
+      bRawMimeType = 'image/jpeg',
+      bNutritionImageBase64,
+      bNutritionMimeType = 'image/jpeg',
+      profile,
+    } = body;
+
+    requireClientId(clientId);
+
+    if (!aRawImageBase64 || !aNutritionImageBase64 || !bRawImageBase64 || !bNutritionImageBase64) {
+      return NextResponse.json({ error: '제품 A·B 각각 원재료·영양표 이미지가 필요해요.' }, { status: 400 });
+    }
+
+    const key = process.env.GEMINI_API_KEY;
+    if (!key || key.length === 0) {
+      return NextResponse.json(
+        { error: 'Gemini API 키를 설정해 주세요. (환경 변수 GEMINI_API_KEY)' },
+        { status: 500 }
+      );
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile));
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inline_data: { mime_type: aRawMimeType, data: aRawImageBase64 } },
+              { inline_data: { mime_type: aNutritionMimeType, data: aNutritionImageBase64 } },
+              { inline_data: { mime_type: bRawMimeType, data: bRawImageBase64 } },
+              { inline_data: { mime_type: bNutritionMimeType, data: bNutritionImageBase64 } },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+          temperature: 0.2,
+          top_p: 0.95,
+          top_k: 40,
+          maxOutputTokens: 3072,
+        },
+      }),
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = text;
+      try {
+        const err = JSON.parse(text);
+        if (err?.error?.message) msg = err.error.message;
+      } catch {
+        /* ignore */
+      }
+      return NextResponse.json({ error: 'Gemini 오류: ' + msg }, { status: res.status });
+    }
+
+    const data = JSON.parse(text);
+    const parts = data?.candidates?.[0]?.content?.parts ?? [];
+    if (parts.length === 0 || !parts[0].text) {
+      return NextResponse.json(
+        { error: 'Gemini가 응답 내용을 반환하지 않았습니다.' },
+        { status: 500 }
+      );
+    }
+
+    const raw = parts[0].text;
+    const normalized = normalizeGeminiJson(raw);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(normalized);
+    } catch {
+      return NextResponse.json({ error: '응답 파싱 실패' }, { status: 500 });
+    }
+
+    const rawA = parsed.productA;
+    const rawB = parsed.productB;
+    if (!rawA || typeof rawA !== 'object' || !rawB || typeof rawB !== 'object') {
+      return NextResponse.json({ error: '비교 응답 형식이 올바르지 않아요.' }, { status: 500 });
+    }
+
+    const productA: AnalysisResult = buildAnalysisResultFromGeminiObject(
+      rawA as Record<string, unknown>,
+      { dailyQuestProductMatch: false }
+    );
+    const productB: AnalysisResult = buildAnalysisResultFromGeminiObject(
+      rawB as Record<string, unknown>,
+      { dailyQuestProductMatch: false }
+    );
+
+    const betterChoice = normalizeBetterChoice(parsed.betterChoice);
+    const comparisonSummary = (parsed.comparisonSummary != null ? String(parsed.comparisonSummary) : '').trim();
+    const recommendationLine = (parsed.recommendationLine != null ? String(parsed.recommendationLine) : '').trim();
+
+    return NextResponse.json({
+      productA,
+      productB,
+      betterChoice,
+      comparisonSummary,
+      recommendationLine,
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : '서버 오류';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

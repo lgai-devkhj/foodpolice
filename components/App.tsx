@@ -62,7 +62,6 @@ import {
   IconCamera,
   IconImage,
   IconAlert,
-  IconSpinner,
   IconSettings,
   IconUser,
   IconTrash,
@@ -76,11 +75,15 @@ import {
   IconLock,
   IconCheck,
   IconFlame,
+  IconCompare,
 } from '@/components/ui-icons';
 
 /** 대체 식품 퀘스트: 스크롤하는 동안만 경과 시간(초) 누적 */
 const ALT_QUEST_REQUIRED_SEC = 5;
-const ALT_SCROLL_ACTIVITY_MS = 340;
+/** 마지막 스크롤 이후 이 시간 안이면 ‘읽는 중’으로 간주해 초를 누적 (너무 짧으면 짧은 스크롤 사이에 타이머가 끊겨 보임) */
+const ALT_SCROLL_ACTIVITY_MS = 1100;
+/** 누적 목표 달성 판정 시 동일 여유(초) */
+const ALT_QUEST_SEC_EPSILON = 0.05;
 
 /** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
@@ -923,6 +926,21 @@ function birthYearDisplayFromProfile(p: Profile): string {
   return `${y}년생 (한국나이 ${age}세)`;
 }
 
+/** 스트릭 축하 토스트(매번 `id` 증가 → 마운트 시 애니메이션 재생) */
+type StreakToastPayload = {
+  message: string;
+  days: number;
+  id: number;
+};
+
+/** 3·7·14일 구간별 불·글로우 강도 (0: 기본 ~ 3: 최고) */
+function streakCelebrationTier(days: number): 0 | 1 | 2 | 3 {
+  if (days >= 14) return 3;
+  if (days >= 7) return 2;
+  if (days >= 3) return 1;
+  return 0;
+}
+
 function BirthYearSelect({
   value,
   onChange,
@@ -958,7 +976,8 @@ export default function App() {
   const [history, setHistoryList] = useState<HistoryItem[]>([]);
   /** 로컬 달력 기준 연속 분석 일수(듀오링고 스트릭) */
   const [analysisStreak, setAnalysisStreak] = useState({ displayCurrent: 0, longest: 0 });
-  const [streakToast, setStreakToast] = useState<string | null>(null);
+  const [streakToast, setStreakToast] = useState<StreakToastPayload | null>(null);
+  const streakToastAnimIdRef = useRef(0);
   const [showStreakWeekSheet, setShowStreakWeekSheet] = useState(false);
   const [weekStreakSheet, setWeekStreakSheet] = useState<ReturnType<typeof getWeekStreakSheetData> | null>(
     null,
@@ -972,6 +991,26 @@ export default function App() {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
+  /** 홈: 단일 분석 vs 두 제품 비교 */
+  const [homeProductMode, setHomeProductMode] = useState<'analyze' | 'compare'>('analyze');
+  const [compareSlot, setCompareSlot] = useState<'A' | 'B'>('A');
+  const [comparePairA, setComparePairA] = useState<{
+    raw: string;
+    rawMime: string;
+    nut: string;
+    nutMime: string;
+  } | null>(null);
+  const comparePairARef = useRef<typeof comparePairA>(null);
+  const homeProductModeRef = useRef(homeProductMode);
+  const compareSlotRef = useRef(compareSlot);
+  const [showCompareResult, setShowCompareResult] = useState(false);
+  const [compareApiResult, setCompareApiResult] = useState<{
+    productA: AnalysisResult;
+    productB: AnalysisResult;
+    betterChoice: 'A' | 'B' | 'similar';
+    comparisonSummary: string;
+    recommendationLine: string;
+  } | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsPage, setSettingsPage] = useState<'list' | 'display' | 'profile'>('list');
@@ -1018,6 +1057,7 @@ export default function App() {
   const [cameraStepChipPulse, setCameraStepChipPulse] = useState(false);
   const [rawImageBase64, setRawImageBase64] = useState<string | null>(null);
   const [rawImageMimeType, setRawImageMimeType] = useState<string>('image/jpeg');
+  const rawImageMimeRef = useRef(rawImageMimeType);
   const [nutritionImageBase64, setNutritionImageBase64] = useState<string | null>(null);
   const [nutritionImageMimeType, setNutritionImageMimeType] = useState<string>('image/jpeg');
   const [showOnboardingCompleteModal, setShowOnboardingCompleteModal] = useState(false);
@@ -1032,6 +1072,16 @@ export default function App() {
     showTutorialRef.current = showTutorial;
     tutorialPhaseRef.current = tutorialPhase;
   }, [showTutorial, tutorialPhase]);
+
+  useEffect(() => {
+    homeProductModeRef.current = homeProductMode;
+  }, [homeProductMode]);
+  useEffect(() => {
+    compareSlotRef.current = compareSlot;
+  }, [compareSlot]);
+  useEffect(() => {
+    rawImageMimeRef.current = rawImageMimeType;
+  }, [rawImageMimeType]);
 
   const TUTORIAL_STEP_TOTAL = TUTORIAL_PHASE_SEQUENCE.length;
   const tutorialCoachActive =
@@ -1067,6 +1117,10 @@ export default function App() {
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    comparePairARef.current = comparePairA;
+  }, [comparePairA]);
 
   useEffect(() => {
     setClientId(getClientId());
@@ -1193,10 +1247,13 @@ export default function App() {
   const notifyStreakFromQuest = useCallback(
     (streak: { displayCurrent: number; didIncrease: boolean }) => {
       if (!streak.didIncrease) return;
-      setStreakToast(
-        `오늘 퀘스트 2개, 다 해냈어요. ${streak.displayCurrent}일 연속이에요.`,
-      );
-      window.setTimeout(() => setStreakToast(null), 2600);
+      streakToastAnimIdRef.current += 1;
+      setStreakToast({
+        message: `오늘 퀘스트 2개, 다 해냈어요. ${streak.displayCurrent}일 연속이에요.`,
+        days: streak.displayCurrent,
+        id: streakToastAnimIdRef.current,
+      });
+      window.setTimeout(() => setStreakToast(null), 3400);
     },
     [],
   );
@@ -1204,7 +1261,7 @@ export default function App() {
   const tryCompleteAltQuest = useCallback(() => {
     if (!clientId || !currentResult) return;
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
-    if (altQuestAccumSecRef.current < ALT_QUEST_REQUIRED_SEC - 0.05) return;
+    if (altQuestAccumSecRef.current < ALT_QUEST_REQUIRED_SEC - ALT_QUEST_SEC_EPSILON) return;
     if (!altQuestDetailsOpenRef.current) return;
     const r = currentResult;
     if ((r.novaGroup === 3 || r.novaGroup === 4) && r.alternativeFoodLoaded === false) return;
@@ -1234,7 +1291,6 @@ export default function App() {
   const runAnalyze = useCallback(
     async (base64: string, mimeType: string) => {
       if (!clientId) return;
-      const startedAt = performance.now();
       setLoading(true);
       setLoadingText('분석하고 있어요');
       setError('');
@@ -1250,16 +1306,18 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const body = JSON.stringify({
+          clientId,
+          imageBase64: base64,
+          mimeType,
+          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
+          ...(profilePayload ? { profile: profilePayload } : {}),
+        });
+        const startedAt = performance.now();
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId,
-            imageBase64: base64,
-            mimeType,
-            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
-            ...(profilePayload ? { profile: profilePayload } : {}),
-          }),
+          body,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
@@ -1315,7 +1373,6 @@ export default function App() {
       nutritionMimeType: string
     ) => {
       if (!clientId) return;
-      const startedAt = performance.now();
       setLoading(true);
       setLoadingText('분석하고 있어요');
       setError('');
@@ -1331,18 +1388,20 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const body = JSON.stringify({
+          clientId,
+          rawImageBase64: rawBase64,
+          rawMimeType,
+          nutritionImageBase64: nutritionBase64,
+          nutritionMimeType,
+          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
+          ...(profilePayload ? { profile: profilePayload } : {}),
+        });
+        const startedAt = performance.now();
         const res = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId,
-            rawImageBase64: rawBase64,
-            rawMimeType,
-            nutritionImageBase64: nutritionBase64,
-            nutritionMimeType,
-            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
-            ...(profilePayload ? { profile: profilePayload } : {}),
-          }),
+          body,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
@@ -1388,6 +1447,80 @@ export default function App() {
       }
     },
     [clientId, refreshHistory, profile, notifyStreakFromQuest]
+  );
+
+  const runCompareProducts = useCallback(
+    async (
+      pairA: { raw: string; rawMime: string; nut: string; nutMime: string },
+      pairB: { raw: string; rawMime: string; nut: string; nutMime: string }
+    ) => {
+      if (!clientId) return;
+      setLoading(true);
+      setLoadingText('두 제품 비교 중이에요');
+      setError('');
+      try {
+        const p = getProfileWithLatestMeasurement(profile);
+        const profilePayload =
+          p.heightCm != null && p.weightKg != null && p.heightCm > 0 && p.weightKg > 0
+            ? {
+                heightCm: p.heightCm,
+                weightKg: p.weightKg,
+                ...(p.birthYear != null ? { birthYear: p.birthYear } : {}),
+                ...(!p.birthYear && p.birthDate ? { birthDate: p.birthDate } : {}),
+                ...(p.gender ? { gender: p.gender } : {}),
+              }
+            : undefined;
+        const res = await fetch('/api/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId,
+            aRawImageBase64: pairA.raw,
+            aRawMimeType: pairA.rawMime,
+            aNutritionImageBase64: pairA.nut,
+            aNutritionMimeType: pairA.nutMime,
+            bRawImageBase64: pairB.raw,
+            bRawMimeType: pairB.rawMime,
+            bNutritionImageBase64: pairB.nut,
+            bNutritionMimeType: pairB.nutMime,
+            ...(profilePayload ? { profile: profilePayload } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '비교에 실패했어요. 다시 시도해 주세요.');
+        if (cameraStreamRef.current) {
+          cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+          cameraStreamRef.current = null;
+        }
+        if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+        setCompareApiResult(
+          data as {
+            productA: AnalysisResult;
+            productB: AnalysisResult;
+            betterChoice: 'A' | 'B' | 'similar';
+            comparisonSummary: string;
+            recommendationLine: string;
+          }
+        );
+        setShowCompareResult(true);
+        setShowHome(false);
+        setShowCamera(false);
+        setCapturedPreviewDataUrl(null);
+        setCaptureStep(1);
+        captureStepRef.current = 1;
+        setCompareSlot('A');
+        setComparePairA(null);
+        comparePairARef.current = null;
+        setRawImageBase64(null);
+        rawImageBase64Ref.current = null;
+        setNutritionImageBase64(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '비교에 실패했어요.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clientId, profile]
   );
 
   const renderResult = useCallback(
@@ -1861,7 +1994,7 @@ export default function App() {
     if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return null;
     const ng = currentResult.novaGroup ?? 0;
     if (ng < 1 || ng > 4) return null;
-    const scrollMet = altQuestScrollSecAccum >= ALT_QUEST_REQUIRED_SEC - 0.02;
+    const scrollMet = altQuestScrollSecAccum >= ALT_QUEST_REQUIRED_SEC - ALT_QUEST_SEC_EPSILON;
     const secLeft = Math.max(0, Math.ceil(ALT_QUEST_REQUIRED_SEC - altQuestScrollSecAccum));
     const recentlyScrolling =
       performance.now() - altQuestLastScrollRef.current < ALT_SCROLL_ACTIVITY_MS;
@@ -1917,6 +2050,11 @@ export default function App() {
     captureStepRef.current = 1;
     setRawImageBase64(null);
     setNutritionImageBase64(null);
+    if (homeProductMode === 'compare') {
+      setCompareSlot('A');
+      setComparePairA(null);
+      comparePairARef.current = null;
+    }
     if (isLikelyDesktop) {
       setUploadSource('gallery');
       // 튜토리얼 중 데스크톱: 예시 오버레이 먼저 → 확인 후 앨범
@@ -1933,7 +2071,7 @@ export default function App() {
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, isLikelyDesktop, showTutorial, tutorialPhase]);
+  }, [startCamera, isLikelyDesktop, showTutorial, tutorialPhase, homeProductMode]);
 
   const dismissDesktopRecommend = useCallback(() => {
     try {
@@ -2138,6 +2276,55 @@ export default function App() {
     const base64 = capturedPreviewDataUrl.split(',')[1];
     const mime = capturedPreviewMimeType || 'image/jpeg';
     setCapturedPreviewDataUrl(null);
+
+    if (homeProductMode === 'compare' && !showTutorial) {
+      if (captureStep === 1) {
+        setRawImageBase64(base64 || '');
+        rawImageBase64Ref.current = base64 || '';
+        setRawImageMimeType(mime);
+        setCaptureStep(2);
+        captureStepRef.current = 2;
+        setCaptureStepGuide(2);
+        startCamera();
+        return;
+      }
+      if (!rawImageBase64) {
+        setError('먼저 원재료 사진을 골라 주세요');
+        return;
+      }
+      if (compareSlot === 'A') {
+        const pairA = {
+          raw: rawImageBase64,
+          rawMime: rawImageMimeType,
+          nut: base64 || '',
+          nutMime: mime,
+        };
+        setComparePairA(pairA);
+        comparePairARef.current = pairA;
+        setCompareSlot('B');
+        setRawImageBase64(null);
+        rawImageBase64Ref.current = null;
+        setNutritionImageBase64(null);
+        setCaptureStep(1);
+        captureStepRef.current = 1;
+        setCaptureStepGuide(1);
+        startCamera();
+        return;
+      }
+      const pa = comparePairARef.current;
+      if (!pa) {
+        setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
+        return;
+      }
+      runCompareProducts(pa, {
+        raw: rawImageBase64,
+        rawMime: rawImageMimeType,
+        nut: base64 || '',
+        nutMime: mime,
+      });
+      return;
+    }
+
     if (captureStep === 1) {
       setRawImageBase64(base64 || '');
       rawImageBase64Ref.current = base64 || '';
@@ -2170,6 +2357,9 @@ export default function App() {
     showTutorial,
     tutorialPhase,
     finishTutorial,
+    homeProductMode,
+    compareSlot,
+    runCompareProducts,
   ]);
 
   const retakePhoto = useCallback(() => {
@@ -2204,6 +2394,70 @@ export default function App() {
         const mime = (file.type || 'image/jpeg').toLowerCase();
         const normalizedMime = mime.startsWith('image/') ? mime : 'image/jpeg';
         const currentStep = captureStepRef.current;
+        const isCompare = homeProductModeRef.current === 'compare' && !showTutorialRef.current;
+
+        if (isCompare) {
+          if (currentStep === 1) {
+            setRawImageBase64(base64 || '');
+            rawImageBase64Ref.current = base64 || '';
+            setRawImageMimeType(normalizedMime);
+            setCaptureStep(2);
+            captureStepRef.current = 2;
+            setCaptureStepGuide(2);
+            if (uploadSource === 'gallery') {
+              setCapturedPreviewDataUrl(null);
+              window.setTimeout(() => galleryInputRef.current?.click(), 0);
+            } else if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+              startCamera();
+            } else {
+              fileInputRef.current?.click();
+            }
+            return;
+          }
+          if (!rawImageBase64Ref.current) {
+            setError('먼저 원재료 사진을 골라 주세요');
+            return;
+          }
+          if (compareSlotRef.current === 'A') {
+            const pairA = {
+              raw: rawImageBase64Ref.current,
+              rawMime: rawImageMimeRef.current,
+              nut: base64 || '',
+              nutMime: normalizedMime,
+            };
+            setComparePairA(pairA);
+            comparePairARef.current = pairA;
+            setCompareSlot('B');
+            setRawImageBase64(null);
+            rawImageBase64Ref.current = null;
+            setNutritionImageBase64(null);
+            setCaptureStep(1);
+            captureStepRef.current = 1;
+            setCaptureStepGuide(1);
+            if (uploadSource === 'gallery') {
+              setCapturedPreviewDataUrl(null);
+              window.setTimeout(() => galleryInputRef.current?.click(), 0);
+            } else if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+              startCamera();
+            } else {
+              fileInputRef.current?.click();
+            }
+            return;
+          }
+          const pa = comparePairARef.current;
+          if (!pa) {
+            setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
+            return;
+          }
+          runCompareProducts(pa, {
+            raw: rawImageBase64Ref.current,
+            rawMime: rawImageMimeRef.current,
+            nut: base64 || '',
+            nutMime: normalizedMime,
+          });
+          return;
+        }
+
         if (currentStep === 1) {
           setRawImageBase64(base64 || '');
           rawImageBase64Ref.current = base64 || '';
@@ -2251,9 +2505,11 @@ export default function App() {
       rawImageBase64,
       rawImageMimeType,
       runAnalyzeTwoImages,
+      runCompareProducts,
       stopCamera,
       startCamera,
       finishTutorial,
+      uploadSource,
     ]
   );
 
@@ -2427,7 +2683,17 @@ export default function App() {
                 aria-hidden
               />
               <span className="camera-guide-label">
-                {captureStep === 1 ? '원재료명이 보이게 찍어 주세요' : '영양정보 표가 보이게 찍어 주세요'}
+                {homeProductMode === 'compare' && !showTutorial
+                  ? compareSlot === 'A'
+                    ? captureStep === 1
+                      ? '제품 A · 원재료명이 보이게 찍어 주세요'
+                      : '제품 A · 영양정보 표가 보이게 찍어 주세요'
+                    : captureStep === 1
+                      ? '제품 B · 원재료명이 보이게 찍어 주세요'
+                      : '제품 B · 영양정보 표가 보이게 찍어 주세요'
+                  : captureStep === 1
+                    ? '원재료명이 보이게 찍어 주세요'
+                    : '영양정보 표가 보이게 찍어 주세요'}
               </span>
             </div>
             <div
@@ -2438,7 +2704,17 @@ export default function App() {
               <span className="step-sep">/</span>
               <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
               <span className="step-text">
-                {captureStep === 1 ? '1단계 · 원재료 촬영' : '2단계 · 영양정보 표 촬영'}
+                {homeProductMode === 'compare' && !showTutorial
+                  ? compareSlot === 'A'
+                    ? captureStep === 1
+                      ? '1/4 · 제품 A 원재료'
+                      : '2/4 · 제품 A 영양표'
+                    : captureStep === 1
+                      ? '3/4 · 제품 B 원재료'
+                      : '4/4 · 제품 B 영양표'
+                  : captureStep === 1
+                    ? '1단계 · 원재료 촬영'
+                    : '2단계 · 영양정보 표 촬영'}
               </span>
             </div>
             <div className="camera-bottom-row">
@@ -2478,7 +2754,7 @@ export default function App() {
               <IconImage size={20} />
               앨범
             </button>
-            {captureStep === 2 && (
+            {captureStep === 2 && homeProductMode !== 'compare' && (
               <button
                 type="button"
                 className="camera-no-nutrition-btn"
@@ -2489,7 +2765,17 @@ export default function App() {
               </button>
             )}
             <p className="camera-hint">
-              {captureStep === 1 ? '1/2: 포장 뒷면(원재료) 촬영' : '2/2: 영양정보 표 촬영'}
+              {homeProductMode === 'compare' && !showTutorial
+                ? compareSlot === 'A'
+                  ? captureStep === 1
+                    ? '1/4: 제품 A 원재료'
+                    : '2/4: 제품 A 영양표'
+                  : captureStep === 1
+                    ? '3/4: 제품 B 원재료'
+                    : '4/4: 제품 B 영양표'
+                : captureStep === 1
+                  ? '1/2: 포장 뒷면(원재료) 촬영'
+                  : '2/2: 영양정보 표 촬영'}
             </p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
           </div>
@@ -2585,7 +2871,17 @@ export default function App() {
             onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
           />
           <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
-            {captureStep === 1 ? '1/2 · 원재료' : '2/2 · 영양정보 표'}
+            {homeProductMode === 'compare' && !showTutorial
+              ? compareSlot === 'A'
+                ? captureStep === 1
+                  ? '1/4 · 제품 A 원재료'
+                  : '2/4 · 제품 A 영양표'
+                : captureStep === 1
+                  ? '3/4 · 제품 B 원재료'
+                  : '4/4 · 제품 B 영양표'
+              : captureStep === 1
+                ? '1/2 · 원재료'
+                : '2/2 · 영양정보 표'}
           </p>
           <div className="capture-preview-actions">
             <button type="button" className="capture-preview-btn retake" onClick={retakePhoto}>
@@ -2597,7 +2893,13 @@ export default function App() {
               className="capture-preview-btn confirm"
               onClick={confirmCapturedImage}
             >
-              {captureStep === 1 ? '다음(영양정보 표)' : '분석하기'}
+              {captureStep === 1
+                ? '다음(영양정보 표)'
+                : homeProductMode === 'compare' && !showTutorial
+                  ? compareSlot === 'A'
+                    ? '다음(제품 B)'
+                    : '비교하기'
+                  : '분석하기'}
             </button>
           </div>
         </div>
@@ -2866,32 +3168,27 @@ export default function App() {
       )}
 
       {streakToast && (
-        <div className="streak-toast-overlay">
-          <div className="streak-toast-fire-canvas" aria-hidden>
-            <div className="streak-toast-fire streak-toast-fire--fill" />
-            <div className="streak-toast-fire streak-toast-fire--rim" />
-            <div className="streak-toast-fire streak-toast-fire--swirl" />
-            <div className="streak-toast-fire streak-toast-fire--ember" />
-            {[...Array(22)].map((_, i) => (
-              <span
-                key={i}
-                className="streak-toast-spark"
-                style={
-                  {
-                    left: `${(i * 41 + 11) % 88}%`,
-                    bottom: `${12 + (i % 6) * 11}%`,
-                    animationDelay: `${i * 0.055}s`,
-                    '--spark-dx': `${(((i * 5) % 9) - 4) * 18}px`,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
+        <div
+          key={streakToast.id}
+          className="streak-toast-overlay streak-toast-overlay--celebrate"
+          data-streak-celebration-tier={streakCelebrationTier(streakToast.days)}
+        >
+          <div className="streak-toast-rise-lane" aria-hidden>
+            <div className="streak-rise-ribbon streak-rise-ribbon--1" />
+            <div className="streak-rise-ribbon streak-rise-ribbon--2" />
+            <div className="streak-rise-ribbon streak-rise-ribbon--3" />
           </div>
-          <div className="streak-toast" role="status" aria-live="polite">
-            <span className="streak-toast-flame" aria-hidden>
+          <div className="streak-toast-fire-canvas" aria-hidden>
+            <div className="streak-toast-fire streak-toast-fire--fill streak-toast-fire--celebrate-fill" />
+            <div className="streak-toast-fire streak-toast-fire--rim streak-toast-fire--celebrate-muted" />
+            <div className="streak-toast-fire streak-toast-fire--swirl streak-toast-fire--celebrate-muted" />
+            <div className="streak-toast-fire streak-toast-fire--ember streak-toast-fire--celebrate-muted" />
+          </div>
+          <div className="streak-toast streak-toast--celebrate" role="status" aria-live="polite">
+            <span className="streak-toast-flame streak-toast-flame--celebrate" aria-hidden>
               <IconFlame size={28} />
             </span>
-            <span className="streak-toast-text">{streakToast}</span>
+            <span className="streak-toast-text">{streakToast.message}</span>
           </div>
         </div>
       )}
@@ -2908,7 +3205,8 @@ export default function App() {
               !showInfoPhoto &&
               !showAddMeasurement &&
               !showMeasurementHistory &&
-              !showBmiGraph && (
+              !showBmiGraph &&
+              !showCompareResult && (
                 <div className="home-top-bar">
                   <div className="home-top-bar-left">
                     <button
@@ -2958,6 +3256,28 @@ export default function App() {
                 <br />
                 원재료·NOVA·영양 비율을 알려 드릴게요
               </h2>
+              <div className="home-product-mode-row" role="group" aria-label="기능 선택">
+                <button
+                  type="button"
+                  className={`home-mode-btn${homeProductMode === 'analyze' ? ' home-mode-btn--active' : ''}`}
+                  onClick={() => setHomeProductMode('analyze')}
+                >
+                  상품 분석하기
+                </button>
+                <button
+                  type="button"
+                  className={`home-mode-btn${homeProductMode === 'compare' ? ' home-mode-btn--active' : ''}`}
+                  onClick={() => {
+                    setHomeProductMode('compare');
+                    setCompareSlot('A');
+                    setComparePairA(null);
+                    comparePairARef.current = null;
+                  }}
+                >
+                  <IconCompare size={18} aria-hidden />
+                  상품 비교하기
+                </button>
+              </div>
             </div>
             {onboardingCompleted &&
               !showOnboarding &&
@@ -2971,7 +3291,8 @@ export default function App() {
               !showInfoPhoto &&
               !showAddMeasurement &&
               !showMeasurementHistory &&
-              !showBmiGraph && (
+              !showBmiGraph &&
+              !showCompareResult && (
                 <div className="daily-quest-card" aria-label="오늘의 퀘스트">
                   <div className="daily-quest-header">
                     <span className="daily-quest-icon" aria-hidden>
@@ -3006,8 +3327,10 @@ export default function App() {
               <div className="loading-callout-wrap">
                 <div className="card loading-card" id="loadingCard">
                   <div className="loading">
-                    <span className="loading-spinner" aria-hidden>
-                      <IconSpinner size={28} />
+                    <span className="loading-dots" aria-hidden>
+                      <span className="loading-dot" />
+                      <span className="loading-dot" />
+                      <span className="loading-dot" />
                     </span>
                     <span id="loadingText">{loadingText}</span>
                   </div>
@@ -3073,25 +3396,63 @@ export default function App() {
                     type="button"
                     className="fab"
                     id="fabUpload"
-                    aria-label={isLikelyDesktop ? '포장 사진 파일 업로드' : '카메라로 포장 촬영'}
+                    aria-label={
+                      homeProductMode === 'compare'
+                        ? isLikelyDesktop
+                          ? '비교할 제품 사진 앨범에서 선택'
+                          : '비교할 제품 카메라로 촬영'
+                        : isLikelyDesktop
+                          ? '포장 사진 파일 업로드'
+                          : '카메라로 포장 촬영'
+                    }
                     onClick={triggerUpload}
                   >
                     <span className="fab-pulse" aria-hidden />
                     <span className="fab-pulse fab-pulse--2" aria-hidden />
                     <span className="fab-pulse fab-pulse--3" aria-hidden />
-                    {isLikelyDesktop ? <IconImage size={34} /> : <IconCamera size={34} />}
+                    {homeProductMode === 'compare' ? (
+                      <IconCompare size={32} />
+                    ) : isLikelyDesktop ? (
+                      <IconImage size={34} />
+                    ) : (
+                      <IconCamera size={34} />
+                    )}
                   </button>
-                  <span className="fab-label">{isLikelyDesktop ? '업로드' : '촬영'}</span>
+                  <span className="fab-label">
+                    {homeProductMode === 'compare'
+                      ? isLikelyDesktop
+                        ? '앨범'
+                        : '촬영'
+                      : isLikelyDesktop
+                        ? '업로드'
+                        : '촬영'}
+                  </span>
                 </div>
               </div>
               <span className="fab-label" style={{ marginTop: 4 }}>
-                {captureStep === 1
-                  ? uploadSource === 'gallery'
-                    ? '1/2 · 원재료(앨범 선택)'
-                    : '1/2 · 원재료(촬영)'
-                  : uploadSource === 'gallery'
-                    ? '2/2 · 영양정보 표(앨범 선택)'
-                    : '2/2 · 영양정보 표(촬영)'}
+                {homeProductMode === 'compare'
+                  ? compareSlot === 'A'
+                    ? captureStep === 1
+                      ? uploadSource === 'gallery'
+                        ? '1/4 · 제품 A 원재료(앨범)'
+                        : '1/4 · 제품 A 원재료(촬영)'
+                      : uploadSource === 'gallery'
+                        ? '2/4 · 제품 A 영양표(앨범)'
+                        : '2/4 · 제품 A 영양표(촬영)'
+                    : captureStep === 1
+                      ? uploadSource === 'gallery'
+                        ? '3/4 · 제품 B 원재료(앨범)'
+                        : '3/4 · 제품 B 원재료(촬영)'
+                      : uploadSource === 'gallery'
+                        ? '4/4 · 제품 B 영양표(앨범)'
+                        : '4/4 · 제품 B 영양표(촬영)'
+                  : captureStep === 1
+                    ? uploadSource === 'gallery'
+                      ? '1/2 · 원재료(앨범 선택)'
+                      : '1/2 · 원재료(촬영)'
+                    : uploadSource === 'gallery'
+                      ? '2/2 · 영양정보 표(앨범 선택)'
+                      : '2/2 · 영양정보 표(촬영)'}
               </span>
             </div>
           </div>
@@ -3186,6 +3547,99 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {showCompareResult && compareApiResult && (
+        <div
+          className="compare-result-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="compare-result-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCompareResult(false);
+              setShowHome(true);
+              setCompareApiResult(null);
+            }
+          }}
+        >
+          <div className="compare-result-panel" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="compare-result-close"
+              aria-label="닫기"
+              onClick={() => {
+                setShowCompareResult(false);
+                setShowHome(true);
+                setCompareApiResult(null);
+              }}
+            >
+              ×
+            </button>
+            <h2 id="compare-result-title" className="compare-result-title">
+              제품 비교 결과
+            </h2>
+            <div className="compare-result-grid">
+              <div className="compare-result-card">
+                <div className="compare-result-label">제품 A</div>
+                <div className="compare-result-name">
+                  {(compareApiResult.productA.product?.productName || '').trim() || '제품 A'}
+                </div>
+                <div className="compare-result-nova">
+                  {NOVA_IMG[compareApiResult.productA.novaGroup ?? 4] ? (
+                    <img
+                      src={NOVA_IMG[compareApiResult.productA.novaGroup ?? 4]}
+                      alt=""
+                      className="compare-result-nova-img"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null}
+                  <span className="compare-result-nova-num">NOVA {compareApiResult.productA.novaGroup ?? '—'}</span>
+                </div>
+              </div>
+              <div className="compare-result-card">
+                <div className="compare-result-label">제품 B</div>
+                <div className="compare-result-name">
+                  {(compareApiResult.productB.product?.productName || '').trim() || '제품 B'}
+                </div>
+                <div className="compare-result-nova">
+                  {NOVA_IMG[compareApiResult.productB.novaGroup ?? 4] ? (
+                    <img
+                      src={NOVA_IMG[compareApiResult.productB.novaGroup ?? 4]}
+                      alt=""
+                      className="compare-result-nova-img"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null}
+                  <span className="compare-result-nova-num">NOVA {compareApiResult.productB.novaGroup ?? '—'}</span>
+                </div>
+              </div>
+            </div>
+            <div
+              className={`compare-result-verdict compare-result-verdict--${compareApiResult.betterChoice}`}
+              role="status"
+            >
+              {compareApiResult.betterChoice === 'A'
+                ? '제품 A가 더 나은 선택으로 보여요'
+                : compareApiResult.betterChoice === 'B'
+                  ? '제품 B가 더 나은 선택으로 보여요'
+                  : '두 제품이 비슷해요'}
+            </div>
+            <p className="compare-result-summary">{compareApiResult.comparisonSummary}</p>
+            <p className="compare-result-rec">{compareApiResult.recommendationLine}</p>
+            <button
+              type="button"
+              className="btn btn-primary btn-full compare-result-done"
+              onClick={() => {
+                setShowCompareResult(false);
+                setShowHome(true);
+                setCompareApiResult(null);
+              }}
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (

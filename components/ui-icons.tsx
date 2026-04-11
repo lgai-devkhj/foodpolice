@@ -74,6 +74,23 @@ export function IconImage({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
+/** 두 제품 비교(나란한 카드 느낌) */
+export function IconCompare({ size = 24, className, ...p }: UiIconProps) {
+  return (
+    <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <rect x="3" y="6" width="7.5" height="12" rx="1.5" stroke="currentColor" strokeWidth={sw} />
+      <rect x="13.5" y="6" width="7.5" height="12" rx="1.5" stroke="currentColor" strokeWidth={sw} />
+      <path
+        d="M11.25 10v4M11.25 12h1.5"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        opacity={0.45}
+      />
+    </svg>
+  );
+}
+
 export function IconAlert({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
