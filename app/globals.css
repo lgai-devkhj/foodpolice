@@ -1239,10 +1239,24 @@
       color: var(--text);
     }
     .tutorial-mode-pick-lead {
-      margin: 0 0 18px;
+      margin: 0 0 10px;
       font-size: 0.95rem;
       line-height: 1.5;
       color: var(--text2);
+      text-align: center;
+    }
+    .tutorial-mode-pick-hint {
+      margin: 0 0 16px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: var(--text3);
+      text-align: center;
+    }
+    .tutorial-mode-pick-subhint {
+      margin: 0 0 14px;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--text3);
       text-align: center;
     }
     .tutorial-mode-pick-btn {

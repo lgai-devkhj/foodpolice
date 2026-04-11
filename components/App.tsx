@@ -198,13 +198,19 @@ function tutorialCoachMessage(
     homeProductMode: 'analyze' | 'compare';
     compareSlot: 'A' | 'B';
     captureStep: 1 | 2;
+    tutorialAwaitHomeCompare: boolean;
   }
 ): string {
-  const { homeProductMode, compareSlot, captureStep } = ctx;
+  const { homeProductMode, compareSlot, captureStep, tutorialAwaitHomeCompare } = ctx;
   switch (phase) {
     case 'tutorial_mode_pick':
       return '';
     case 'fab':
+      if (tutorialAwaitHomeCompare && homeProductMode === 'analyze') {
+        return desk
+          ? '먼저 홈 화면에서 「상품 비교하기」를 눌러 주세요. 자동으로 바뀌지 않아요. 그다음 아래 촬영으로 이어져요.'
+          : '홈에서 「상품 비교하기」를 먼저 눌러 주세요. 그다음 아래 촬영 버튼으로 네 장 찍어요.';
+      }
       if (homeProductMode === 'compare') {
         return desk
           ? '비교는 제품 두 개예요. 아래에서 A 원재료 → A 영양표 → B 원재료 → B 영양표 순으로 네 장을 준비해 주세요.'
@@ -1119,6 +1125,8 @@ export default function App() {
   const [profileWeight, setProfileWeight] = useState('');
   /** 설정·프로필에서 키·몸무게·BMI 숫자 표시(기본 숨김) */
   const [revealBodyMetrics, setRevealBodyMetrics] = useState(false);
+  /** 튜토리얼에서 비교 연습을 골랐을 때, 홈에서 「상품 비교하기」를 누르기 전 단계 */
+  const [tutorialAwaitHomeCompare, setTutorialAwaitHomeCompare] = useState(false);
   const [obStep, setObStep] = useState(0);
   const [obBirthYear, setObBirthYear] = useState(() => Math.max(1900, new Date().getFullYear() - 15));
   const [obGender, setObGender] = useState('male');
@@ -1172,6 +1180,12 @@ export default function App() {
     rawImageMimeRef.current = rawImageMimeType;
   }, [rawImageMimeType]);
 
+  useEffect(() => {
+    if (homeProductMode === 'compare' && tutorialAwaitHomeCompare) {
+      setTutorialAwaitHomeCompare(false);
+    }
+  }, [homeProductMode, tutorialAwaitHomeCompare]);
+
   const TUTORIAL_STEP_TOTAL = TUTORIAL_PHASE_SEQUENCE.length;
   const tutorialCoachActive =
     showTutorial &&
@@ -1186,6 +1200,7 @@ export default function App() {
       homeProductMode,
       compareSlot,
       captureStep,
+      tutorialAwaitHomeCompare,
     });
   }, [
     tutorialCoachActive,
@@ -1194,6 +1209,7 @@ export default function App() {
     homeProductMode,
     compareSlot,
     captureStep,
+    tutorialAwaitHomeCompare,
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2166,6 +2182,10 @@ export default function App() {
       setError('먼저 분석할지 비교할지 골라 주세요.');
       return;
     }
+    if (showTutorial && tutorialAwaitHomeCompare && homeProductMode === 'analyze') {
+      setError('먼저 홈에서 「상품 비교하기」를 눌러 주세요.');
+      return;
+    }
     if (showTutorial && tutorialPhase === 'fab') {
       setTutorialPhase('overlay_ingredient');
     }
@@ -2197,7 +2217,14 @@ export default function App() {
     } else {
       fileInputRef.current?.click();
     }
-  }, [startCamera, isLikelyDesktop, showTutorial, tutorialPhase, homeProductMode]);
+  }, [
+    startCamera,
+    isLikelyDesktop,
+    showTutorial,
+    tutorialPhase,
+    homeProductMode,
+    tutorialAwaitHomeCompare,
+  ]);
 
   const dismissDesktopRecommend = useCallback(() => {
     try {
@@ -2211,6 +2238,7 @@ export default function App() {
   const finishTutorial = useCallback(() => {
     setShowTutorial(false);
     setTutorialPhase('fab');
+    setTutorialAwaitHomeCompare(false);
     setTutorialHoleRect(null);
     setTutorialFocusDecoration(null);
     if (clientId) {
@@ -2249,6 +2277,15 @@ export default function App() {
 
       switch (tutorialPhase) {
         case 'fab': {
+          if (tutorialAwaitHomeCompare) {
+            const cmp = document.getElementById('tutorial-target-home-compare');
+            if (cmp) {
+              const r = cmp.getBoundingClientRect();
+              hole = { top: r.top, left: r.left, width: r.width, height: r.height };
+              decoration = { kind: 'arrow', rect: hole };
+            }
+            break;
+          }
           const el = document.getElementById('fabUpload');
           if (el) {
             const r = el.getBoundingClientRect();
@@ -2301,6 +2338,7 @@ export default function App() {
     showCamera,
     captureStep,
     capturedPreviewDataUrl,
+    tutorialAwaitHomeCompare,
   ]);
 
   /** 카메라로 찍은 뒤 미리보기가 뜨면 코치 단계로 전환 */
@@ -3343,11 +3381,15 @@ export default function App() {
             <p className="tutorial-mode-pick-lead">
               한 제품만 분석할지, 두 제품을 비교할지 먼저 골라 주세요. 아래에서 선택하면 촬영 안내로 이어져요.
             </p>
+            <p className="tutorial-mode-pick-hint">
+              사용 방법 연습은 나중에 언제든지 홈 상단의 「사용 가이드」에서 다시 할 수 있어요.
+            </p>
             <button
               type="button"
               className="btn btn-primary btn-full tutorial-mode-pick-btn"
               onClick={() => {
                 setHomeProductMode('analyze');
+                setTutorialAwaitHomeCompare(false);
                 setTutorialPhase('fab');
                 setError('');
               }}
@@ -3359,10 +3401,8 @@ export default function App() {
               type="button"
               className="btn btn-ghost btn-full tutorial-mode-pick-btn"
               onClick={() => {
-                setHomeProductMode('compare');
-                setCompareSlot('A');
-                setComparePairA(null);
-                comparePairARef.current = null;
+                setHomeProductMode('analyze');
+                setTutorialAwaitHomeCompare(true);
                 setTutorialPhase('fab');
                 setError('');
               }}
@@ -3370,6 +3410,9 @@ export default function App() {
               <IconCompare size={20} aria-hidden />
               두 제품 비교하기
             </button>
+            <p className="tutorial-mode-pick-subhint" role="note">
+              비교 연습을 고르면 홈에 돌아가서 직접 「상품 비교하기」를 눌러 주세요. 여기서 모드를 대신 바꿔 주지 않아요.
+            </p>
             <button type="button" className="btn-tutorial-text tutorial-mode-pick-skip" onClick={finishTutorial}>
               건너뛰기
             </button>
@@ -3451,6 +3494,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  id="tutorial-target-home-compare"
                   className={`home-mode-btn${homeProductMode === 'compare' ? ' home-mode-btn--active' : ''}`}
                   onClick={() => {
                     setHomeProductMode('compare');
