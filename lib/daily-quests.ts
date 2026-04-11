@@ -94,27 +94,6 @@ export function ensureDailyForToday(slice: QuestsSlice, todayYmd: string): Quest
   return { ...d, dateYmd: d.dateYmd };
 }
 
-export function daysSinceFirstUse(firstUseAt: string | undefined, now: Date): number {
-  if (!firstUseAt) return 0;
-  const t0 = new Date(firstUseAt).getTime();
-  if (Number.isNaN(t0)) return 0;
-  const t1 = now.getTime();
-  return Math.max(0, Math.floor((t1 - t0) / 86400000));
-}
-
-/** 키·몸무게 일일 퀘스트: 첫 사용 후 30일 이상 */
-export const BODY_QUEST_MIN_DAYS = 30;
-
-export function shouldShowBodyQuest(firstUseAt: string | undefined, now: Date): boolean {
-  return daysSinceFirstUse(firstUseAt, now) >= BODY_QUEST_MIN_DAYS;
-}
-
-export function bodyQuestMonthLabel(firstUseAt: string | undefined, now: Date): string {
-  const days = daysSinceFirstUse(firstUseAt, now);
-  const months = Math.max(1, Math.floor(days / 30));
-  return `${months}개월 차 · 오늘 한 번만 적어도 돼요`;
-}
-
 export interface QuestRowUi {
   id: QuestId;
   title: string;
@@ -122,89 +101,94 @@ export interface QuestRowUi {
   done: boolean;
 }
 
-/** 매일 고정 2개(분석·대체)만 일일·스트릭에 반영. 나머지는 bonusRows */
+/** 매일 고정 2개(분석·대체)만 일일·스트릭에 반영. 문구는 날짜·사용자별로 바뀜 */
 export interface QuestBoardUi {
+  lead: string;
   dailyRows: QuestRowUi[];
   dailyCompleted: number;
   dailyTotal: number;
-  bonusRows: QuestRowUi[];
 }
 
-function rowDone(
-  id: QuestId,
-  daily: QuestDaily,
-  lifetime: QuestLifetime | undefined,
-  showBody: boolean,
-): boolean {
-  switch (id) {
-    case 'analyze':
-      return daily.analyzeDone;
-    case 'alternative':
-      return daily.alternativeDone;
-    case 'tutorial':
-      return lifetime?.tutorialDone === true;
-    case 'knova':
-      return lifetime?.knovaLearnDone === true;
-    case 'bodyMeasurement':
-      return showBody ? daily.bodyMeasurementDone : true;
-    default:
-      return false;
+const QUEST_FLAVORS: Array<{
+  lead: string;
+  analyze: { title: string; subtitle: string };
+  alt: { title: string; subtitle: string };
+}> = [
+  {
+    lead: '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.',
+    analyze: { title: '포장 분석하기', subtitle: '하루 1번이면 충분해요' },
+    alt: { title: '대체 식품 추천 받기', subtitle: '결과 화면에서 확인할 수 있어요' },
+  },
+  {
+    lead: '오늘은 이렇게만 해볼까요?',
+    analyze: { title: '라벨 한 번 찍기', subtitle: '원재료·영양표 촬영하면 돼요' },
+    alt: { title: '더 나은 선택 찾기', subtitle: '대체 식품 문구가 뜨면 돼요' },
+  },
+  {
+    lead: '짧게 끝내고 스트릭 챙기기.',
+    analyze: { title: '포장 사진 분석', subtitle: '카메라로 바로 촬영' },
+    alt: { title: '대안 식품 둘러보기', subtitle: '결과 카드에서 열 수 있어요' },
+  },
+  {
+    lead: '오늘의 루틴 — 2개만 체크하면 끝.',
+    analyze: { title: '포장 분석 완료하기', subtitle: '스캔 한 번이면 OK' },
+    alt: { title: '추천 식품 확인하기', subtitle: '분석 후 화면에서 확인' },
+  },
+  {
+    lead: '매일 조금씩, 쌓이는 스트릭.',
+    analyze: { title: '제품 포장 읽기', subtitle: 'NOVA·원재료까지 한 번에' },
+    alt: { title: '대체 추천 받기', subtitle: '결과 화면 하단에서' },
+  },
+  {
+    lead: '오늘도 가볍게! 두 가지만.',
+    analyze: { title: '포장 분석하기', subtitle: '하루 1회면 충분해요' },
+    alt: { title: '대체 식품 보기', subtitle: '추천 문구가 나오면 완료' },
+  },
+  {
+    lead: '스트릭은 오늘의 2개로 올라가요.',
+    analyze: { title: '라벨 스캔하기', subtitle: '영양표·성분표 촬영' },
+    alt: { title: '비슷한 대안 찾기', subtitle: '결과에서 추천 확인' },
+  },
+  {
+    lead: '루틴 유지 중이에요? 오늘도 2개.',
+    analyze: { title: '포장 분석', subtitle: '한 번이면 스트릭에 반영돼요' },
+    alt: { title: '대체 식품 추천', subtitle: '결과 화면에서 열기' },
+  },
+];
+
+function questFlavorIndex(ymd: string, clientId: string): number {
+  const seed = `${clientId || 'local'}|${ymd}`;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
+  return Math.abs(h) % QUEST_FLAVORS.length;
 }
 
-export function buildQuestBoard(slice: QuestsSlice, now: Date): QuestBoardUi {
+export function buildQuestBoard(slice: QuestsSlice, now: Date, clientId = ''): QuestBoardUi {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(slice, todayYmd);
-  const lifetime = slice.lifetime || {};
-  const firstUse = slice.firstUseAt;
-  const showBody = shouldShowBodyQuest(firstUse, now);
-  const showTutorial = lifetime.tutorialDone !== true;
-  const showKnova = lifetime.knovaLearnDone !== true;
+  const flavor = QUEST_FLAVORS[questFlavorIndex(todayYmd, clientId)]!;
 
   const dailyRows: QuestRowUi[] = [
     {
       id: 'analyze',
-      title: '포장 분석하기',
-      subtitle: '하루에 1번이면 돼요',
-      done: rowDone('analyze', daily, lifetime, showBody),
+      title: flavor.analyze.title,
+      subtitle: flavor.analyze.subtitle,
+      done: daily.analyzeDone,
     },
     {
       id: 'alternative',
-      title: '대체 식품 추천 받기',
-      subtitle: '결과 화면에서 볼 수 있어요',
-      done: rowDone('alternative', daily, lifetime, showBody),
+      title: flavor.alt.title,
+      subtitle: flavor.alt.subtitle,
+      done: daily.alternativeDone,
     },
   ];
   const dailyCompleted = dailyRows.filter((r) => r.done).length;
   const dailyTotal = dailyRows.length;
 
-  const bonusRows: QuestRowUi[] = [];
-  if (showTutorial) {
-    bonusRows.push({
-      id: 'tutorial',
-      title: '앱 사용법 보기',
-      subtitle: '튜토리얼 · 한 번만 보면 돼요',
-      done: rowDone('tutorial', daily, lifetime, showBody),
-    });
-  }
-  if (showKnova) {
-    bonusRows.push({
-      id: 'knova',
-      title: 'K-NOVA 알아보기',
-      subtitle: '결과에서 ? 눌러보기',
-      done: rowDone('knova', daily, lifetime, showBody),
-    });
-  }
-  if (showBody) {
-    bonusRows.push({
-      id: 'bodyMeasurement',
-      title: '키·몸무게 기록하기',
-      subtitle: bodyQuestMonthLabel(firstUse, now),
-      done: rowDone('bodyMeasurement', daily, lifetime, showBody),
-    });
-  }
-
-  return { dailyRows, dailyCompleted, dailyTotal, bonusRows };
+  return { lead: flavor.lead, dailyRows, dailyCompleted, dailyTotal };
 }
 
 export function resolveQuestSlice(state: {

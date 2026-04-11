@@ -6,6 +6,7 @@ import {
   resolveQuestSlice,
   emptyQuestDaily,
   ensureDailyForToday,
+  toLocalYmd,
 } from './daily-quests';
 
 describe('daily-quests', () => {
@@ -13,7 +14,7 @@ describe('daily-quests', () => {
     vi.useRealTimers();
   });
 
-  it('일일 퀘스트는 항상 2개(분석·대체), 튜토리얼·K-NOVA는 bonusRows', () => {
+  it('일일 퀘스트는 항상 2개(분석·대체), 문구는 날짜·clientId에 따라 바뀜', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
     const board = buildQuestBoard(
@@ -22,27 +23,32 @@ describe('daily-quests', () => {
         lifetime: {},
       },
       new Date(),
+      'user-a',
     );
     expect(board.dailyTotal).toBe(2);
     expect(board.dailyRows.map((r) => r.id)).toEqual(['analyze', 'alternative']);
-    expect(board.bonusRows.some((r) => r.id === 'tutorial')).toBe(true);
-    expect(board.bonusRows.some((r) => r.id === 'knova')).toBe(true);
-    expect(board.bonusRows.some((r) => r.id === 'bodyMeasurement')).toBe(false);
-  });
-
-  it('첫 사용 30일 후 키·몸무게는 bonusRows', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
-    const board = buildQuestBoard(
+    expect(board.lead.length).toBeGreaterThan(0);
+    const same = buildQuestBoard(
       {
-        firstUseAt: '2026-05-01T10:00:00.000Z',
         daily: emptyQuestDaily('2026-06-15'),
-        lifetime: { tutorialDone: true, knovaLearnDone: true },
+        lifetime: {},
       },
       new Date(),
+      'user-a',
     );
-    expect(board.dailyTotal).toBe(2);
-    expect(board.bonusRows.some((r) => r.id === 'bodyMeasurement')).toBe(true);
+    expect(same.dailyRows[0]?.title).toBe(board.dailyRows[0]?.title);
+    const titles = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const dt = new Date(2026, 0, 1 + i);
+      const ymd = toLocalYmd(dt);
+      const b = buildQuestBoard(
+        { daily: emptyQuestDaily(ymd), lifetime: {} },
+        dt,
+        'user-a',
+      );
+      titles.add(b.dailyRows[0]?.title ?? '');
+    }
+    expect(titles.size).toBeGreaterThan(1);
   });
 
   it('resolveQuestSlice는 기록에서 가장 이른 scannedAt을 사용', () => {

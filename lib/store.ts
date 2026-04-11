@@ -332,7 +332,7 @@ export function getAnalysisStreak(clientId: string): { displayCurrent: number; l
 
 export function getQuestBoard(clientId: string) {
   const state = loadState(clientId);
-  return buildQuestBoard(resolveQuestSlice(state), new Date());
+  return buildQuestBoard(resolveQuestSlice(state), new Date(), clientId);
 }
 
 /** 스트릭 UI·토스트용 스냅샷(증가 없음) */
@@ -347,10 +347,7 @@ export function getStreakToastSnapshot(clientId: string): {
   };
 }
 
-/**
- * 매일 고정 2개(포장 분석 + 대체 식품)를 모두 완료했을 때만 연속 일수를 올림.
- * 추가 미션(튜토리얼·K-NOVA·체중)은 스트릭에 영향 없음.
- */
+/** 매일 고정 2개(포장 분석 + 대체 식품)를 모두 완료했을 때만 연속 일수를 올림. */
 export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   displayCurrent: number;
   didIncrease: boolean;

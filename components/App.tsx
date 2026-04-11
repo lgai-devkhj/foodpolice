@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useCallback,
+  useMemo,
   type MutableRefObject,
   type CSSProperties,
 } from 'react';
@@ -20,7 +21,6 @@ import {
   getAnalysisStreak,
   getWeekStreakSheetData,
   getQuestBoard,
-  getStreakToastSnapshot,
   markQuestAlternativeReceived,
   markQuestTutorialDone,
   markQuestKnovaLearnDone,
@@ -741,7 +741,6 @@ function applyAlternativesFetchResult(
   ) => void,
   /** 서버가 Perplexity 등 실제 검색 근거 응답을 줬을 때만 true */
   fromWebSearch?: boolean,
-  onStreakFromQuest?: (s: { displayCurrent: number; didIncrease: boolean }) => void,
 ): void {
   const alt = altRaw.trim();
   const merged: AnalysisResult = {
@@ -757,10 +756,7 @@ function applyAlternativesFetchResult(
     alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
     alternativeFoodLoaded: true,
   });
-  const streak =
-    httpOk && alt ? markQuestAlternativeReceived(clientId) : getStreakToastSnapshot(clientId);
   refreshHistory();
-  if (streak.didIncrease) onStreakFromQuest?.(streak);
   if (currentHistoryIdRef.current !== historyId) return;
   const resultContainer = document.getElementById('resultContent');
   const altDetails = resultContainer
@@ -792,7 +788,6 @@ function requestAlternativesFromApi(
     historyItem: HistoryItem | null,
     opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
   ) => void,
-  onStreakFromQuest?: (s: { displayCurrent: number; didIncrease: boolean }) => void,
 ): void {
   void fetch('/api/alternatives', {
     method: 'POST',
@@ -844,7 +839,6 @@ function requestAlternativesFromApi(
         setCurrentResult,
         renderResult,
         fromWebSearch,
-        onStreakFromQuest,
       );
     })
     .catch(() => {
@@ -860,7 +854,6 @@ function requestAlternativesFromApi(
         setCurrentResult,
         renderResult,
         false,
-        onStreakFromQuest,
       );
     });
 }
@@ -966,10 +959,10 @@ export default function App() {
     null,
   );
   const [questBoard, setQuestBoard] = useState<ReturnType<typeof getQuestBoard>>({
+    lead: '',
     dailyRows: [],
     dailyCompleted: 0,
     dailyTotal: 2,
-    bonusRows: [],
   });
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
@@ -1052,6 +1045,11 @@ export default function App() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraGuideRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
+  const altQuestDetailsOpenRef = useRef(false);
+  const [altQuestScrollProgress, setAltQuestScrollProgress] = useState(0);
+  /** -1: 아직 측정 전. 0 이상이면 result-scroll 최대 스크롤(px) */
+  const [altQuestMaxScroll, setAltQuestMaxScroll] = useState(-1);
+  const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
@@ -1189,6 +1187,22 @@ export default function App() {
     [],
   );
 
+  const tryCompleteAltQuest = useCallback(() => {
+    if (!clientId || !currentResult) return;
+    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const scrollEl = resultScrollRef.current;
+    if (!scrollEl) return;
+    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const p = max <= 8 ? 1 : Math.min(1, scrollEl.scrollTop / max);
+    if (max > 8 && p < 0.97) return;
+    if (!altQuestDetailsOpenRef.current) return;
+    const r = currentResult;
+    if ((r.novaGroup === 3 || r.novaGroup === 4) && r.alternativeFoodLoaded === false) return;
+    const s = markQuestAlternativeReceived(clientId);
+    setQuestBoard(getQuestBoard(clientId));
+    notifyStreakFromQuest(s);
+  }, [clientId, currentResult, notifyStreakFromQuest]);
+
   const openStreakWeekSheet = useCallback(() => {
     if (!clientId) return;
     setWeekStreakSheet(getWeekStreakSheetData(clientId));
@@ -1270,7 +1284,6 @@ export default function App() {
             currentHistoryIdRef,
             setCurrentResult,
             renderResult,
-            notifyStreakFromQuest,
           );
         }
       } catch (err) {
@@ -1352,7 +1365,6 @@ export default function App() {
             currentHistoryIdRef,
             setCurrentResult,
             renderResult,
-            notifyStreakFromQuest,
           );
         }
       } catch (err) {
@@ -1646,7 +1658,6 @@ export default function App() {
       currentHistoryIdRef,
       setCurrentResult,
       renderResult,
-      notifyStreakFromQuest,
     );
   }, [
     clientId,
@@ -1656,7 +1667,6 @@ export default function App() {
     profile,
     refreshHistory,
     renderResult,
-    notifyStreakFromQuest,
   ]);
 
   useEffect(() => {
@@ -1710,6 +1720,101 @@ export default function App() {
     handleAltForceFetch,
     showInfoCriteria,
     showInfoIngredient,
+  ]);
+
+  useEffect(() => {
+    if (!showResult || !clientId || !currentResult) return;
+    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return;
+    const g = currentResult.novaGroup ?? 0;
+    if (g < 1 || g > 4) return;
+
+    const scrollEl = resultScrollRef.current;
+    if (!scrollEl) return;
+
+    const syncDetailsOpenFromDom = () => {
+      const rc = document.getElementById('resultContent');
+      if (!rc) return;
+      const details = Array.from(rc.querySelectorAll('details.result-details')).find((el) => {
+        const s = el.querySelector('summary');
+        return (s?.textContent || '').trim() === '대체 식품';
+      }) as HTMLDetailsElement | undefined;
+      const open = details?.open ?? false;
+      altQuestDetailsOpenRef.current = open;
+      setAltQuestDetailsOpen(open);
+    };
+
+    const updateScroll = () => {
+      const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      const p = max <= 8 ? 1 : Math.min(1, scrollEl.scrollTop / max);
+      setAltQuestScrollProgress(p);
+      setAltQuestMaxScroll(max);
+      syncDetailsOpenFromDom();
+      tryCompleteAltQuest();
+    };
+
+    const onToggle = (e: Event) => {
+      const t = e.target;
+      if (!t || (t as HTMLElement).tagName !== 'DETAILS') return;
+      const details = t as HTMLDetailsElement;
+      const summary = details.querySelector('summary');
+      if ((summary?.textContent || '').trim() !== '대체 식품') return;
+      altQuestDetailsOpenRef.current = details.open;
+      setAltQuestDetailsOpen(details.open);
+      tryCompleteAltQuest();
+    };
+
+    setAltQuestScrollProgress(0);
+    setAltQuestMaxScroll(-1);
+    altQuestDetailsOpenRef.current = false;
+    setAltQuestDetailsOpen(false);
+
+    scrollEl.addEventListener('scroll', updateScroll, { passive: true });
+    scrollEl.addEventListener('toggle', onToggle, true);
+
+    const ro = new ResizeObserver(() => updateScroll());
+    ro.observe(scrollEl);
+    const rc = document.getElementById('resultContent');
+    if (rc) ro.observe(rc);
+
+    const raf = requestAnimationFrame(() => updateScroll());
+
+    return () => {
+      cancelAnimationFrame(raf);
+      scrollEl.removeEventListener('scroll', updateScroll);
+      scrollEl.removeEventListener('toggle', onToggle, true);
+      ro.disconnect();
+    };
+  }, [
+    showResult,
+    clientId,
+    currentHistoryId,
+    resultContentHtml,
+    currentResult,
+    questBoard,
+    tryCompleteAltQuest,
+  ]);
+
+  const altQuestBannerLine = useMemo(() => {
+    if (!showResult || !currentResult || !clientId) return null;
+    if (getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative')?.done) return null;
+    const ng = currentResult.novaGroup ?? 0;
+    if (ng < 1 || ng > 4) return null;
+    const scrollMet =
+      altQuestMaxScroll >= 0 &&
+      (altQuestMaxScroll <= 8 || altQuestScrollProgress >= 0.97);
+    const secLeft = Math.max(0, Math.ceil((1 - altQuestScrollProgress) * 5));
+    const altLoading = (ng === 3 || ng === 4) && currentResult.alternativeFoodLoaded === false;
+    if (!scrollMet) return `약 ${secLeft}초 남았어요 · 스크롤하면 줄어요`;
+    if (altLoading) return '대체 식품 불러오는 중… 잠시만 기다려 주세요';
+    if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
+    return null;
+  }, [
+    showResult,
+    currentResult,
+    clientId,
+    altQuestMaxScroll,
+    altQuestScrollProgress,
+    altQuestDetailsOpen,
   ]);
 
   const startCamera = useCallback(() => {
@@ -2767,7 +2872,7 @@ export default function App() {
             </div>
             {onboardingCompleted &&
               !showOnboarding &&
-              (questBoard.dailyTotal > 0 || questBoard.bonusRows.length > 0) &&
+              questBoard.dailyTotal > 0 &&
               showHome &&
               !showResult &&
               !showCamera &&
@@ -2788,7 +2893,9 @@ export default function App() {
                       {questBoard.dailyCompleted}/{questBoard.dailyTotal}
                     </span>
                   </div>
-                  <p className="daily-quest-lead">매일 2개만 하면 돼요. 다 하면 스트릭이 올라가요.</p>
+                  <p className="daily-quest-lead">
+                    {questBoard.lead || '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.'}
+                  </p>
                   <ul className="daily-quest-list">
                     {questBoard.dailyRows.map((q) => (
                       <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
@@ -2804,29 +2911,6 @@ export default function App() {
                       </li>
                     ))}
                   </ul>
-                  {questBoard.bonusRows.length > 0 && (
-                    <>
-                      <div className="daily-quest-bonus-head">
-                        <span className="daily-quest-bonus-title">추가 미션</span>
-                        <span className="daily-quest-bonus-hint">선택</span>
-                      </div>
-                      <ul className="daily-quest-list daily-quest-list--bonus">
-                        {questBoard.bonusRows.map((q) => (
-                          <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
-                            <span className="daily-quest-check" aria-hidden>
-                              {q.done ? <IconCheck size={18} /> : <span className="daily-quest-dot" />}
-                            </span>
-                            <span className="daily-quest-text">
-                              <span className="daily-quest-row-title">{q.title}</span>
-                              {q.subtitle ? (
-                                <span className="daily-quest-row-sub">{q.subtitle}</span>
-                              ) : null}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
                 </div>
               )}
             {loading && (
@@ -2939,6 +3023,11 @@ export default function App() {
               ×
             </button>
           </div>
+          {altQuestBannerLine ? (
+            <div className="result-alt-quest-banner" role="status">
+              {altQuestBannerLine}
+            </div>
+          ) : null}
           <div ref={resultScrollRef} className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
             {editingName !== null && (
               <div className="card" id="productNameCardEdit">

@@ -85,7 +85,7 @@
       justify-content: space-between;
       align-items: center;
       gap: 10px;
-      padding: calc(8px + var(--safe-top)) 0 4px;
+      padding: calc(4px + var(--safe-top)) 0 2px;
     }
     .home-top-bar-left {
       flex: 1;
@@ -297,8 +297,8 @@
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
-      padding: 0 16px 140px;
-      padding-bottom: 140px;
+      padding: 0 16px 120px;
+      padding-bottom: 120px;
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
@@ -325,9 +325,9 @@
     }
 
     .daily-quest-card {
-      margin: 18px 0 8px;
-      padding: 16px 18px 14px;
-      border-radius: 20px;
+      margin: 8px 0 6px;
+      padding: 12px 14px 10px;
+      border-radius: 18px;
       background: hsla(0, 0%, 100%, 0.75);
       border: 1px solid var(--card-stroke);
       box-shadow: var(--glass-shadow);
@@ -342,7 +342,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     .daily-quest-icon {
       display: flex;
@@ -356,9 +356,9 @@
       color: var(--text);
     }
     .daily-quest-lead {
-      margin: 0 0 12px;
-      font-size: 0.88rem;
-      line-height: 1.45;
+      margin: 0 0 8px;
+      font-size: 0.85rem;
+      line-height: 1.4;
       color: var(--text2);
     }
     .daily-quest-bonus-head {
@@ -398,13 +398,13 @@
       padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
     .daily-quest-row {
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      padding: 8px 0;
+      padding: 6px 0;
       border-bottom: 1px solid rgba(46, 125, 50, 0.08);
     }
     .daily-quest-row:last-child {
@@ -458,15 +458,15 @@
 
     .hero-section {
       text-align: center;
-      padding: 16px 0 12px;
+      padding: 8px 0 6px;
     }
     .hero-icon-cluster {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 104px;
-      height: 104px;
-      margin: 0 auto 14px;
+      width: 92px;
+      height: 92px;
+      margin: 0 auto 8px;
     }
     .hero-icon-core {
       color: var(--primary);
@@ -696,23 +696,23 @@
       gap: 6px;
     }
 
-    .history-list-wrap { margin-top: 16px; }
+    .history-list-wrap { margin-top: 10px; }
     .history-list-title {
-      margin: 0 0 12px;
-      font-size: 1.15rem;
+      margin: 0 0 8px;
+      font-size: 1.1rem;
       font-weight: 600;
       color: var(--text);
     }
     .history-item {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 14px 18px;
-      min-height: 56px;
-      border-radius: 20px;
+      gap: 12px;
+      padding: 12px 14px;
+      min-height: 52px;
+      border-radius: 18px;
       background: var(--card);
       border: 1px solid var(--card-stroke);
-      margin-bottom: 22px;
+      margin-bottom: 12px;
       backdrop-filter: var(--glass-blur);
       -webkit-backdrop-filter: var(--glass-blur);
       box-shadow: var(--glass-shadow);
@@ -1226,6 +1226,24 @@
       display: flex; align-items: center; justify-content: center;
     }
     .result-close-x:active { opacity: 0.9; }
+    .result-alt-quest-banner {
+      flex-shrink: 0;
+      margin: 0 0 8px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.45;
+      color: var(--text);
+      background: hsla(46, 95%, 88%, 0.95);
+      border: 1px solid hsla(46, 90%, 70%, 0.85);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    }
+    [data-theme='dark'] .result-alt-quest-banner {
+      background: hsla(46, 35%, 22%, 0.92);
+      border-color: hsla(46, 30%, 40%, 0.6);
+      color: var(--text);
+    }
     .result-scroll {
       flex: 1;
       overflow-y: auto;
