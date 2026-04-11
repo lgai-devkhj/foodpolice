@@ -1056,6 +1056,8 @@ export default function App() {
   const altQuestAccumSecRef = useRef(0);
   const altQuestLastScrollRef = useRef(0);
   const altQuestRafRef = useRef(0);
+  /** 대체 퀘스트 스크롤 누적 초기화 기준(같은 결과 화면에서 대체 식품만 로드되면 유지) */
+  const altQuestSessionKeyRef = useRef<string | null>(null);
   const [altQuestScrollSecAccum, setAltQuestScrollSecAccum] = useState(0);
   /** 배너에서 '스크롤 안 함' 판별용 리렌더 */
   const [altQuestBannerClock, setAltQuestBannerClock] = useState(0);
@@ -1734,6 +1736,21 @@ export default function App() {
     showInfoIngredient,
   ]);
 
+  /** 결과 HTML이 갱신될 때(대체 식품 로드 등) 스크롤 누적은 유지하고 「대체 식품」 펼침만 DOM과 맞춤 */
+  useEffect(() => {
+    if (!resultContentHtml) return;
+    if (!showResult || resultEntrySource !== 'scan') return;
+    const rc = resultContentRef.current;
+    if (!rc) return;
+    const details = Array.from(rc.querySelectorAll('details.result-details')).find((el) => {
+      const s = el.querySelector('summary');
+      return (s?.textContent || '').trim() === '대체 식품';
+    }) as HTMLDetailsElement | undefined;
+    const open = details?.open ?? false;
+    altQuestDetailsOpenRef.current = open;
+    setAltQuestDetailsOpen(open);
+  }, [resultContentHtml, showResult, resultEntrySource]);
+
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
     if (resultEntrySource !== 'scan') return;
@@ -1742,7 +1759,7 @@ export default function App() {
     if (g < 1 || g > 4) return;
     const t = window.setInterval(() => setAltQuestBannerClock((c) => c + 1), 280);
     return () => clearInterval(t);
-  }, [showResult, clientId, currentResult, questBoard, resultContentHtml, resultEntrySource]);
+  }, [showResult, clientId, currentResult, questBoard, resultEntrySource]);
 
   useEffect(() => {
     if (!showResult || !clientId || !currentResult) return;
@@ -1754,11 +1771,16 @@ export default function App() {
     const scrollEl = resultScrollRef.current;
     if (!scrollEl) return;
 
-    altQuestAccumSecRef.current = 0;
-    altQuestLastScrollRef.current = 0;
-    setAltQuestScrollSecAccum(0);
-    altQuestDetailsOpenRef.current = false;
-    setAltQuestDetailsOpen(false);
+    const sessionKey = `${currentHistoryId ?? ''}|${resultEntrySource ?? ''}`;
+    const isNewSession = altQuestSessionKeyRef.current !== sessionKey;
+    if (isNewSession) {
+      altQuestSessionKeyRef.current = sessionKey;
+      altQuestAccumSecRef.current = 0;
+      altQuestLastScrollRef.current = 0;
+      setAltQuestScrollSecAccum(0);
+      altQuestDetailsOpenRef.current = false;
+      setAltQuestDetailsOpen(false);
+    }
 
     let lastFrameTs = performance.now();
 
@@ -1828,8 +1850,6 @@ export default function App() {
     showResult,
     clientId,
     currentHistoryId,
-    resultContentHtml,
-    currentResult,
     questBoard,
     tryCompleteAltQuest,
     resultEntrySource,

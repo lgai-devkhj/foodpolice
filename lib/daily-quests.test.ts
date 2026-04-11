@@ -8,6 +8,9 @@ import {
   ensureDailyForToday,
   toLocalYmd,
   getTodayAnalyzeLabel,
+  questFlavorIndexForToday,
+  displayedFlavorIndexForLocalYmd,
+  addDaysToYmd,
   DAILY_QUEST_ANALYZE_LABELS,
 } from './daily-quests';
 
@@ -87,5 +90,30 @@ describe('daily-quests', () => {
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
     const label = getTodayAnalyzeLabel('user-x', new Date());
     expect(DAILY_QUEST_ANALYZE_LABELS).toContain(label);
+  });
+
+  it('연속 이틀은 같은 품목 미션이 나오지 않음', () => {
+    vi.useFakeTimers();
+    const clientId = 'user-streak-test';
+    for (let day = 2; day <= 120; day++) {
+      const today = new Date(2026, 0, day, 12, 0, 0);
+      const yesterday = new Date(2026, 0, day - 1, 12, 0, 0);
+      vi.setSystemTime(today);
+      const labelToday = getTodayAnalyzeLabel(clientId, today);
+      vi.setSystemTime(yesterday);
+      const labelYesterday = getTodayAnalyzeLabel(clientId, yesterday);
+      expect(labelToday).not.toBe(labelYesterday);
+    }
+  });
+
+  it('displayedFlavorIndexForLocalYmd는 에포크 이후 연속 날짜가 항상 서로 다른 인덱스', () => {
+    const cid = 'chain-test';
+    let prev = displayedFlavorIndexForLocalYmd(cid, '2020-01-01');
+    for (let i = 1; i < 200; i++) {
+      const ymd = addDaysToYmd('2020-01-01', i);
+      const cur = displayedFlavorIndexForLocalYmd(cid, ymd);
+      expect(cur).not.toBe(prev);
+      prev = cur;
+    }
   });
 });

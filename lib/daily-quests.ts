@@ -32,6 +32,13 @@ export function toLocalYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** 로컬 달력 기준 YYYY-MM-DD에 일 수 더하기 */
+export function addDaysToYmd(ymd: string, deltaDays: number): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + deltaDays);
+  return toLocalYmd(dt);
+}
+
 export function emptyQuestDaily(todayYmd: string): QuestDaily {
   return {
     dateYmd: todayYmd,
@@ -183,17 +190,97 @@ export function questFlavorIndex(ymd: string, clientId: string): number {
   return Math.abs(h) % DAILY_QUEST_ANALYZE_LABELS.length;
 }
 
+/** fnv-1a 스타일 해시 — 연속 일자 중복 회피용 보조 시드 */
+function hashStringFnv(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h;
+}
+
+/** 표시 인덱스 체인 시작일(그 전 날은 raw 해시만 이전일 프록시로 사용) */
+const DISPLAY_FLAVOR_EPOCH_YMD = '2020-01-01';
+
+/**
+ * 날짜별로 캐시해 같은 날짜는 O(1). 첫 요청만 에포크→목표일까지 순회(수천 일 이하).
+ */
+const displayedFlavorIndexMemo = new Map<string, number>();
+
+function pickDistinctFromRaw(
+  ymd: string,
+  clientId: string,
+  rawIndex: number,
+  prevDisplayedIndex: number,
+): number {
+  if (rawIndex !== prevDisplayedIndex) return rawIndex;
+  const altSeed = `${clientId || 'local'}|${ymd}|no-repeat`;
+  const h = hashStringFnv(altSeed);
+  const others: number[] = [];
+  for (let i = 0; i < DAILY_QUEST_ANALYZE_LABELS.length; i++) {
+    if (i !== prevDisplayedIndex) others.push(i);
+  }
+  return others[Math.abs(h) % others.length]!;
+}
+
+/**
+ * 로컬 날짜 기준, **바로 전날에 화면에 나왔던 품목**과는 항상 다른 인덱스(0~7).
+ * 에포크 이전 날짜는 raw만 사용.
+ */
+export function displayedFlavorIndexForLocalYmd(clientId: string, targetYmd: string): number {
+  const cid = clientId || 'local';
+  const memoKey = `${cid}|${targetYmd}`;
+  const cached = displayedFlavorIndexMemo.get(memoKey);
+  if (cached !== undefined) return cached;
+
+  if (targetYmd < DISPLAY_FLAVOR_EPOCH_YMD) {
+    const r = questFlavorIndex(targetYmd, cid);
+    displayedFlavorIndexMemo.set(memoKey, r);
+    return r;
+  }
+
+  let startYmd = DISPLAY_FLAVOR_EPOCH_YMD;
+  let prevDisplayed = questFlavorIndex(addDaysToYmd(DISPLAY_FLAVOR_EPOCH_YMD, -1), cid);
+
+  let probe = addDaysToYmd(targetYmd, -1);
+  while (probe >= DISPLAY_FLAVOR_EPOCH_YMD) {
+    const k = `${cid}|${probe}`;
+    if (displayedFlavorIndexMemo.has(k)) {
+      prevDisplayed = displayedFlavorIndexMemo.get(k)!;
+      startYmd = addDaysToYmd(probe, 1);
+      break;
+    }
+    probe = addDaysToYmd(probe, -1);
+  }
+
+  for (let ymd = startYmd; ymd <= targetYmd; ymd = addDaysToYmd(ymd, 1)) {
+    const raw = questFlavorIndex(ymd, cid);
+    const d = pickDistinctFromRaw(ymd, cid, raw, prevDisplayed);
+    displayedFlavorIndexMemo.set(`${cid}|${ymd}`, d);
+    prevDisplayed = d;
+  }
+
+  return displayedFlavorIndexMemo.get(memoKey)!;
+}
+
+/**
+ * 오늘의 퀘스트 품목 인덱스. **어제(로컬)에 표시된 품목과는 항상 다름.**
+ */
+export function questFlavorIndexForToday(clientId: string, now: Date): number {
+  return displayedFlavorIndexForLocalYmd(clientId, toLocalYmd(now));
+}
+
 /** API `/api/analyze`에 넘길 오늘 미션 식품 라벨 */
 export function getTodayAnalyzeLabel(clientId: string, now: Date): string {
-  const ymd = toLocalYmd(now);
-  const idx = questFlavorIndex(ymd, clientId);
+  const idx = questFlavorIndexForToday(clientId, now);
   return DAILY_QUEST_ANALYZE_LABELS[idx] ?? DAILY_QUEST_ANALYZE_LABELS[0];
 }
 
 export function buildQuestBoard(slice: QuestsSlice, now: Date, clientId = ''): QuestBoardUi {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(slice, todayYmd);
-  const flavor = QUEST_FLAVORS[questFlavorIndex(todayYmd, clientId)]!;
+  const flavor = QUEST_FLAVORS[questFlavorIndexForToday(clientId, now)]!;
 
   const dailyRows: QuestRowUi[] = [
     {
