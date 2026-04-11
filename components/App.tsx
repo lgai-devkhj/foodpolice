@@ -1603,6 +1603,7 @@ export default function App() {
             bRawMimeType: pairB.rawMime,
             bNutritionImageBase64: pairB.nut,
             bNutritionMimeType: pairB.nutMime,
+            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
             ...(profilePayload ? { profile: profilePayload } : {}),
           }),
         });
@@ -1613,7 +1614,7 @@ export default function App() {
           cameraStreamRef.current = null;
         }
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-        const streak = markQuestCompareDone(clientId);
+        const streak = markQuestCompareDone(clientId, data.dailyQuestProductMatch === true);
         setQuestBoard(getQuestBoard(clientId));
         notifyStreakFromQuest(streak);
         const comparePayload = {

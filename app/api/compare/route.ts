@@ -6,6 +6,7 @@ import {
   type BmiTier,
   type PersonalizationInput,
 } from '@/lib/gemini-prompts';
+import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
 import type { AnalysisResult } from '@/lib/store';
@@ -30,6 +31,8 @@ interface CompareBody {
     birthDate?: string | null;
     gender?: string | null;
   };
+  /** 오늘 일일 미션 식품(8종 중 하나). 있으면 A·B 중 하나라도 일치 시 dailyQuestProductMatch */
+  dailyQuestTarget?: string;
 }
 
 function requireClientId(clientId: string): void {
@@ -72,9 +75,15 @@ export async function POST(request: NextRequest) {
       bNutritionImageBase64,
       bNutritionMimeType = 'image/jpeg',
       profile,
+      dailyQuestTarget,
     } = body;
 
     requireClientId(clientId);
+
+    const questTargetValid = (DAILY_QUEST_ANALYZE_LABELS as readonly string[]).includes(
+      String(dailyQuestTarget || '').trim(),
+    );
+    const questTargetForPrompt = questTargetValid ? String(dailyQuestTarget).trim() : null;
 
     if (!aRawImageBase64 || !aNutritionImageBase64 || !bRawImageBase64 || !bNutritionImageBase64) {
       return NextResponse.json({ error: '제품 A·B 각각 원재료·영양표 이미지가 필요해요.' }, { status: 400 });
@@ -89,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile));
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), questTargetForPrompt);
 
     const res = await fetch(url, {
       method: 'POST',
@@ -164,6 +173,8 @@ export async function POST(request: NextRequest) {
     const betterChoice = normalizeBetterChoice(parsed.betterChoice);
     const comparisonSummary = (parsed.comparisonSummary != null ? String(parsed.comparisonSummary) : '').trim();
     const recommendationLine = (parsed.recommendationLine != null ? String(parsed.recommendationLine) : '').trim();
+    const dailyQuestProductMatch =
+      questTargetValid && parsed.dailyQuestProductMatch === true;
 
     return NextResponse.json({
       productA,
@@ -171,6 +182,7 @@ export async function POST(request: NextRequest) {
       betterChoice,
       comparisonSummary,
       recommendationLine,
+      dailyQuestProductMatch,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '서버 오류';

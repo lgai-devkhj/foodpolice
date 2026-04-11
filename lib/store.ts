@@ -414,12 +414,21 @@ export function markQuestAlternativeReceived(clientId: string): {
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
-export function markQuestCompareDone(clientId: string): {
+export function markQuestCompareDone(
+  clientId: string,
+  dailyQuestProductMatch?: boolean,
+): {
   displayCurrent: number;
   didIncrease: boolean;
 } {
   const state = loadState(clientId);
-  state.quests = questAfterCompare(normalizeQuestsSlice(state.quests), new Date());
+  const scannedAtIso = new Date().toISOString();
+  state.quests = questAfterCompare(
+    normalizeQuestsSlice(state.quests),
+    new Date(),
+    dailyQuestProductMatch,
+    dailyQuestProductMatch === true ? scannedAtIso : undefined,
+  );
   saveState(clientId, state);
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }

@@ -388,10 +388,22 @@ export function questAfterAlternative(prev: QuestsSlice, now: Date): QuestsSlice
   return { ...prev, daily: { ...daily, alternativeDone: true } };
 }
 
-export function questAfterCompare(prev: QuestsSlice, now: Date): QuestsSlice {
+export function questAfterCompare(
+  prev: QuestsSlice,
+  now: Date,
+  dailyQuestProductMatch?: boolean,
+  scannedAtIso?: string,
+): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
-  return { ...prev, daily: { ...daily, compareDone: true } };
+  const match = dailyQuestProductMatch === true;
+  const analyzeDone = daily.analyzeDone || match;
+  let firstUseAt = prev.firstUseAt;
+  if (match && scannedAtIso) {
+    firstUseAt =
+      !prev.firstUseAt || scannedAtIso < prev.firstUseAt ? scannedAtIso : prev.firstUseAt;
+  }
+  return { ...prev, firstUseAt, daily: { ...daily, compareDone: true, analyzeDone } };
 }
 
 /** 오늘 배정된 2슬롯을 모두 완료했는지 */

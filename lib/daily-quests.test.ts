@@ -79,6 +79,16 @@ describe('daily-quests', () => {
     expect(ensureDailyForToday(next, '2026-06-15').compareDone).toBe(true);
   });
 
+  it('questAfterCompare: 미션 식품이 A·B 중 하나라도 맞으면 analyzeDone도 켠다', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const now = new Date();
+    const next = questAfterCompare({}, now, true, '2026-06-15T12:00:05.000Z');
+    const d = ensureDailyForToday(next, '2026-06-15');
+    expect(d.compareDone).toBe(true);
+    expect(d.analyzeDone).toBe(true);
+  });
+
   it('isDailyQuestPairComplete는 오늘 배정 2슬롯을 모두 만족할 때만 true', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));

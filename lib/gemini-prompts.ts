@@ -368,8 +368,26 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
   );
 }
 
+/** 비교 응답 루트에 넣을 오늘 미션 식품 일치 판정(제품 A·B 중 하나라도 해당하면 true) */
+export function getDailyQuestProductMatchBlockForCompare(targetLabel: string): string {
+  return (
+    '\n\n[오늘 퀘스트 음식 일치 — 반드시 판단]\n' +
+    `오늘 퀘스트 음식은 「${targetLabel}」이다.\n` +
+    '제품 A 또는 제품 B 중 **어느 한 쪽이라도** 위 퀘스트 음식이면 dailyQuestProductMatch: true, 둘 다 아니면 false(애매하면 false).\n' +
+    '1번·3번 이미지(각 제품의 원재료·앞면)를 기준으로 판단한다. 추측은 최소화하고 라벨·포장 형태로 판단한다.\n' +
+    'JSON 루트에 dailyQuestProductMatch: true|false 를 넣는다.\n'
+  );
+}
+
 /** 제품 A·B 각각 원재료+영양표 2장씩, 총 4장 멀티모달 비교 */
-export function getCompareFourImagesPrompt(profile?: PersonalizationInput | null): string {
+export function getCompareFourImagesPrompt(
+  profile?: PersonalizationInput | null,
+  dailyQuestTarget?: string | null,
+): string {
+  const questBlock =
+    dailyQuestTarget && String(dailyQuestTarget).trim().length > 0
+      ? getDailyQuestProductMatchBlockForCompare(String(dailyQuestTarget).trim())
+      : '';
   return (
     getKoreanNovaCriteria(profile) +
     '\n\n[상품 두 개 비교]\n' +
@@ -392,11 +410,15 @@ export function getCompareFourImagesPrompt(profile?: PersonalizationInput | null
     '  - 카테고리가 완전히 달라 직접 비교가 어렵거나 정보가 부족하면 "similar" 또는 더 나은 쪽을 보수적으로 적고 comparisonSummary에 한 줄 이유를 쓴다.\n' +
     '- comparisonSummary: **3~5문장**, 쉬운 한국어. 두 제품 NOVA·영양(당·나트륨 등) 차이를 짚고, 왜 한 쪽이 더 나은 선택일 수 있는지(또는 비슷한지) 설명한다.\n' +
     '- recommendationLine: **한 줄** 요약(30자 이내 권장).\n' +
-    '- 의학 진단·치료 약속·섭취 횟수/허용량 숫자 규칙은 단일 분석과 동일하게 금지한다.\n\n' +
+    '- 의학 진단·치료 약속·섭취 횟수/허용량 숫자 규칙은 단일 분석과 동일하게 금지한다.\n' +
+    questBlock +
+    '\n' +
     '응답은 JSON **한 개**만 출력한다.\n' +
     '{"productA":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
     '"productB":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
-    '"betterChoice":"A","comparisonSummary":"","recommendationLine":""}'
+    '"betterChoice":"A","comparisonSummary":"","recommendationLine":""' +
+    (questBlock ? ',"dailyQuestProductMatch":false' : '') +
+    '}'
   );
 }
 
