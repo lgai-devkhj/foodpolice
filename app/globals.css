@@ -62,6 +62,7 @@
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 55%, var(--bg-mix) 100%);
+      text-rendering: optimizeLegibility;
     }
     #app {
       position: fixed;
@@ -737,15 +738,18 @@
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
-      padding: 0 16px 120px;
-      padding-bottom: 120px;
+      padding: 0 max(16px, var(--safe-left)) calc(120px + var(--safe-bottom)) max(16px, var(--safe-right));
       width: 100%;
-      max-width: 100%;
+      max-width: min(560px, 100%);
+      margin-left: auto;
+      margin-right: auto;
       box-sizing: border-box;
     }
     @media (max-width: 360px) {
       html { font-size: 7px; }
-      .home-scroll { padding: 0 20px 260px; }
+      .home-scroll {
+        padding: 0 max(20px, var(--safe-left)) calc(260px + var(--safe-bottom)) max(20px, var(--safe-right));
+      }
       .hero-icon-cluster { width: 128px; height: 128px; margin-bottom: 8px; }
       .hero-icon-core svg { width: 64px; height: 64px; }
       .hero-section .hero-title { font-size: 2.25rem; }
@@ -950,7 +954,7 @@
 
     .hero-section {
       text-align: center;
-      padding: 6px 0 2px;
+      padding: 8px 0 4px;
     }
     .hero-icon-cluster {
       display: flex;
@@ -986,7 +990,7 @@
       gap: 10px;
       justify-content: center;
       align-items: stretch;
-      margin: 18px 16px 0;
+      margin: 18px 0 0;
       max-width: 420px;
       margin-left: auto;
       margin-right: auto;
@@ -1020,7 +1024,7 @@
     }
 
     .home-compare-callout {
-      margin: 8px 16px 0;
+      margin: 10px 0 0;
       max-width: 420px;
       margin-left: auto;
       margin-right: auto;
@@ -1355,6 +1359,14 @@
       background: rgba(255, 255, 255, 0.78);
     }
     .btn-full { width: 100%; max-width: 280px; margin-left: auto; margin-right: auto; display: flex; }
+    .btn-delete-record {
+      background: transparent !important;
+      color: var(--risk) !important;
+      box-shadow: none !important;
+    }
+    .btn-delete-record:active {
+      opacity: 0.88;
+    }
 
     .bottom-bar {
       position: fixed;
@@ -1435,6 +1447,16 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.16);
     }
     .fab-label { font-size: 0.95rem; font-weight: 500; color: var(--text2); }
+    .fab-step-label {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text2);
+      text-align: center;
+      line-height: 1.35;
+      max-width: min(100vw - 48px, 320px);
+    }
     .fab-row {
       display: flex;
       flex-direction: row;
@@ -1510,7 +1532,14 @@
       box-shadow: var(--glass-shadow);
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      font-size: 1.35rem;
+      font-size: 1rem;
+    }
+    .history-item-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .history-item .product-name {
+      font-size: 1.0625rem;
     }
     .history-item:active { background: rgba(255,255,255,0.6); }
     .risk-dot { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; }
@@ -1614,8 +1643,10 @@
       flex-direction: column;
       min-height: 0;
       width: 100%;
-      padding: 0 20px;
-      padding-bottom: calc(20px + var(--safe-bottom));
+      max-width: min(560px, 100%);
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 max(16px, var(--safe-left)) calc(20px + var(--safe-bottom)) max(16px, var(--safe-right));
       box-sizing: border-box;
     }
     #homeView.hidden { display: none; }
@@ -2087,6 +2118,9 @@
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
+    }
+    .result-delete-section {
+      margin-top: 16px;
     }
     .nova-badge { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 14px; font-weight: 700; font-size: 1.15rem; margin-bottom: 8px; }
     .nova-badge .nova-icon { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }

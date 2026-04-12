@@ -3626,7 +3626,7 @@ export default function App() {
                       ) : (
                         <span className={`risk-dot risk-${item.maxRiskScore}`} />
                       )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="history-item-main">
                         <div className="product-name">
                           {(item.customProductName || item.productName || '').trim() || '제품명 없음'}
                         </div>
@@ -3682,7 +3682,7 @@ export default function App() {
                   </span>
                 </div>
               </div>
-              <span className="fab-label" style={{ marginTop: 4 }}>
+              <span className="fab-step-label">
                 {homeProductMode === 'compare'
                   ? compareSlot === 'A'
                     ? captureStep === 1
@@ -3771,11 +3771,10 @@ export default function App() {
             )}
             <div id="resultContent" ref={resultContentRef} />
             {showDeleteArea && (
-              <div style={{ marginTop: 16 }}>
+              <div className="result-delete-section">
                 <button
                   type="button"
-                  className="btn btn-full"
-                  style={{ background: 'transparent', color: 'var(--risk)' }}
+                  className="btn btn-full btn-delete-record"
                   onClick={() => {
                     if (!currentHistoryId) return;
                     if (!confirm('이 스캔 기록을 삭제할까요?')) return;
