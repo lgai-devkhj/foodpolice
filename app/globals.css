@@ -2052,6 +2052,98 @@
     }
     .capture-preview-btn:active { opacity: 0.9; }
 
+    /* 미리보기 → 분석하기·비교하기 직전: 오늘의 퀘스트 안내 (홈 카드 상단 문구는 제거) */
+    .quest-mission-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 220;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: calc(20px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+      background: rgba(10, 18, 14, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-sizing: border-box;
+    }
+    .quest-mission-panel {
+      width: 100%;
+      max-width: 400px;
+      padding: 22px 20px 20px;
+      border-radius: 20px;
+      background: var(--card);
+      border: 1px solid var(--card-stroke);
+      box-shadow: var(--glass-shadow);
+      max-height: min(88vh, 640px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .quest-mission-title {
+      margin: 0 0 10px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .quest-mission-lead {
+      margin: 0 0 14px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: var(--text2);
+    }
+    .quest-mission-list {
+      list-style: none;
+      margin: 0 0 16px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .quest-mission-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(46, 125, 50, 0.08);
+      border: 1px solid rgba(46, 125, 50, 0.14);
+    }
+    [data-theme='dark'] .quest-mission-row,
+    html:not([data-theme='light']) .quest-mission-row {
+      background: rgba(129, 199, 132, 0.1);
+      border-color: rgba(129, 199, 132, 0.22);
+    }
+    .quest-mission-row-title {
+      font-weight: 700;
+      font-size: 1.02rem;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .quest-mission-row-sub {
+      font-size: 0.86rem;
+      line-height: 1.4;
+      color: var(--text3);
+    }
+    .quest-mission-dont {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--text2);
+      cursor: pointer;
+      user-select: none;
+    }
+    .quest-mission-dont input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+    }
+    .quest-mission-close {
+      margin-top: 0;
+    }
+
     .result-analysis-time {
       text-align: center;
       margin: 6px 0 14px;
@@ -2255,14 +2347,20 @@
       color: #b71c1c;
       border-color: rgba(183,28,28,0.25);
     }
+    /* 배지 안에서 아이콘·제목 줄 아래로만 오게 하고, 줄 바꿈 시에도 겹치지 않게 간격 유지 */
     .nova-subgroup-graph {
       display: flex;
       align-items: center;
-      gap: 0;
-      margin: 8px 0 0;
+      align-content: flex-start;
       flex-wrap: wrap;
+      gap: 8px 6px;
+      row-gap: 10px;
+      margin: 10px 0 0;
       font-size: 0.96rem;
       width: 100%;
+      min-width: 0;
+      flex-basis: 100%;
+      box-sizing: border-box;
     }
     .nova-subgroup-node {
       padding: 5px 10px;
@@ -2271,16 +2369,16 @@
       background: rgba(255,255,255,0.62);
       color: var(--text2);
       font-weight: 700;
-      line-height: 1.2;
+      line-height: 1.35;
       font-size: 0.88rem;
-      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      max-width: 100%;
+      transition: box-shadow 0.18s ease, border-color 0.18s ease;
     }
     .nova-subgroup-node.active {
       background: linear-gradient(160deg, rgba(229,57,53,0.2) 0%, rgba(255,138,128,0.36) 100%);
       border-color: rgba(183, 28, 28, 0.68);
       color: #9a1414;
       font-weight: 900;
-      transform: translateY(-1px) scale(1.04);
       box-shadow: 0 0 0 2px rgba(183, 28, 28, 0.22), 0 6px 14px rgba(183, 28, 28, 0.2);
     }
     .nova-subgroup-link {

@@ -89,6 +89,33 @@ const ALT_SCROLL_ACTIVITY_MS = 1100;
 /** 누적 목표 달성 판정 시 동일 여유(초) */
 const ALT_QUEST_SEC_EPSILON = 0.05;
 
+/** localStorage: 미리보기에서 퀘스트 안내 모달을 다시 보지 않음 */
+const QUEST_MISSION_HINT_LS = 'fp_questMissionHintDismissed';
+
+type PendingQuestMission =
+  | {
+      kind: 'compare';
+      pairA: { raw: string; rawMime: string; nut: string; nutMime: string };
+      pairB: { raw: string; rawMime: string; nut: string; nutMime: string };
+    }
+  | {
+      kind: 'analyze';
+      rawB64: string;
+      rawMime: string;
+      nutB64: string;
+      nutMime: string;
+      finishTutorial: boolean;
+    };
+
+function readQuestMissionHintDismissed(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(QUEST_MISSION_HINT_LS) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
   const list = profile.bodyMeasurements || [];
@@ -1233,6 +1260,10 @@ export default function App() {
   const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
   /** 결과 화면: 방금 분석(scan) vs 기록에서 재오픈(history). 대체 식품 퀘스트 UI는 scan일 때만 */
   const [resultEntrySource, setResultEntrySource] = useState<'scan' | 'history' | null>(null);
+  /** 분석하기·비교하기 직전 오늘의 퀘스트 안내 모달 */
+  const [showQuestMissionModal, setShowQuestMissionModal] = useState(false);
+  const [questMissionDontShowAgain, setQuestMissionDontShowAgain] = useState(false);
+  const pendingQuestMissionRef = useRef<PendingQuestMission | null>(null);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
@@ -2249,6 +2280,28 @@ export default function App() {
     }
   }, [clientId, notifyStreakFromQuest]);
 
+  const completeQuestMissionModal = useCallback(() => {
+    if (questMissionDontShowAgain) {
+      try {
+        localStorage.setItem(QUEST_MISSION_HINT_LS, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+    setShowQuestMissionModal(false);
+    setQuestMissionDontShowAgain(false);
+    const p = pendingQuestMissionRef.current;
+    pendingQuestMissionRef.current = null;
+    setCapturedPreviewDataUrl(null);
+    if (!p) return;
+    if (p.kind === 'compare') {
+      runCompareProducts(p.pairA, p.pairB);
+      return;
+    }
+    if (p.finishTutorial) finishTutorial();
+    runAnalyzeTwoImages(p.rawB64, p.rawMime, p.nutB64, p.nutMime);
+  }, [questMissionDontShowAgain, runCompareProducts, runAnalyzeTwoImages, finishTutorial]);
+
   useLayoutEffect(() => {
     if (!tutorialCoachActive) {
       setTutorialHoleRect(null);
@@ -2440,10 +2493,10 @@ export default function App() {
     if (!capturedPreviewDataUrl) return;
     const base64 = capturedPreviewDataUrl.split(',')[1];
     const mime = capturedPreviewMimeType || 'image/jpeg';
-    setCapturedPreviewDataUrl(null);
 
     if (homeProductMode === 'compare') {
       if (captureStep === 1) {
+        setCapturedPreviewDataUrl(null);
         setRawImageBase64(base64 || '');
         rawImageBase64Ref.current = base64 || '';
         setRawImageMimeType(mime);
@@ -2458,6 +2511,7 @@ export default function App() {
         return;
       }
       if (compareSlot === 'A') {
+        setCapturedPreviewDataUrl(null);
         const pairA = {
           raw: rawImageBase64,
           rawMime: rawImageMimeType,
@@ -2481,16 +2535,25 @@ export default function App() {
         setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
         return;
       }
-      runCompareProducts(pa, {
+      const pairB = {
         raw: rawImageBase64,
         rawMime: rawImageMimeType,
         nut: base64 || '',
         nutMime: mime,
-      });
+      };
+      if (!readQuestMissionHintDismissed() && questBoard.dailyTotal > 0) {
+        pendingQuestMissionRef.current = { kind: 'compare', pairA: pa, pairB: pairB };
+        setQuestMissionDontShowAgain(false);
+        setShowQuestMissionModal(true);
+        return;
+      }
+      setCapturedPreviewDataUrl(null);
+      runCompareProducts(pa, pairB);
       return;
     }
 
     if (captureStep === 1) {
+      setCapturedPreviewDataUrl(null);
       setRawImageBase64(base64 || '');
       rawImageBase64Ref.current = base64 || '';
       setRawImageMimeType(mime);
@@ -2507,6 +2570,20 @@ export default function App() {
       setError('먼저 원재료 사진을 골라 주세요');
       return;
     }
+    if (!readQuestMissionHintDismissed() && questBoard.dailyTotal > 0) {
+      pendingQuestMissionRef.current = {
+        kind: 'analyze',
+        rawB64: rawImageBase64,
+        rawMime: rawImageMimeType,
+        nutB64: base64 || '',
+        nutMime: mime,
+        finishTutorial: showTutorial,
+      };
+      setQuestMissionDontShowAgain(false);
+      setShowQuestMissionModal(true);
+      return;
+    }
+    setCapturedPreviewDataUrl(null);
     if (showTutorial) {
       finishTutorial();
     }
@@ -2525,6 +2602,7 @@ export default function App() {
     homeProductMode,
     compareSlot,
     runCompareProducts,
+    questBoard.dailyTotal,
   ]);
 
   const retakePhoto = useCallback(() => {
@@ -2816,6 +2894,48 @@ export default function App() {
             />
             <button type="button" className="btn btn-full" onClick={() => dismissDesktopRecommend()}>
               확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showQuestMissionModal && questBoard.dailyTotal > 0 && (
+        <div
+          className="quest-mission-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="quest-mission-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) completeQuestMissionModal();
+          }}
+        >
+          <div className="quest-mission-panel" onClick={(e) => e.stopPropagation()}>
+            <h2 id="quest-mission-title" className="quest-mission-title">
+              오늘의 퀘스트
+            </h2>
+            <p className="quest-mission-lead">
+              {questBoard.lead || '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.'}
+            </p>
+            <ul className="quest-mission-list">
+              {questBoard.dailyRows.map((q) => (
+                <li key={q.id} className="quest-mission-row">
+                  <span className="quest-mission-row-title">{q.title}</span>
+                  {q.subtitle ? (
+                    <span className="quest-mission-row-sub">{q.subtitle}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+            <label className="quest-mission-dont">
+              <input
+                type="checkbox"
+                checked={questMissionDontShowAgain}
+                onChange={(e) => setQuestMissionDontShowAgain(e.target.checked)}
+              />
+              <span>다시 보지 않기</span>
+            </label>
+            <button type="button" className="btn btn-primary btn-full quest-mission-close" onClick={completeQuestMissionModal}>
+              닫기
             </button>
           </div>
         </div>
@@ -3546,9 +3666,6 @@ export default function App() {
                       {questBoard.dailyCompleted}/{questBoard.dailyTotal}
                     </span>
                   </div>
-                  <p className="daily-quest-lead">
-                    {questBoard.lead || '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.'}
-                  </p>
                   <ul className="daily-quest-list">
                     {questBoard.dailyRows.map((q) => (
                       <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
