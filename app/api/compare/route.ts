@@ -37,7 +37,7 @@ interface CompareBody {
 
 function requireClientId(clientId: string): void {
   if (!clientId || String(clientId).trim().length < 8) {
-    throw new Error('clientId가 없습니다.');
+    throw new Error('잠깐만요, 이 기기 정보가 없어요.');
   }
 }
 
@@ -127,21 +127,14 @@ export async function POST(request: NextRequest) {
 
     const text = await res.text();
     if (!res.ok) {
-      let msg = text;
-      try {
-        const err = JSON.parse(text);
-        if (err?.error?.message) msg = err.error.message;
-      } catch {
-        /* ignore */
-      }
-      return NextResponse.json({ error: 'Gemini 오류: ' + msg }, { status: res.status });
+      return NextResponse.json({ error: '잠깐 오류가 났어요. 다시 눌러 주세요.' }, { status: res.status });
     }
 
     const data = JSON.parse(text);
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     if (parts.length === 0 || !parts[0].text) {
       return NextResponse.json(
-        { error: 'Gemini가 응답 내용을 반환하지 않았습니다.' },
+        { error: '비교 결과를 받지 못했어요. 잠시 뒤에 다시 눌러 주세요.' },
         { status: 500 }
       );
     }
@@ -152,7 +145,7 @@ export async function POST(request: NextRequest) {
     try {
       parsed = JSON.parse(normalized);
     } catch {
-      return NextResponse.json({ error: '응답 파싱 실패' }, { status: 500 });
+      return NextResponse.json({ error: '결과를 읽는 데 실패했어요. 다시 한번 눌러 주세요.' }, { status: 500 });
     }
 
     const rawA = parsed.productA;
@@ -185,7 +178,7 @@ export async function POST(request: NextRequest) {
       dailyQuestProductMatch,
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : '서버 오류';
+    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

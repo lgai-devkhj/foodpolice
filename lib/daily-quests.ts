@@ -2,6 +2,8 @@
  * 듀오링고 스타일 일일 퀘스트(로컬 날짜 기준).
  */
 
+import { normalizeAnalysisStreak, type AnalysisStreak } from './analysis-streak';
+
 export type QuestId =
   | 'analyze'
   | 'alternative'
@@ -450,8 +452,24 @@ export interface WeekDayCell {
   isToday: boolean;
 }
 
-export function buildWeekStreakView(completeYmds: string[] | undefined, now: Date): WeekDayCell[] {
+/**
+ * 일일 퀘스트 완료일 + 저장된 연속 스트릭 구간(마지막 갱신일부터 current일).
+ * 후자는 `dailyPairCompleteYmds` 누락·구버전 데이터와 맞추고, 일요일 미달성 직전 토요일 달성 표시에 필요함.
+ */
+export function buildWeekStreakView(
+  completeYmds: string[] | undefined,
+  now: Date,
+  streak?: AnalysisStreak | null,
+): WeekDayCell[] {
   const set = new Set(completeYmds || []);
+  if (streak != null) {
+    const s = normalizeAnalysisStreak(streak);
+    if (s.lastStreakDate && s.current > 0) {
+      for (let k = 0; k < s.current; k++) {
+        set.add(addDaysToYmd(s.lastStreakDate, -k));
+      }
+    }
+  }
   const labels = ['일', '월', '화', '수', '목', '금', '토'];
   const cells: WeekDayCell[] = [];
   for (let i = 6; i >= 0; i--) {

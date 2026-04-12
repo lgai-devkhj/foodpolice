@@ -124,6 +124,19 @@ describe('daily-quests', () => {
     expect(week[4]?.done).toBe(false);
   });
 
+  it('완료일 배열이 비어도 스트릭 저장값으로 어제(토) 달성 표시 — 일요 미달성 직후에도 토요일 불 유지', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const week = buildWeekStreakView(
+      [],
+      new Date(),
+      { lastStreakDate: '2026-06-14', current: 1, longest: 1 },
+    );
+    const sat = week.find((c) => c.ymd === '2026-06-14');
+    expect(sat?.done).toBe(true);
+    expect(week.find((c) => c.ymd === '2026-06-15')?.done).toBe(false);
+  });
+
   it('첫 퀘스트: AI 일치(dailyQuestProductMatch)가 true일 때만 analyzeDone', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));

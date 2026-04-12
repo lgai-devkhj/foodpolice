@@ -2052,8 +2052,8 @@
     }
     .capture-preview-btn:active { opacity: 0.9; }
 
-    /* 미리보기 → 분석하기·비교하기 직전: 오늘의 퀘스트 안내 (홈 카드 상단 문구는 제거) */
-    .quest-mission-overlay {
+    /* 홈: 상품 비교하기 → 촬영 순서 안내(기존 home-compare-callout를 팝업으로) */
+    .compare-flow-hint-overlay {
       position: fixed;
       inset: 0;
       z-index: 220;
@@ -2066,7 +2066,7 @@
       -webkit-backdrop-filter: blur(8px);
       box-sizing: border-box;
     }
-    .quest-mission-panel {
+    .compare-flow-hint-panel {
       width: 100%;
       max-width: 400px;
       padding: 22px 20px 20px;
@@ -2078,53 +2078,19 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    .quest-mission-title {
-      margin: 0 0 10px;
-      font-size: 1.25rem;
+    .compare-flow-hint-heading {
+      margin: 0 0 14px;
+      font-size: 1.2rem;
       font-weight: 800;
       color: var(--text);
       letter-spacing: -0.02em;
     }
-    .quest-mission-lead {
-      margin: 0 0 14px;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      color: var(--text2);
+    .home-compare-callout--in-modal {
+      margin: 0 0 16px !important;
+      max-width: none !important;
+      text-align: left;
     }
-    .quest-mission-list {
-      list-style: none;
-      margin: 0 0 16px;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .quest-mission-row {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(46, 125, 50, 0.08);
-      border: 1px solid rgba(46, 125, 50, 0.14);
-    }
-    [data-theme='dark'] .quest-mission-row,
-    html:not([data-theme='light']) .quest-mission-row {
-      background: rgba(129, 199, 132, 0.1);
-      border-color: rgba(129, 199, 132, 0.22);
-    }
-    .quest-mission-row-title {
-      font-weight: 700;
-      font-size: 1.02rem;
-      color: var(--text);
-      line-height: 1.35;
-    }
-    .quest-mission-row-sub {
-      font-size: 0.86rem;
-      line-height: 1.4;
-      color: var(--text3);
-    }
-    .quest-mission-dont {
+    .compare-flow-hint-dont {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -2135,13 +2101,10 @@
       cursor: pointer;
       user-select: none;
     }
-    .quest-mission-dont input {
+    .compare-flow-hint-dont input {
       width: 18px;
       height: 18px;
       accent-color: var(--primary);
-    }
-    .quest-mission-close {
-      margin-top: 0;
     }
 
     .result-analysis-time {

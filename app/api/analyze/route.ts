@@ -5,9 +5,11 @@ import {
   getDailyQuestProductMatchBlock,
   normalizeGeminiJson,
   GEMINI_MODEL,
+  type BmiTier,
+  type PersonalizationInput,
 } from '@/lib/gemini-prompts';
 import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
-import { computeBmiServer, bmiCategoryKo } from '@/lib/nutrition-daily';
+import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
@@ -35,8 +37,19 @@ interface AnalyzeBody {
 
 function requireClientId(clientId: string): void {
   if (!clientId || String(clientId).trim().length < 8) {
-    throw new Error('clientId가 없습니다.');
+    throw new Error('잠깐만요, 이 기기 정보가 없어요.');
   }
+}
+
+function profileToPersonalization(profile?: AnalyzeBody['profile']): PersonalizationInput | undefined {
+  const h = profile?.heightCm;
+  const w = profile?.weightKg;
+  if (h == null || w == null || Number(h) <= 0 || Number(w) <= 0) return undefined;
+  const bmi = computeBmiServer(Number(h), Number(w));
+  if (bmi == null) return undefined;
+  const bmiTier: BmiTier =
+    bmi < 18.5 ? 'underweight' : bmi <= 22.9 ? 'normal' : bmi <= 24.9 ? 'overweight' : 'obese';
+  return { bmiValue: bmi, bmiTier };
 }
 
 export async function POST(request: NextRequest) {
@@ -61,7 +74,7 @@ export async function POST(request: NextRequest) {
     );
     const hasTwoImages = !!rawImageBase64 && !!nutritionImageBase64;
     if (!imageBase64 && !hasTwoImages) {
-      return NextResponse.json({ error: '이미지가 없습니다.' }, { status: 400 });
+      return NextResponse.json({ error: '사진을 먼저 올려 주세요.' }, { status: 400 });
     }
 
     const key = process.env.GEMINI_API_KEY;
@@ -73,21 +86,12 @@ export async function POST(request: NextRequest) {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-    const basePrompt = hasTwoImages ? getTwoImagePackagePrompt() : getPackageImagePrompt();
-    let profileHint = '';
-    const ph = profile?.heightCm;
-    const pw = profile?.weightKg;
-    if (ph != null && pw != null && Number(ph) > 0 && Number(pw) > 0) {
-      const bmiPre = computeBmiServer(Number(ph), Number(pw));
-      if (bmiPre != null) {
-        const catPre = bmiCategoryKo(bmiPre);
-        profileHint =
-          '[사용자 프로필 — 종합 평가 단계 5에만 반영. 의학 진단이 아님]\n' +
-          `BMI 약 ${bmiPre.toFixed(1)} (${catPre}). 과체중·비만이면 당류·지방·초가공에 더 엄격히, 저체중·정상은 일반 기준으로 평가.\n\n`;
-      }
-    }
+    const personalization = profileToPersonalization(profile);
+    const basePrompt = hasTwoImages
+      ? getTwoImagePackagePrompt(personalization)
+      : getPackageImagePrompt(personalization);
     const dailyQuestBlock = questTargetValid ? getDailyQuestProductMatchBlock(dailyQuestTarget) : '';
-    const prompt = profileHint + basePrompt + dailyQuestBlock;
+    const prompt = basePrompt + dailyQuestBlock;
 
     const res = await fetch(url, {
       method: 'POST',
@@ -123,21 +127,14 @@ export async function POST(request: NextRequest) {
 
     const text = await res.text();
     if (!res.ok) {
-      let msg = text;
-      try {
-        const err = JSON.parse(text);
-        if (err?.error?.message) msg = err.error.message;
-      } catch {
-        /* ignore */
-      }
-      return NextResponse.json({ error: 'Gemini 오류: ' + msg }, { status: res.status });
+      return NextResponse.json({ error: '잠깐 오류가 났어요. 다시 눌러 주세요.' }, { status: res.status });
     }
 
     const data = JSON.parse(text);
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     if (parts.length === 0 || !parts[0].text) {
       return NextResponse.json(
-        { error: 'Gemini가 응답 내용을 반환하지 않았습니다.' },
+        { error: '분석 결과를 받지 못했어요. 잠시 뒤에 다시 눌러 주세요.' },
         { status: 500 }
       );
     }
@@ -148,7 +145,7 @@ export async function POST(request: NextRequest) {
     try {
       parsed = JSON.parse(normalized);
     } catch {
-      return NextResponse.json({ error: '응답 파싱 실패' }, { status: 500 });
+      return NextResponse.json({ error: '결과를 읽는 데 실패했어요. 다시 한번 눌러 주세요.' }, { status: 500 });
     }
 
     const dailyQuestProductMatch = questTargetValid && parsed.dailyQuestProductMatch === true;
@@ -163,7 +160,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (e) {
-    const message = e instanceof Error ? e.message : '서버 오류';
+    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

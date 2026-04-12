@@ -69,6 +69,39 @@ function getPersonalizationFocus(tier: BmiTier): {
   }
 }
 
+/**
+ * 맞춤 참고(consumptionAdvice): 프로필 유무와 관계없이 항상 프롬프트에 포함.
+ * 사용자가 “어떻게 먹으면 조금 더 나을지”를 직관적으로 얻도록 한다.
+ */
+export function getConsumptionAdviceUniversalBlock(): string {
+  return (
+    '[consumptionAdvice — 맞춤 참고(필수)]\n' +
+    '- 역할: 이 제품 라벨(영양표·원재료·NOVA)을 바탕으로 **조금 더 건강하게 즐기는 방법**을 알려 주세요.\n' +
+    '- **정확히 2문장**.\n' +
+    '- 1문장: 표·원재료에서 드러나는 특징을 사실대로 짚는다(당·나트륨·포화지방·초가공 등, 최소 1가지).\n' +
+    '- 2문장: 1문장과 연결되는 **생활 속 섭취 팁** — 곁들임·순서·조합을 **부드러운 권유체**로 쓴다.\n' +
+    '  톤 예: "당류가 높으면 우유나 견과와 함께 나눠 드시면 혈당이 덜 급해질 수 있어요.", "나트륨이 높으면 채소·과일을 함께 두면 균형에 도움이 될 수 있어요.", "단순 당이 많으면 단백질·섬유질 있는 음식과 함께 드시면 좋아요."\n' +
+    '- 톤: 친절한 구어체, "~하면 좋아요", "~해 보세요", "~할 수 있어요", "~와 함께 드시면", "~나눠 드시면". 딱딱한 보고서체·명령조만 이어지는 문장은 피한다.\n' +
+    '- 팁은 **일반 영양 상식** 수준이어야 하며, 라벨에 없는 특정 브랜드·제품명을 지어내지 않는다.\n' +
+    '- Group IV(초가공)이면 2문장 안에서 **초가공 또는 가공 정도**를 최소 한 번 짚는다.\n' +
+    '- 금지: 질병 진단·치료·약 복용 지시, "반드시", "절대", 공포 조장, 의학적 단정.\n' +
+    '- 금지: 하루 n번·주 n회·n개만 같은 **숫자로 된 섭취 규칙**.\n' +
+    '- 금지: 식감·촉감만으로 내용을 채우기.\n\n'
+  );
+}
+
+/** 사용자에게 보이는 JSON 문장 — 토스 앱 수준의 친근한 존댓말 */
+export function getTossUserFacingToneBlock(): string {
+  return (
+    '[사용자 화면 문장 — 토스 말투]\n' +
+    '- 사용자에게 보이는 한국어는 **토스 앱처럼** 짧고 읽기 쉬운 존댓말(-요)로 쓴다.\n' +
+    '- 적용 필드: briefDescription, judgmentReason, concernIngredients.explanation, consumptionAdvice, koreanReclassificationNote.\n' +
+    '- 기본 어미: "~이에요/예요", "~해요", "~해 보세요", "~할 수 있어요", "~면 좋아요". 딱딱한 "~입니다"만 반복하거나 보고서체·명령조(해라/하십시오) 위주 문장은 피한다.\n' +
+    '- 비교 응답이면 comparisonSummary, recommendationLine도 같은 톤으로 쓴다.\n\n'
+  );
+}
+
+/** 키·몸무게로 BMI가 있을 때만: 맞춤 참고(consumptionAdvice) 톤 조절 */
 export function getPersonalizationBlock(profile?: PersonalizationInput | null): string {
   if (!profile || profile.bmiValue == null || !profile.bmiTier) return '';
 
@@ -77,36 +110,21 @@ export function getPersonalizationBlock(profile?: PersonalizationInput | null): 
   const focus = getPersonalizationFocus(profile.bmiTier);
 
   return (
-    '[맞춤 참고]\n' +
-    `- BMI: ${bmiText}\n` +
-    `- 체형 구간: ${bmiTierLabel}\n` +
-    `- 설명 톤: ${focus.adviceTone}\n` +
-    '\n' +
-    '[consumptionAdvice 생성 규칙 — 반드시 준수]\n' +
-    '- 목표: 단순 조언이 아니라 과학적 근거 기반으로 해석된 짧은 안내 문장을 만든다.\n' +
-    '- 입력 해석: novaGroup·novaSubgroup(특히 Group IV 초가공), 라벨의 당·나트륨·포화지방 등, BMI 구간을 함께 반영한다.\n' +
-    '- 필수 포함: Group IV(초가공)이면 2문장 안에서 **초가공 또는 가공 정도**를 최소 한 번 짚는다. 과체중·비만이면 **당·지방·열량 밀도·체중** 맥락을 최소 한 번 짚한다(의학적 단정·치료 약속 금지).\n' +
-    '- 핵심 해석: 같은 식품이라도 BMI 구간에 따라 체중 영향의 의미가 달라진다.\n' +
-    '- 반영 근거: 당류·고열량 밀도 식품 섭취는 체중 증가와 연관 연구가 많다. 과체중·비만에서는 같은 섭취가 체중 관리 관점에서 더 민감하게 이야기될 수 있다.\n' +
-    '- 문장 구조: 항상 **정확히 2문장**. 1문장째: 라벨 사실 + NOVA/초가공·당·나트륨·지방 중 **최소 1가지**. 2문장째: BMI 구간에 맞는 체중·에너지 관점 해석.\n' +
-    '- 금지: 식감·질감·딱딱함·부드러움·씹는 느낌 같은 **식감·촉각**만으로 consumptionAdvice를 채우지 마세요(제품이 그 특성의 본질이 아닌 한).\n' +
-    '- 사실 우선순위: 표에 당·나트륨·포화지방이 뚜렷하면 먼저 짚고, 이어 NOVA/초가공 맥락을 짚는다.\n' +
-    '- 톤 강도: normal은 예방 관점(가능성), overweight는 누적 영향 주의, obese는 더 분명한 판단 톤.\n' +
-    '- 같은 내용·근거를 유지하되 강도만 다르게 표현한다.\n' +
-    '- normal 예시 톤: "영향이 갈 수 있어요"\n' +
-    '- overweight 예시 톤: "늘 수 있어요"\n' +
-    '- obese 예시 톤: "이어질 가능성이 큽니다", "피하는 게 맞습니다"\n' +
-    '- 금지 표현: "권장합니다", "섭취를 줄이세요", "주의가 필요합니다".\n' +
-    '- 숫자형 섭취 횟수/허용량/기간(하루 n번, 주 n회 등)과 의료적 단정 표현은 금지한다.\n' +
-    '- 스타일: 위 2문장 한도 안에서 짧고 간결한 구어체(토스 스타일), 과장·공포 표현 금지.\n\n'
+    '[맞춤 참고 — BMI 반영]\n' +
+    `- BMI: ${bmiText}, 체형 구간: ${bmiTierLabel}, 설명 톤: ${focus.adviceTone}\n` +
+    '- consumptionAdvice 2문장에 반영: 위 [consumptionAdvice — 맞춤 참고(필수)]를 유지하되, **특히 2문장째**에서 체형에 맞게 부담을 짚는 강도를 조절한다.\n' +
+    '- 과체중·비만: 당·열량 밀도·초가공·체중 맥락을 2문장째 팁에서 한 번 더 의식할 수 있게 쓴다(치료·감량 약속·의학적 단정 금지).\n' +
+    '- 정상·저체중: 같은 팁을 덜 겁주는 톤으로 쓴다.\n' +
+    '- NOVA 등급은 BMI로 바꾸지 않는다.\n\n'
   );
 }
 
 export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationInput | null): string {
   return (
-    '당신은 식품 분석 앱 FoodPolice의 AI입니다.\n' +
-    '식품을 열량 하나가 아니라 영양성분, 원재료, 가공 정도를 함께 보고 평가합니다.\n' +
-    '열량만으로 좋다/나쁘다를 결정하지 마세요.\n\n' +
+    '당신은 식품 분석 앱 FoodPolice를 돕는 AI예요.\n' +
+    '열량만 보지 않고 영양성분, 원재료, 가공 정도를 함께 살펴봐요.\n' +
+    '열량만으로 좋다/나쁘다를 가르지 않아요.\n\n' +
+    getConsumptionAdviceUniversalBlock() +
     getPersonalizationBlock(profile) +
     '[판단 순서]\n' +
     '1. 영양성분: 당류, 나트륨, 포화지방이 많은지 본다.\n' +
@@ -131,10 +149,9 @@ export function getFoodPoliceHolisticEvaluationIntro(profile?: PersonalizationIn
     '- concernIngredients.name에 나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 같은 영양성분표 항목명은 넣지 않는다.\n' +
     '- concernIngredients.explanation은 BMI 구간에 따라 강도만 조정한다.\n' +
     '- judgmentReason: K-NOVA 판단 근거를 한 문장으로 쓴다.\n' +
-    '- consumptionAdvice: 라벨에 적힌 사실만 바탕으로 **정확히 2문장**으로 쓰고, 숫자형 섭취 횟수나 허용량을 만들지 않는다.\n' +
-    '- consumptionAdvice는 Group IV·초가공·당·나트륨·지방·BMI 맥락을 반영하고, 식감·딱딱함만으로 채우지 않는다.\n' +
-    '- consumptionAdvice는 BMI 구간별로 표현 강도만 달라야 한다.\n' +
-    '- 의료적 진단, 치료, 단정 표현은 금지한다.\n\n'
+    '- consumptionAdvice: 위 [consumptionAdvice — 맞춤 참고(필수)]와 BMI 블록을 따른다. **정확히 2문장**. 곁들임·조합 제안 허용.\n' +
+    '- 의료적 진단, 치료, 단정 표현은 금지한다.\n' +
+    getTossUserFacingToneBlock()
   );
 }
 
@@ -158,9 +175,9 @@ export function getNutritionServingUnitRulesBlock(): string {
     '- 캔디·껌·목캔디·정제형·작은 알갱이 간식은 특히 포장 개수 추정을 금지한다.\n' +
     '- servingSizeText에는 1회 제공량, 개당 중량, 총 내용량(g/ml) 등 표기를 가능한 그대로 넣는다.\n' +
     '- basisIsPerServing은 표 숫자가 1회 제공량 기준인지 100g/100ml 기준인지 정확히 구분한다.\n' +
-    '- consumptionAdvice에서는 하루 몇 통, 몇 봉지, 몇 박스, 주 몇 회 같은 구체적 허용 개수나 빈도를 쓰지 않는다.\n' +
-    '- consumptionAdvice에서는 적게 먹기, 덜 자주 먹기, 하루 1개만 같은 행동 지시형 문장도 쓰지 않는다.\n' +
-    '- 애매하면 중량 또는 1회 제공량 확인을 권하는 보수적 문장만 쓴다.\n'
+    '- consumptionAdvice에서는 하루 몇 통, 몇 봉지, 주 몇 회 같은 **숫자로 된 섭취 빈도·개수 규칙**을 쓰지 않는다.\n' +
+    '- consumptionAdvice에서는 "하루 1개만", "주 3회만"처럼 **구체적 양·횟수를 숫자로 규정**하는 문장은 쓰지 않는다. 다만 "~와 함께 드시면 좋아요" 같은 곁들임·조합은 허용한다.\n' +
+    '- 애매하면 중량 또는 1회 제공량을 확인해 보시라는 보수적 문장을 쓸 수 있다.\n'
   );
 }
 
@@ -241,14 +258,14 @@ export function getKoreanNovaCriteria(profile?: PersonalizationInput | null): st
     '- 쉬운 한국어로 쓴다.\n' +
     '- 과장·공포 표현은 금지한다.\n' +
     '- BMI 구간에 따라 explanation의 강조점은 달라질 수 있다.\n\n' +
-    '[말투 규칙]\n' +
-    '- 짧고 분명하게 말한다.\n' +
-    '- 쉬운 생활어를 사용한다.\n' +
-    '- 딱딱한 보고서체와 의학전문용어 남발을 피한다.\n' +
-    '- 과장·단정·공포 표현을 피하고 차분하고 친절한 톤을 유지한다.\n' +
-    '- judgmentReason은 Group IV일 때 원재료 구조와 기능성 여부만으로 한 문장 작성한다.\n' +
-    '- briefDescription은 종합 한 문장 45자 이내로 작성한다.\n' +
-    '- consumptionAdvice와 concernIngredients.explanation도 같은 톤으로 짧게 쓴다.\n'
+    '[말투 규칙 — 사용자 노출]\n' +
+    '- 위 [사용자 화면 문장 — 토스 말투]를 우선한다.\n' +
+    '- 짧고 분명하게, 쉬운 생활어로 쓴다. 의학 전문용어는 남발하지 않는다.\n' +
+    '- 과장·단정·공포 표현은 피하고 차분하게 말한다.\n' +
+    '- judgmentReason은 Group IV일 때 원재료 구조와 기능성 여부만으로 한 문장.\n' +
+    '- briefDescription은 종합 한 문장 45자 이내.\n' +
+    '- concernIngredients.explanation은 한 문장으로 짧게.\n' +
+    '- consumptionAdvice는 [consumptionAdvice — 맞춤 참고(필수)]를 따른다.\n'
   );
 }
 
@@ -256,7 +273,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
   return (
     getKoreanNovaCriteria(profile) +
     '\n' +
-    '당신에게 할 일: 아래 두 장의 이미지가 순서대로 제공됩니다.\n\n' +
+    '당신에게 할 일: 아래 두 장의 이미지가 순서대로 제공돼요.\n\n' +
     '[이미지 A: 원재료/제품 표시]\n' +
     '- 원재료 표기 전체, 제품명(productName), 제조사(companyName)를 읽어 추출한다.\n' +
     '- rawMaterials를 기준으로 한국형 NOVA 분류(novaGroup)를 판단한다.\n' +
@@ -269,8 +286,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- 없거나 판독 불가면 nutrition은 null로 둔다.\n' +
     '- 표에 0kcal, 제로칼로리, 열량 0 등으로 나오면 caloriesKcal는 반드시 숫자 0이다.\n' +
     '- 콜레스테롤 행이 있으면 cholesterolMg에 mg 숫자(0 포함)를 넣는다. 표에 없으면 null.\n' +
-    '- consumptionAdvice: 라벨에 실제로 보이는 정보만 바탕으로 **정확히 2문장**. 위 [consumptionAdvice 생성 규칙]과 동일(Group IV·초가공·당·나트륨·지방·BMI, 식감만으로 채우기 금지).\n' +
-    '- 숫자형 섭취 횟수, 허용량, 빈도 조언은 금지한다.\n' +
+    '- consumptionAdvice: 위 [consumptionAdvice — 맞춤 참고(필수)]와 BMI 블록을 따른다. **정확히 2문장**. 곁들임·조합·섭취 팁 허용. 숫자 빈도·개수 규칙만 금지.\n' +
     '- kcal 추측은 금지한다.\n\n' +
     '[JSON 출력]\n' +
     '- productName: 제품명. 완전히 정확한 이름이 명시되지 않았으면 반드시 공란 "".\n' +
@@ -285,8 +301,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
-    '- consumptionAdvice: 라벨에 보이는 정보만 바탕으로 **정확히 2문장**. Group IV·초가공·당·나트륨·지방·BMI 맥락을 위 규칙대로 반영. 숫자·횟수·기간·허용량 표현 금지. 식감·딱딱함만으로 채우기 금지. 없으면 "".\n' +
-    '- consumptionAdvice는 BMI 구간별로 표현 강도와 강조점이 달라야 한다.\n' +
+    '- consumptionAdvice: 위 [consumptionAdvice — 맞춤 참고(필수)]와 BMI 블록을 따른다. **정확히 2문장**. 건강 섭취 팁·곁들임 허용. 숫자 빈도·개수 규칙만 금지. 없으면 "".\n' +
     '- foodCategory: 아래 목록 중 정확히 하나.\n' +
     '- nutrition: 객체 또는 null.\n\n' +
     '[foodCategory]\n' +
@@ -303,7 +318,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- 식빵, 시리얼, 베이글 → "빵·시리얼류"\n' +
     '- 마시는 것만 → "음료"\n' +
     '- 간식과 한 끼를 혼동하지 않는다.\n\n' +
-    '응답은 아래 JSON 하나만 출력한다. 다른 말은 쓰지 않는다.\n' +
+    '응답은 아래 JSON 하나만 출력해 주세요. 다른 말은 쓰지 않아요.\n' +
     '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null}'
   );
 }
@@ -312,9 +327,9 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
   return (
     getKoreanNovaCriteria(profile) +
     '\n' +
-    '당신에게 할 일: 이미지는 식품 포장(원재료명, 영양정보 표, 앞면 등)일 수 있습니다.\n' +
-    '텍스트를 읽고 전처리한 뒤, 제품 정보·한국형 NOVA·Group IV 세분화·영양표·카테고리를 판단하세요.\n' +
-    '중간 과정은 출력하지 말고 최종 결과만 아래 JSON 형식으로 한 개만 출력하세요.\n\n' +
+    '당신에게 할 일: 이미지는 식품 포장(원재료명, 영양정보 표, 앞면 등)일 수 있어요.\n' +
+    '텍스트를 읽고 전처리한 뒤, 제품 정보·한국형 NOVA·Group IV 세분화·영양표·카테고리를 판단해 주세요.\n' +
+    '중간 과정은 출력하지 말고 최종 결과만 아래 JSON 형식으로 한 개만 출력해 주세요.\n\n' +
     '[영양정보 표]\n' +
     getNutritionServingUnitRulesBlock() +
     '\n' +
@@ -358,12 +373,11 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- briefDescription: 열량만 말하지 말고, 열량·당·나트륨·가공/NOVA를 아우르는 종합 한 문장, 45자 이내.\n' +
     '- briefDescription은 BMI 구간에 따라 강조 요소가 달라져야 한다.\n' +
     '- koreanReclassificationNote: 한국 전통 식품 예외 적용 시 한 줄. 해당 없으면 "".\n' +
-    '- consumptionAdvice: 라벨에 실제로 보이는 정보만 바탕으로 **정확히 2문장**. Group IV·초가공·당·나트륨·지방·BMI 맥락 반영. 숫자·횟수·기간·허용량 금지. 식감만으로 채우기 금지. 없으면 "".\n' +
-    '- consumptionAdvice는 BMI 구간별로 표현 강도와 강조점이 달라야 한다.\n' +
+    '- consumptionAdvice: 위 [consumptionAdvice — 맞춤 참고(필수)]와 BMI 블록을 따른다. **정확히 2문장**. 건강 섭취 팁·곁들임 허용. 숫자 빈도·개수 규칙만 금지. 없으면 "".\n' +
     '- foodCategory: 위 목록 중 하나.\n' +
     '- nutrition: 객체 또는 null.\n' +
     '- nutrition 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG, servingSizeText, basisIsPerServing, tableRows.\n\n' +
-    '응답은 아래 JSON 하나만 출력하세요. 다른 말 없이.\n' +
+    '응답은 아래 JSON 하나만 출력해 주세요. 다른 말은 쓰지 않아요.\n' +
     '{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null}'
   );
 }
@@ -372,7 +386,7 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
 export function getDailyQuestProductMatchBlockForCompare(targetLabel: string): string {
   return (
     '\n\n[오늘 퀘스트 음식 일치 — 반드시 판단]\n' +
-    `오늘 퀘스트 음식은 「${targetLabel}」이다.\n` +
+    `오늘 퀘스트 음식은 「${targetLabel}」이에요.\n` +
     '제품 A 또는 제품 B 중 **어느 한 쪽이라도** 위 퀘스트 음식이면 dailyQuestProductMatch: true, 둘 다 아니면 false(애매하면 false).\n' +
     '1번·3번 이미지(각 제품의 원재료·앞면)를 기준으로 판단한다. 추측은 최소화하고 라벨·포장 형태로 판단한다.\n' +
     'JSON 루트에 dailyQuestProductMatch: true|false 를 넣는다.\n'
@@ -408,12 +422,12 @@ export function getCompareFourImagesPrompt(
     '  - 기본: 한국형 NOVA 단계가 **더 낮은**(가공이 덜한) 쪽을 고른다.\n' +
     '  - 둘 다 같은 novaGroup이면: 당·나트륨·포화지방·당류가 라벨상 유리한 쪽, Group IV면 4A→4B→4C 순으로 덜 강한 가공을 선호하는 경향을 반영한다.\n' +
     '  - 카테고리가 완전히 달라 직접 비교가 어렵거나 정보가 부족하면 "similar" 또는 더 나은 쪽을 보수적으로 적고 comparisonSummary에 한 줄 이유를 쓴다.\n' +
-    '- comparisonSummary: **3~5문장**, 쉬운 한국어. 두 제품 NOVA·영양(당·나트륨 등) 차이를 짚고, 왜 한 쪽이 더 나은 선택일 수 있는지(또는 비슷한지) 설명한다.\n' +
-    '- recommendationLine: **한 줄** 요약(30자 이내 권장).\n' +
+    '- comparisonSummary: **3~5문장**, 쉬운 한국어·토스 말투(-요). 두 제품 NOVA·영양(당·나트륨 등) 차이를 짚고, 왜 한 쪽이 더 나은 선택일 수 있는지(또는 비슷한지) 설명한다.\n' +
+    '- recommendationLine: **한 줄** 요약(30자 이내 권장). 토스 말투로 짧게.\n' +
     '- 의학 진단·치료 약속·섭취 횟수/허용량 숫자 규칙은 단일 분석과 동일하게 금지한다.\n' +
     questBlock +
     '\n' +
-    '응답은 JSON **한 개**만 출력한다.\n' +
+    '응답은 JSON **한 개**만 출력해 주세요. 다른 말은 쓰지 않아요.\n' +
     '{"productA":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
     '"productB":{"productName":"","companyName":"","rawMaterials":"","novaGroup":4,"novaSubgroup":"","judgmentReason":"","concernIngredients":[{"name":"","explanation":""}],"briefDescription":"","koreanReclassificationNote":"","consumptionAdvice":"","foodCategory":"","nutrition":null},' +
     '"betterChoice":"A","comparisonSummary":"","recommendationLine":""' +
@@ -426,7 +440,7 @@ export function getCompareFourImagesPrompt(
 export function getDailyQuestProductMatchBlock(targetLabel: string): string {
   return (
     '\n\n[오늘 퀘스트 음식 일치 — 반드시 판단]\n' +
-    `오늘 퀘스트 음식은 「${targetLabel}」이다.\n` +
+    `오늘 퀘스트 음식은 「${targetLabel}」이에요.\n` +
     '이미지에 보이는 제품이 위 퀘스트 음식이면 dailyQuestProductMatch: true, 아니면 false(애매하면 false).\n' +
     '추측은 최소화하고, 라벨·포장 형태로 판단한다. JSON 루트에 dailyQuestProductMatch: true|false 를 넣는다.\n'
   );

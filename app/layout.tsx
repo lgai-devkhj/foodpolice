@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'FoodPolice',
-  description: '포장만 찍으면 한국형 NOVA 분류로 원재료·맞춤 안내를 알려드려요',
+  description: '포장만 찍으면 한국형 NOVA로 원재료랑 맞춤 안내를 알려 드려요',
 };
 
 export const viewport: Viewport = {

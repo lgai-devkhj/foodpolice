@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       inferredFoodType,
     });
   } catch (e) {
-    const message = e instanceof Error ? e.message : '서버 오류';
+    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

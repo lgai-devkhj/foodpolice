@@ -89,28 +89,13 @@ const ALT_SCROLL_ACTIVITY_MS = 1100;
 /** 누적 목표 달성 판정 시 동일 여유(초) */
 const ALT_QUEST_SEC_EPSILON = 0.05;
 
-/** localStorage: 미리보기에서 퀘스트 안내 모달을 다시 보지 않음 */
-const QUEST_MISSION_HINT_LS = 'fp_questMissionHintDismissed';
+/** localStorage: 상품 비교하기 촬영 순서 안내 팝업을 다시 보지 않음 */
+const COMPARE_FLOW_HINT_LS = 'fp_compareFlowHintDismissed';
 
-type PendingQuestMission =
-  | {
-      kind: 'compare';
-      pairA: { raw: string; rawMime: string; nut: string; nutMime: string };
-      pairB: { raw: string; rawMime: string; nut: string; nutMime: string };
-    }
-  | {
-      kind: 'analyze';
-      rawB64: string;
-      rawMime: string;
-      nutB64: string;
-      nutMime: string;
-      finishTutorial: boolean;
-    };
-
-function readQuestMissionHintDismissed(): boolean {
+function readCompareFlowHintDismissed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return localStorage.getItem(QUEST_MISSION_HINT_LS) === '1';
+    return localStorage.getItem(COMPARE_FLOW_HINT_LS) === '1';
   } catch {
     return false;
   }
@@ -1139,7 +1124,7 @@ export default function App() {
   const [showInfoCriteria, setShowInfoCriteria] = useState(false);
   const [showInfoPhoto, setShowInfoPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingText, setLoadingText] = useState('라벨 읽는 중');
+  const [loadingText, setLoadingText] = useState('라벨 읽고 있어요');
   const [error, setError] = useState('');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
@@ -1260,10 +1245,9 @@ export default function App() {
   const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
   /** 결과 화면: 방금 분석(scan) vs 기록에서 재오픈(history). 대체 식품 퀘스트 UI는 scan일 때만 */
   const [resultEntrySource, setResultEntrySource] = useState<'scan' | 'history' | null>(null);
-  /** 분석하기·비교하기 직전 오늘의 퀘스트 안내 모달 */
-  const [showQuestMissionModal, setShowQuestMissionModal] = useState(false);
-  const [questMissionDontShowAgain, setQuestMissionDontShowAgain] = useState(false);
-  const pendingQuestMissionRef = useRef<PendingQuestMission | null>(null);
+  /** 상품 비교하기 선택 시 촬영 순서 안내(홈 카드 대신 팝업) */
+  const [showCompareFlowHintModal, setShowCompareFlowHintModal] = useState(false);
+  const [compareFlowHintDontShowAgain, setCompareFlowHintDontShowAgain] = useState(false);
   const captureStepRef = useRef<1 | 2>(1);
   const rawImageBase64Ref = useRef<string | null>(null);
   const currentHistoryIdRef = useRef<string | null>(null);
@@ -1682,7 +1666,7 @@ export default function App() {
         rawImageBase64Ref.current = null;
         setNutritionImageBase64(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '비교에 실패했어요.');
+        setError(err instanceof Error ? err.message : '비교에 실패했어요. 다시 시도해 볼까요?');
       } finally {
         setLoading(false);
       }
@@ -1718,8 +1702,8 @@ export default function App() {
       const isUltra = nova === 4;
       const isObese = isObeseByProfile(getProfileWithLatestMeasurement(profile));
       const ultraMsg = isObese
-        ? '초가공 식품입니다. 비만 위험을 높일 수 있으므로 섭취를 줄이는 것이 좋습니다.'
-        : '초가공 식품입니다. 섭취 빈도를 줄이는 것이 좋습니다.';
+        ? '초가공 식품이에요. 비만 위험을 높일 수 있어서, 자주 드시는 건 줄여 보시면 좋아요.'
+        : '초가공 식품이에요. 자주 드시는 건 줄여 보시면 좋아요.';
 
       const showTime =
         opts?.analysisSeconds != null &&
@@ -1814,7 +1798,7 @@ export default function App() {
           escapeHtml(ultraMsg) +
           '</span></div>';
       if (!personalizedIntakeNote && !advice && !isUltra)
-        html += '<div class="advice-box">과도한 섭취를 피하는 것이 좋습니다.</div>';
+        html += '<div class="advice-box">한 번에 많이 드시기보다는 조금씩 나눠 드시면 좋아요.</div>';
       html += '</div>';
 
       if (concerns.length > 0) {
@@ -2280,27 +2264,17 @@ export default function App() {
     }
   }, [clientId, notifyStreakFromQuest]);
 
-  const completeQuestMissionModal = useCallback(() => {
-    if (questMissionDontShowAgain) {
+  const closeCompareFlowHintModal = useCallback(() => {
+    if (compareFlowHintDontShowAgain) {
       try {
-        localStorage.setItem(QUEST_MISSION_HINT_LS, '1');
+        localStorage.setItem(COMPARE_FLOW_HINT_LS, '1');
       } catch {
         /* ignore */
       }
     }
-    setShowQuestMissionModal(false);
-    setQuestMissionDontShowAgain(false);
-    const p = pendingQuestMissionRef.current;
-    pendingQuestMissionRef.current = null;
-    setCapturedPreviewDataUrl(null);
-    if (!p) return;
-    if (p.kind === 'compare') {
-      runCompareProducts(p.pairA, p.pairB);
-      return;
-    }
-    if (p.finishTutorial) finishTutorial();
-    runAnalyzeTwoImages(p.rawB64, p.rawMime, p.nutB64, p.nutMime);
-  }, [questMissionDontShowAgain, runCompareProducts, runAnalyzeTwoImages, finishTutorial]);
+    setShowCompareFlowHintModal(false);
+    setCompareFlowHintDontShowAgain(false);
+  }, [compareFlowHintDontShowAgain]);
 
   useLayoutEffect(() => {
     if (!tutorialCoachActive) {
@@ -2493,10 +2467,10 @@ export default function App() {
     if (!capturedPreviewDataUrl) return;
     const base64 = capturedPreviewDataUrl.split(',')[1];
     const mime = capturedPreviewMimeType || 'image/jpeg';
+    setCapturedPreviewDataUrl(null);
 
     if (homeProductMode === 'compare') {
       if (captureStep === 1) {
-        setCapturedPreviewDataUrl(null);
         setRawImageBase64(base64 || '');
         rawImageBase64Ref.current = base64 || '';
         setRawImageMimeType(mime);
@@ -2511,7 +2485,6 @@ export default function App() {
         return;
       }
       if (compareSlot === 'A') {
-        setCapturedPreviewDataUrl(null);
         const pairA = {
           raw: rawImageBase64,
           rawMime: rawImageMimeType,
@@ -2535,25 +2508,16 @@ export default function App() {
         setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
         return;
       }
-      const pairB = {
+      runCompareProducts(pa, {
         raw: rawImageBase64,
         rawMime: rawImageMimeType,
         nut: base64 || '',
         nutMime: mime,
-      };
-      if (!readQuestMissionHintDismissed() && questBoard.dailyTotal > 0) {
-        pendingQuestMissionRef.current = { kind: 'compare', pairA: pa, pairB: pairB };
-        setQuestMissionDontShowAgain(false);
-        setShowQuestMissionModal(true);
-        return;
-      }
-      setCapturedPreviewDataUrl(null);
-      runCompareProducts(pa, pairB);
+      });
       return;
     }
 
     if (captureStep === 1) {
-      setCapturedPreviewDataUrl(null);
       setRawImageBase64(base64 || '');
       rawImageBase64Ref.current = base64 || '';
       setRawImageMimeType(mime);
@@ -2570,20 +2534,6 @@ export default function App() {
       setError('먼저 원재료 사진을 골라 주세요');
       return;
     }
-    if (!readQuestMissionHintDismissed() && questBoard.dailyTotal > 0) {
-      pendingQuestMissionRef.current = {
-        kind: 'analyze',
-        rawB64: rawImageBase64,
-        rawMime: rawImageMimeType,
-        nutB64: base64 || '',
-        nutMime: mime,
-        finishTutorial: showTutorial,
-      };
-      setQuestMissionDontShowAgain(false);
-      setShowQuestMissionModal(true);
-      return;
-    }
-    setCapturedPreviewDataUrl(null);
     if (showTutorial) {
       finishTutorial();
     }
@@ -2602,7 +2552,6 @@ export default function App() {
     homeProductMode,
     compareSlot,
     runCompareProducts,
-    questBoard.dailyTotal,
   ]);
 
   const retakePhoto = useCallback(() => {
@@ -2899,42 +2848,41 @@ export default function App() {
         </div>
       )}
 
-      {showQuestMissionModal && questBoard.dailyTotal > 0 && (
+      {showCompareFlowHintModal && (
         <div
-          className="quest-mission-overlay"
+          className="compare-flow-hint-overlay"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="quest-mission-title"
+          aria-labelledby="compare-flow-hint-title"
           onClick={(e) => {
-            if (e.target === e.currentTarget) completeQuestMissionModal();
+            if (e.target === e.currentTarget) closeCompareFlowHintModal();
           }}
         >
-          <div className="quest-mission-panel" onClick={(e) => e.stopPropagation()}>
-            <h2 id="quest-mission-title" className="quest-mission-title">
-              오늘의 퀘스트
+          <div className="compare-flow-hint-panel" onClick={(e) => e.stopPropagation()}>
+            <h2 id="compare-flow-hint-title" className="compare-flow-hint-heading">
+              상품 비교 촬영 순서
             </h2>
-            <p className="quest-mission-lead">
-              {questBoard.lead || '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.'}
-            </p>
-            <ul className="quest-mission-list">
-              {questBoard.dailyRows.map((q) => (
-                <li key={q.id} className="quest-mission-row">
-                  <span className="quest-mission-row-title">{q.title}</span>
-                  {q.subtitle ? (
-                    <span className="quest-mission-row-sub">{q.subtitle}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-            <label className="quest-mission-dont">
+            <div className="home-compare-callout home-compare-callout--in-modal" role="note">
+              <span className="home-compare-callout-badge" aria-hidden>
+                2제품 · 4장
+              </span>
+              <p className="home-compare-callout-title">
+                <strong>제품 A</strong> 원재료 → 영양표, 이어서 <strong>제품 B</strong>도 같은 순서로 찍어 주세요.
+              </p>
+              <p className="home-compare-callout-sub">
+                한 제품당 사진 2장(원재료·영양표), 두 제품이면 <strong>총 4장</strong>이 필요해요. 순서를 지키면 비교가
+                정확해요.
+              </p>
+            </div>
+            <label className="compare-flow-hint-dont">
               <input
                 type="checkbox"
-                checked={questMissionDontShowAgain}
-                onChange={(e) => setQuestMissionDontShowAgain(e.target.checked)}
+                checked={compareFlowHintDontShowAgain}
+                onChange={(e) => setCompareFlowHintDontShowAgain(e.target.checked)}
               />
               <span>다시 보지 않기</span>
             </label>
-            <button type="button" className="btn btn-primary btn-full quest-mission-close" onClick={completeQuestMissionModal}>
+            <button type="button" className="btn btn-primary btn-full" onClick={closeCompareFlowHintModal}>
               닫기
             </button>
           </div>
@@ -3608,7 +3556,10 @@ export default function App() {
                 <button
                   type="button"
                   className={`home-mode-btn${homeProductMode === 'analyze' ? ' home-mode-btn--active' : ''}`}
-                  onClick={() => setHomeProductMode('analyze')}
+                  onClick={() => {
+                    setShowCompareFlowHintModal(false);
+                    setHomeProductMode('analyze');
+                  }}
                 >
                   <IconCamera size={18} aria-hidden />
                   상품 분석하기
@@ -3622,25 +3573,16 @@ export default function App() {
                     setCompareSlot('A');
                     setComparePairA(null);
                     comparePairARef.current = null;
+                    if (!readCompareFlowHintDismissed()) {
+                      setCompareFlowHintDontShowAgain(false);
+                      setShowCompareFlowHintModal(true);
+                    }
                   }}
                 >
                   <IconCompare size={18} aria-hidden />
                   상품 비교하기
                 </button>
               </div>
-              {homeProductMode === 'compare' && (
-                <div className="home-compare-callout" role="note">
-                  <span className="home-compare-callout-badge" aria-hidden>
-                    2제품 · 4장
-                  </span>
-                  <p className="home-compare-callout-title">
-                    <strong>제품 A</strong> 원재료 → 영양표, 이어서 <strong>제품 B</strong>도 같은 순서로 찍어 주세요.
-                  </p>
-                  <p className="home-compare-callout-sub">
-                    한 제품당 사진 2장(원재료·영양표), 두 제품이면 <strong>총 4장</strong>이 필요해요. 순서를 지키면 비교가 정확해요.
-                  </p>
-                </div>
-              )}
             </div>
             {onboardingCompleted &&
               !showOnboarding &&
@@ -3666,6 +3608,9 @@ export default function App() {
                       {questBoard.dailyCompleted}/{questBoard.dailyTotal}
                     </span>
                   </div>
+                  <p className="daily-quest-lead">
+                    {questBoard.lead || '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.'}
+                  </p>
                   <ul className="daily-quest-list">
                     {questBoard.dailyRows.map((q) => (
                       <li key={q.id} className={`daily-quest-row ${q.done ? 'done' : ''}`}>
@@ -3695,7 +3640,7 @@ export default function App() {
                     <span id="loadingText">{loadingText}</span>
                   </div>
                   <p className="loading-close-hint" role="status">
-                    분석 끝날 때까지 이 화면 나가면 안 돼요.
+                    분석이 끝날 때까지 이 화면에 머물러 주세요.
                   </p>
                 </div>
               </div>
@@ -3911,7 +3856,7 @@ export default function App() {
             <div className="disclaimer">
               참고용 정보예요.
               <br />
-              정확한 상담은 병원에서 함께해 주세요.
+              궁금한 건 병원에서 같이 확인해 보시면 좋아요.
             </div>
           </div>
         </div>

@@ -718,55 +718,55 @@ function buildReason(
   if (improvementTargets.bmiSegment === 'weight_care') {
     if (c.sugarRelief >= 0.75 && c.processingTierExpect <= 3) {
       return {
-        reason: '과체중·비만 기준에서 단맛 부담과 가공 부담을 함께 낮추기 쉬운 유형',
-        shortComparison: '체중 관리 맞춤(당·가공 완화)',
+        reason: '과체중·비만이면 단맛이랑 가공 부담을 같이 줄이기 좋은 쪽이에요',
+        shortComparison: '체중 관리 맞춤 · 당·가공 살짝 완화',
       };
     }
 
     if (c.sugarRelief >= 0.7) {
       return {
-        reason: '과체중·비만 기준에서 단맛 부담을 덜기 쉬운 방향의 후보',
-        shortComparison: '체중 관리 맞춤(당 부담 완화)',
+        reason: '과체중·비만이면 단맛 부담을 덜기 쉬운 쪽이에요',
+        shortComparison: '체중 관리 맞춤 · 당 부담 살짝 완화',
       };
     }
 
     return {
-      reason: '과체중·비만 기준에서 원재료와 선택 부담을 조금 더 단순하게 보기 좋은 유형',
-      shortComparison: '체중 관리 맞춤(가벼운 대체)',
+      reason: '과체중·비만이면 원재료랑 고르는 부담을 조금 더 단순하게 보기 좋아요',
+      shortComparison: '체중 관리 맞춤 · 가벼운 대체',
     };
   }
 
   if (improvementTargets.bmiSegment === 'underweight') {
     if (c.satietyPreservation >= 0.8) {
       return {
-        reason: '저체중 기준에서 너무 가볍기보다 포만감과 에너지감을 같이 보기 쉬운 유형',
+        reason: '저체중이면 너무 가볍기보다 포만감이랑 에너지를 같이 보기 쉬워요',
         shortComparison: '에너지·포만감 맞춤',
       };
     }
 
     return {
-      reason: '저체중 기준에서 부담을 크게 올리지 않으면서도 간식 대안으로 보기 쉬운 유형',
+      reason: '저체중이면 부담 크게 안 올리면서도 간식 대안으로 보기 좋아요',
       shortComparison: '에너지 균형 맞춤',
     };
   }
 
   if (c.processingTierExpect <= 3 && c.ingredientSimplicity >= 0.65) {
     return {
-      reason: '일반 기준에서 가공 부담을 조금 덜고 원재료 구성이 비교적 단순한 유형',
-      shortComparison: '일반 맞춤(가공도 완화)',
+      reason: '가공 부담을 조금 덜고 원재료 구성이 비교적 단순한 편이에요',
+      shortComparison: '일반 맞춤 · 가공도 살짝 완화',
     };
   }
 
   if (c.sugarRelief >= 0.7) {
     return {
-      reason: '일반 기준에서 비슷한 상황에서 단맛 부담을 덜기 쉬운 유형',
-      shortComparison: '일반 맞춤(당 부담 완화)',
+      reason: '비슷한 상황에서 단맛 부담을 덜기 쉬운 편이에요',
+      shortComparison: '일반 맞춤 · 당 부담 살짝 완화',
     };
   }
 
   return {
-    reason: '일반 기준에서 원래 먹던 흐름을 크게 벗어나지 않으면서 조금 더 가볍게 보기 좋은 유형',
-    shortComparison: '일반 맞춤(무난한 대체)',
+    reason: '원래 먹던 흐름에서 크게 안 벗어나면서 조금 더 가볍게 보기 좋아요',
+    shortComparison: '일반 맞춤 · 무난한 대체',
   };
 }
 
@@ -1123,12 +1123,12 @@ export function engineRecommendationsToAlternativeJson(
   const tier = input.bmiTier ?? null;
   const bmiHint =
     tier === 'overweight' || tier === 'obese'
-      ? ' · 맞춤: 체중 관리(과체중/비만)'
+      ? ' · 맞춤: 체중 관리 쪽(과체중/비만)'
       : tier === 'underweight'
-        ? ' · 맞춤: 에너지·포만감(저체중)'
+        ? ' · 맞춤: 에너지·포만감 쪽(저체중)'
         : tier === 'normal'
           ? ' · 맞춤: 일반(정상 체중)'
-          : ' · 맞춤: 일반(BMI 미입력 시 기본)';
+          : ' · 맞춤: 일반(BMI 없을 때 기본)';
 
   const stage = `${baseStage}${bmiHint}`;
 

@@ -400,7 +400,7 @@ export function getWeekStreakSheetData(clientId: string): {
   const slice = normalizeQuestsSlice(state.quests);
   const st = normalizeAnalysisStreak(state.analysisStreak);
   const displayStreak = getEffectiveAnalysisStreak(st).displayCurrent;
-  const week = buildWeekStreakView(slice.dailyPairCompleteYmds, new Date());
+  const week = buildWeekStreakView(slice.dailyPairCompleteYmds, new Date(), state.analysisStreak);
   return { displayStreak, longest: st.longest, week };
 }
 
