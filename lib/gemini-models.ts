@@ -13,15 +13,12 @@ function modelFromEnv(envName: string, fallback: string): string {
   return normalizeGeminiModelId(String(raw));
 }
 
-/** Google Search tool 그라운딩 — 대체 식품 `/api/alternatives` 등 */
-export const SEARCH_MODEL = modelFromEnv('GEMINI_SEARCH_MODEL', 'gemini-2.5-flash');
-
 /**
  * `/api/analyze`, `/api/compare`, `/api/quiz` 등 generateContent 공통 모델.
- * 기본은 **gemini-2.0-flash**(응답이 더 빠른 편). 품질을 더 쓰고 싶으면
- * 환경 변수 `GEMINI_ANALYSIS_MODEL=gemini-2.5-flash` 등으로 지정.
+ * 기본은 **gemini-3.1-flash-lite-preview**(비용·속도에 유리한 Flash-Lite).
+ * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-2.5-flash)로 지정.
  */
-export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.0-flash');
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-3.1-flash-lite-preview');
 
 /**
  * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.
