@@ -4,7 +4,7 @@ import {
   getDailyOxQuizPrompt,
   normalizeGeminiJson,
 } from '@/lib/gemini-prompts';
-import { DAILY_QUEST_ANALYZE_LABELS, hashStringFnv, toLocalYmd } from '@/lib/daily-quests';
+import { hashStringFnv, toLocalYmd } from '@/lib/daily-quests';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
@@ -21,16 +21,9 @@ export async function POST(request: NextRequest) {
     const clientId = String(body.clientId || '').trim();
     requireClientId(clientId);
 
-    const foodLabelRaw = typeof body.foodLabel === 'string' ? body.foodLabel.trim() : '';
     const ymd = toLocalYmd(new Date());
     const h = Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquiz`));
     const questionType = ((h % 3) + 1) as 1 | 2 | 3;
-
-    const labels = DAILY_QUEST_ANALYZE_LABELS as readonly string[];
-    const foodKeyword =
-      foodLabelRaw && labels.includes(foodLabelRaw)
-        ? foodLabelRaw
-        : labels[h % labels.length] ?? labels[0] ?? '가공식품';
 
     const key = process.env.GEMINI_API_KEY;
     if (!key || key.length === 0) {
@@ -40,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = getDailyOxQuizPrompt(foodKeyword, questionType);
+    const prompt = getDailyOxQuizPrompt(questionType);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
     const res = await fetch(url, {
       method: 'POST',
@@ -102,7 +95,7 @@ export async function POST(request: NextRequest) {
       question: q,
       correctAnswer,
       explanation,
-      foodKeyword,
+      foodKeyword: '',
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';

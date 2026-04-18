@@ -1,4 +1,7 @@
-export const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
+import { ANALYSIS_GEMINI_MODEL } from '@/lib/gemini-models';
+
+/** @deprecated 이름 유지: 분석·비교·퀴즈 API 모델은 `ANALYSIS_GEMINI_MODEL`과 동일 */
+export const GEMINI_MODEL = ANALYSIS_GEMINI_MODEL;
 
 export type BmiTier = 'underweight' | 'normal' | 'overweight' | 'obese';
 
@@ -513,20 +516,20 @@ export function normalizeGeminiJson(response: string): string {
     .trim();
 }
 
-/** 일일 OX 퀴즈 1문항 — 한국형 NOVA·원재료 교육용 (텍스트만 생성) */
-export function getDailyOxQuizPrompt(foodKeyword: string, questionType: 1 | 2 | 3): string {
+/** 일일 OX 퀴즈 1문항 — 한국형 NOVA·원재료 교육용 (텍스트만 생성). 특정 식품·미션과 무관한 일반 개념으로 낸다. */
+export function getDailyOxQuizPrompt(questionType: 1 | 2 | 3): string {
   const typeBlock =
     questionType === 1
       ? '[유형 1 — 분류 문제]\n' +
-        '주어진 **원재료 나열(가상의 식품)**을 보고, 한국형 NOVA에서 **Group I·II·III·IV 중 어느 쪽에 가깝게 볼 수 있는지** 판단하게 하는 **단일 진술**을 만든다.\n' +
-        '예: 원재료가 「…」일 때 이 식품은 Group III로 보는 것이 타당하다 — 처럼 O/X로 답할 수 있게.\n'
+        '가상의 **원재료 나열**을 제시하고, 한국형 NOVA에서 **Group I·II·III·IV 중 어느 쪽에 가깝게 볼 수 있는지** 판단하게 하는 **단일 진술**을 만든다.\n' +
+        '특정 브랜드·실제 제품명·오늘의 미션 식품을 넣지 않는다.\n'
       : questionType === 2
       ? '[유형 2 — 성분 판단 문제]\n' +
-        '제시한 성분(이름 하나 또는 짧은 나열)이 **분해·분리 성분**(말토덱스트린, 분리대두단백, 전분가공품 등)인지, **첨가물**(감미료·향료·보존료·유화제 등)인지 **구분**하게 하는 **단일 진술**을 만든다.\n' +
-        '예: 「○○」은 첨가물이 아니라 분해 성분에 가깝다 — 처럼 O/X로 답할 수 있게.\n'
+        '제시한 성분(일반 명칭)이 **분해·분리 성분**(말토덱스트린, 분리대두단백, 전분가공품 등)인지, **첨가물**(감미료·향료·보존료·유화제 등)인지 **구분**하게 하는 **단일 진술**을 만든다.\n' +
+        '특정 제품·브랜드·오늘의 퀘스트 음식을 언급하지 않는다.\n'
       : '[유형 3 — 개념 이해 문제]\n' +
         '한국형 NOVA·초가공·가공 단계에 대한 **정의나 기준**을 묻는 **단일 진술**을 만든다.\n' +
-        '예: 첨가물이 있으면 항상 Group IV다 — 처럼 O/X로 답할 수 있게(정답은 NOVA 규칙에 맞게).\n';
+        '특정 식품 사례에 묶지 않고 일반 개념으로 낸다.\n';
 
   return (
     '당신은 식품 라벨·한국형 NOVA 학습용 **OX 퀴즈**를 1문항 만드는 교육 도우미예요.\n\n' +
@@ -534,7 +537,9 @@ export function getDailyOxQuizPrompt(foodKeyword: string, questionType: 1 | 2 | 
     '- 원재료 이해 능력 향상\n' +
     '- 초가공식품(NOVA 분류) 판단 능력 향상\n' +
     '- 분해 성분 / 첨가물 구분 능력 강화\n\n' +
-    `[오늘 키워드 맥락: 「${foodKeyword}」] — 예시로 이 식품군을 써도 되고, 다른 식품으로 출제해도 됩니다.\n\n` +
+    '[중요]\n' +
+    '- **특정 식품·브랜드·앱의 오늘 미션 키워드**에 맞출 필요가 없다. 일반적인 식품·원재료·NOVA 개념만 다룬다.\n' +
+    '- 실제 유통 제품명을 쓰지 않는다.\n\n' +
     `[이번에 반드시 쓸 유형 번호: ${questionType}]\n` +
     typeBlock +
     '\n[출제 규칙]\n' +
@@ -545,7 +550,8 @@ export function getDailyOxQuizPrompt(foodKeyword: string, questionType: 1 | 2 | 
     '- 한국형 NOVA 기준(첨가물 개수만으로 IV 판정하지 않음, 전통식품 예외 등)을 **틀리지 않게** 출제.\n' +
     '- explanation에는 정답 이유를 **한 줄**로.\n\n' +
     '[JSON 출력 — 이것만]\n' +
-    `{"questionType":${questionType},"question":"진술 문자열","correctAnswer":"O","explanation":"한 줄 설명","foodKeyword":"${foodKeyword}"}\n` +
+    `{"questionType":${questionType},"question":"진술 문자열","correctAnswer":"O","explanation":"한 줄 설명","foodKeyword":""}\n` +
+    'foodKeyword는 항상 빈 문자열 "" 로 둔다(호환용 필드).\n' +
     'correctAnswer는 반드시 대문자 O 또는 대문자 X.\n' +
     'questionType은 위에서 지정한 숫자와 동일하게.\n' +
     '다른 키·설명 문장·마크다운 금지.'

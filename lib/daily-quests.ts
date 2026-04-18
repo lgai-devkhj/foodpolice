@@ -156,44 +156,44 @@ const QUEST_FLAVORS: Array<{
   {
     lead: '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.',
     analyze: {
-      title: '「삼각김밥」 퀴즈',
-      subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요',
+      title: '오늘의 퀴즈 (OX)',
+      subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)',
     },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘은 이렇게만 해볼까요?',
-    analyze: { title: '「샌드위치」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '짧게 끝내고 스트릭 챙기기.',
-    analyze: { title: '「시리얼」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘의 루틴 — 2개만 체크하면 끝.',
-    analyze: { title: '「요거트」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '매일 조금씩, 쌓이는 스트릭.',
-    analyze: { title: '「냉동만두」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘도 가볍게! 두 가지만.',
-    analyze: { title: '「에너지바」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '스트릭은 오늘의 2개로 올라가요.',
-    analyze: { title: '「바나나우유」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '루틴 유지 중이에요? 오늘도 2개.',
-    analyze: { title: '「쥬스」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
+    analyze: { title: '오늘의 퀴즈 (OX)', subtitle: 'AI 출제 · NOVA·원재료 개념(특정 식품 아님)' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
 ];

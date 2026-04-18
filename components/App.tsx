@@ -12,8 +12,9 @@ import {
 } from 'react';
 import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
-import { getTodayAnalyzeLabel } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
+import { encodeImageForAnalysis } from '@/lib/image-encode-for-analysis';
+import { readApiJson, tryParseJsonObject } from '@/lib/read-api-json';
 import {
   loadState,
   setProfile as saveProfile,
@@ -934,12 +935,8 @@ function requestAlternativesFromApi(
     }),
   })
     .then(async (r) => {
-      let d: Record<string, unknown> = {};
-      try {
-        d = (await r.json()) as Record<string, unknown>;
-      } catch {
-        /* ignore */
-      }
+      const text = await r.text();
+      const d = tryParseJsonObject<Record<string, unknown>>(text) ?? {};
       const alt =
         r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
       const fromWebSearch = d.alternativeFoodFromWebSearch === true;
@@ -1128,6 +1125,11 @@ export default function App() {
   const [dailyQuizLoading, setDailyQuizLoading] = useState(false);
   const [dailyQuizError, setDailyQuizError] = useState<string | null>(null);
   const [dailyQuizWrongHint, setDailyQuizWrongHint] = useState(false);
+  /** 퀴즈 정답/오답 순간 연출 */
+  const [dailyQuizFeedback, setDailyQuizFeedback] = useState<'idle' | 'correct' | 'wrong'>('idle');
+  const [dailyQuizLocked, setDailyQuizLocked] = useState(false);
+  /** 오답 시 마지막으로 누른 선택 (해당 버튼만 흔들림) */
+  const [dailyQuizLastPick, setDailyQuizLastPick] = useState<'O' | 'X' | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
@@ -1432,6 +1434,9 @@ export default function App() {
   const openDailyQuizModal = useCallback(async () => {
     if (!clientId) return;
     setDailyQuizWrongHint(false);
+    setDailyQuizFeedback('idle');
+    setDailyQuizLocked(false);
+    setDailyQuizLastPick(null);
     setDailyQuizError(null);
     setDailyQuizOx(null);
     setShowDailyQuizModal(true);
@@ -1440,12 +1445,9 @@ export default function App() {
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId,
-          foodLabel: getTodayAnalyzeLabel(clientId, new Date()),
-        }),
+        body: JSON.stringify({ clientId }),
       });
-      const data = (await res.json()) as DailyOxQuizPayload & { error?: string };
+      const data = await readApiJson<DailyOxQuizPayload & { error?: string }>(res);
       if (!res.ok) throw new Error(data.error || '퀴즈를 불러오지 못했어요.');
       setDailyQuizOx({
         questionType: data.questionType,
@@ -1463,20 +1465,29 @@ export default function App() {
 
   const submitDailyQuizOx = useCallback(
     (picked: 'O' | 'X') => {
-      if (!clientId || !dailyQuizOx) return;
+      if (!clientId || !dailyQuizOx || dailyQuizLocked) return;
       if (picked === dailyQuizOx.correctAnswer) {
-        const s = markDailyAnalyzeQuizDone(clientId);
-        setQuestBoard(getQuestBoard(clientId));
-        setTotalXp(getTotalXp(clientId));
-        notifyStreakFromQuest(s);
-        setShowDailyQuizModal(false);
-        setDailyQuizWrongHint(false);
-        setDailyQuizOx(null);
+        setDailyQuizLocked(true);
+        setDailyQuizFeedback('correct');
+        window.setTimeout(() => {
+          const s = markDailyAnalyzeQuizDone(clientId);
+          setQuestBoard(getQuestBoard(clientId));
+          setTotalXp(getTotalXp(clientId));
+          notifyStreakFromQuest(s);
+          setShowDailyQuizModal(false);
+          setDailyQuizWrongHint(false);
+          setDailyQuizOx(null);
+          setDailyQuizFeedback('idle');
+          setDailyQuizLocked(false);
+        }, 900);
       } else {
+        setDailyQuizLastPick(picked);
+        setDailyQuizFeedback('wrong');
         setDailyQuizWrongHint(true);
+        window.setTimeout(() => setDailyQuizFeedback('idle'), 520);
       }
     },
-    [clientId, dailyQuizOx, notifyStreakFromQuest],
+    [clientId, dailyQuizOx, dailyQuizLocked, notifyStreakFromQuest],
   );
 
   const tryCompleteAltQuest = useCallback(() => {
@@ -1529,10 +1540,11 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const encoded = await encodeImageForAnalysis(base64, mimeType);
         const body = JSON.stringify({
           clientId,
-          imageBase64: base64,
-          mimeType,
+          imageBase64: encoded.base64,
+          mimeType: encoded.mimeType,
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const startedAt = performance.now();
@@ -1541,7 +1553,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body,
         });
-        const data = await res.json();
+        const data = await readApiJson<{ error?: string } & AnalysisResult>(res);
         if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
@@ -1610,12 +1622,16 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const [rawEnc, nutEnc] = await Promise.all([
+          encodeImageForAnalysis(rawBase64, rawMimeType),
+          encodeImageForAnalysis(nutritionBase64, nutritionMimeType),
+        ]);
         const body = JSON.stringify({
           clientId,
-          rawImageBase64: rawBase64,
-          rawMimeType,
-          nutritionImageBase64: nutritionBase64,
-          nutritionMimeType,
+          rawImageBase64: rawEnc.base64,
+          rawMimeType: rawEnc.mimeType,
+          nutritionImageBase64: nutEnc.base64,
+          nutritionMimeType: nutEnc.mimeType,
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const startedAt = performance.now();
@@ -1624,7 +1640,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body,
         });
-        const data = await res.json();
+        const data = await readApiJson<{ error?: string } & AnalysisResult>(res);
         if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
@@ -1691,23 +1707,37 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const [aRaw, aNut, bRaw, bNut] = await Promise.all([
+          encodeImageForAnalysis(pairA.raw, pairA.rawMime),
+          encodeImageForAnalysis(pairA.nut, pairA.nutMime),
+          encodeImageForAnalysis(pairB.raw, pairB.rawMime),
+          encodeImageForAnalysis(pairB.nut, pairB.nutMime),
+        ]);
         const res = await fetch('/api/compare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             clientId,
-            aRawImageBase64: pairA.raw,
-            aRawMimeType: pairA.rawMime,
-            aNutritionImageBase64: pairA.nut,
-            aNutritionMimeType: pairA.nutMime,
-            bRawImageBase64: pairB.raw,
-            bRawMimeType: pairB.rawMime,
-            bNutritionImageBase64: pairB.nut,
-            bNutritionMimeType: pairB.nutMime,
+            aRawImageBase64: aRaw.base64,
+            aRawMimeType: aRaw.mimeType,
+            aNutritionImageBase64: aNut.base64,
+            aNutritionMimeType: aNut.mimeType,
+            bRawImageBase64: bRaw.base64,
+            bRawMimeType: bRaw.mimeType,
+            bNutritionImageBase64: bNut.base64,
+            bNutritionMimeType: bNut.mimeType,
             ...(profilePayload ? { profile: profilePayload } : {}),
           }),
         });
-        const data = await res.json();
+        const data = await readApiJson<{
+          error?: string;
+          dailyQuestProductMatch?: boolean;
+          productA?: AnalysisResult;
+          productB?: AnalysisResult;
+          betterChoice?: string;
+          comparisonSummary?: string;
+          recommendationLine?: string;
+        }>(res);
         if (!res.ok) throw new Error(data.error || '비교에 실패했어요. 다시 시도해 주세요.');
         if (cameraStreamRef.current) {
           cameraStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -3647,17 +3677,23 @@ export default function App() {
               !showCompareResult && (
                 <div className="home-top-bar">
                   <div className="home-top-bar-left">
-                    <button
-                      type="button"
-                      className="home-streak-chip"
-                      onClick={openStreakWeekSheet}
-                      aria-label={`연속 ${analysisStreak.displayCurrent}일, 일주일 기록 보기`}
-                    >
-                      <span className="home-streak-emoji" aria-hidden>
-                        🔥
+                    <div className="home-streak-xp-row">
+                      <button
+                        type="button"
+                        className="home-streak-chip"
+                        onClick={openStreakWeekSheet}
+                        aria-label={`연속 ${analysisStreak.displayCurrent}일, 일주일 기록 보기`}
+                      >
+                        <span className="home-streak-emoji" aria-hidden>
+                          🔥
+                        </span>
+                        <span className="home-streak-num">{analysisStreak.displayCurrent}</span>
+                      </button>
+                      <span className="home-xp-badge" title="누적 XP">
+                        <IconFlame size={16} aria-hidden />
+                        {totalXp} XP
                       </span>
-                      <span className="home-streak-num">{analysisStreak.displayCurrent}</span>
-                    </button>
+                    </div>
                   </div>
                   <div className="home-top-bar-right">
                     <button
@@ -3746,10 +3782,6 @@ export default function App() {
                       <IconClipboard size={22} />
                     </span>
                     <span className="daily-quest-title">오늘의 퀘스트</span>
-                    <span className="daily-quest-xp-badge" title="누적 XP">
-                      <IconFlame size={16} aria-hidden />
-                      {totalXp} XP
-                    </span>
                     <span className="daily-quest-count">
                       {questBoard.dailyCompleted}/{questBoard.dailyTotal}
                     </span>
@@ -4366,20 +4398,47 @@ export default function App() {
           className="modal info-sheet visible"
           role="dialog"
           aria-label="오늘의 퀴즈"
-          onClick={(e) => e.target === e.currentTarget && !dailyQuizLoading && setShowDailyQuizModal(false)}
+          onClick={(e) => {
+            if (e.target !== e.currentTarget || dailyQuizLoading || dailyQuizLocked) return;
+            setShowDailyQuizModal(false);
+            setDailyQuizOx(null);
+            setDailyQuizError(null);
+            setDailyQuizFeedback('idle');
+            setDailyQuizLocked(false);
+            setDailyQuizLastPick(null);
+          }}
         >
-          <div className="modal-panel daily-quiz-panel" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`modal-panel daily-quiz-panel${
+              dailyQuizFeedback === 'correct'
+                ? ' daily-quiz-panel--feedback-correct'
+                : dailyQuizFeedback === 'wrong'
+                  ? ' daily-quiz-panel--feedback-wrong'
+                  : ''
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {dailyQuizFeedback === 'correct' ? (
+              <div className="daily-quiz-success-burst" aria-hidden>
+                <span className="daily-quiz-success-ring" />
+                <span className="daily-quiz-success-ring daily-quiz-success-ring--2" />
+              </div>
+            ) : null}
             <div className="sheet-header">
               <h2 className="sheet-title">오늘의 퀴즈 (OX)</h2>
               <button
                 type="button"
                 className="sheet-close-x"
                 aria-label="닫기"
-                disabled={dailyQuizLoading}
+                disabled={dailyQuizLoading || dailyQuizLocked}
                 onClick={() => {
+                  if (dailyQuizLocked) return;
                   setShowDailyQuizModal(false);
                   setDailyQuizOx(null);
                   setDailyQuizError(null);
+                  setDailyQuizFeedback('idle');
+                  setDailyQuizLocked(false);
+                  setDailyQuizLastPick(null);
                 }}
               >
                 ×
@@ -4399,33 +4458,52 @@ export default function App() {
             ) : dailyQuizOx ? (
               <>
                 <p className="daily-quiz-keyword">
-                  오늘 키워드: 「{dailyQuizOx.foodKeyword}」 ·{' '}
                   {dailyQuizOx.questionType === 1
                     ? '유형 1 · 분류'
                     : dailyQuizOx.questionType === 2
                       ? '유형 2 · 성분 구분'
                       : '유형 3 · 개념'}
+                  <span className="daily-quiz-scope-hint"> · 특정 식품·미션과 무관</span>
                 </p>
                 <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러 주세요.</p>
                 <p className="daily-quiz-question">{dailyQuizOx.question}</p>
+                {dailyQuizFeedback === 'correct' ? (
+                  <div className="daily-quiz-result-banner daily-quiz-result-banner--ok" role="status">
+                    <span className="daily-quiz-result-check" aria-hidden>
+                      ✓
+                    </span>
+                    정답이에요!
+                  </div>
+                ) : null}
                 <div className="daily-quiz-ox-row">
                   <button
                     type="button"
-                    className="daily-quiz-ox-btn daily-quiz-ox-btn--o"
+                    className={`daily-quiz-ox-btn daily-quiz-ox-btn--o${
+                      dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'O'
+                        ? ' daily-quiz-ox-btn--wrong-pick'
+                        : ''
+                    }`}
                     onClick={() => submitDailyQuizOx('O')}
+                    disabled={dailyQuizLocked}
                   >
                     O
                   </button>
                   <button
                     type="button"
-                    className="daily-quiz-ox-btn daily-quiz-ox-btn--x"
+                    className={`daily-quiz-ox-btn daily-quiz-ox-btn--x${
+                      dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'X'
+                        ? ' daily-quiz-ox-btn--wrong-pick'
+                        : ''
+                    }`}
                     onClick={() => submitDailyQuizOx('X')}
+                    disabled={dailyQuizLocked}
                   >
                     X
                   </button>
                 </div>
                 {dailyQuizWrongHint ? (
                   <p className="daily-quiz-wrong" role="status">
+                    <span className="daily-quiz-wrong-label">틀렸어요. </span>
                     {dailyQuizOx.explanation
                       ? `참고: ${dailyQuizOx.explanation}`
                       : '아쉬워요. 다시 골라 볼까요?'}

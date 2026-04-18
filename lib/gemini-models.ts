@@ -15,3 +15,9 @@ function modelFromEnv(envName: string, fallback: string): string {
 
 /** Google Search tool 그라운딩 — 대체 식품 `/api/alternatives` 등 */
 export const SEARCH_MODEL = modelFromEnv('GEMINI_SEARCH_MODEL', 'gemini-2.5-flash');
+
+/**
+ * `/api/analyze`, `/api/compare`, `/api/quiz` 등 generateContent 공통 모델.
+ * 지연을 줄이려면 `gemini-2.0-flash` 권장. 예전 프리뷰 모델은 `GEMINI_ANALYSIS_MODEL`로 지정.
+ */
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.0-flash');
