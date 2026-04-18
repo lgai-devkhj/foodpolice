@@ -3081,6 +3081,15 @@
       color: var(--text3);
       margin: 0 0 4px;
     }
+    .card-concern-ingredients .analysis-confidence-badge--concern {
+      margin: 0 0 12px;
+    }
+    .concern-empty-note {
+      font-size: 0.98rem;
+      line-height: 1.5;
+      color: var(--text2);
+      margin: 0;
+    }
     .label-explicit-pct-note {
       font-size: 0.95rem;
       color: var(--text3);

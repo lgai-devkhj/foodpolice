@@ -1,7 +1,3 @@
-/**
- * 대체 식품 안내 — Perplexity 웹 검색 전용. 응답은 JSON.
- */
-
 import {
   type AlternativeFoodJsonItem,
   type AlternativeFoodJsonRoot,
@@ -17,10 +13,8 @@ import type { BmiTier } from '@/lib/gemini-prompts';
 
 export const PERPLEXITY_MODEL = 'sonar';
 
-/** 한 번의 Perplexity 호출 최대 대기 */
 const PER_ATTEMPT_TIMEOUT_MS = 18_000;
 
-/** /api/alternatives 요청 본문에서 넘기는 축약 영양(표 숫자 필드) */
 export type AlternativesNutritionPayload = {
   caloriesKcal?: number | null;
   sodiumMg?: number | null;
@@ -64,14 +58,13 @@ export interface AlternativeSearchContext {
   novaSubgroup: string | null;
   briefDescription: string | null;
   rawMaterials: string;
-  /** 분석 API가 채운 숫자 영양 — 대안 선정 시 나트륨·당 등 비교에 사용 */
   nutritionHint: string | null;
-  /** 프로필 BMI 구간 — 추천 방향·제품 유형 힌트 */
   bmiTier?: BmiTier | null;
 }
 
 const JSON_OUTPUT_SPEC =
-  '[출력 — JSON 단일 객체 하나만, 마크다운·코드펜스·설명 문장 금지]\n' +
+  '[출력]\n' +
+  '- JSON 단일 객체 하나만 출력한다. 마크다운, 코드펜스, 설명 문장은 금지한다.\n' +
   JSON.stringify(
     {
       currentFood: '현재 제품명과 동일',
@@ -101,67 +94,71 @@ const JSON_OUTPUT_SPEC =
     0
   ) +
   '\n' +
-  '필수: alternatives는 **최소 1개**(가능하면 정확히 3개). tier는 slight, better, best 중 가능한 것만 채우되, 3개면 각 tier 1개씩 권장.\n' +
-  '필수: purchaseUrl은 http(s) 로 시작하고, 눌렀을 때 상품·스토어로 이동 가능한 링크.\n';
+  '- alternatives는 최소 1개, 가능하면 3개.\n' +
+  '- tier는 slight, better, best 중 가능한 것만 쓴다.\n' +
+  '- purchaseUrl은 반드시 http(s) 실제 상품·스토어 페이지여야 한다.\n';
+
+function getAlternativeBmiHint(bmiTier?: BmiTier | null): string {
+  if (bmiTier === 'overweight' || bmiTier === 'obese') {
+    return '- BMI: 과체중/비만. 같은 식품군에서 당·나트륨·에너지 부담이 상대적으로 낮은 실제 제품을 우선하고, reason에 그 근거를 짧게 쓴다.\n';
+  }
+  if (bmiTier === 'underweight') {
+    return '- BMI: 저체중. 같은 식품군 안에서 포만감·에너지도 함께 고려하되 현재 제품보다 더 나은 실제 제품을 추천한다.\n';
+  }
+  if (bmiTier === 'normal') {
+    return '- BMI: 정상. 같은 식품군에서 가공·당·염이 한 단계 덜한 실제 제품을 우선한다.\n';
+  }
+  return '';
+}
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
-  const raw = (ctx.rawMaterials || '').slice(0, 900);
+  const raw = (ctx.rawMaterials || '').slice(0, 500);
   const sub = ctx.novaSubgroup ? ` · ${ctx.novaSubgroup}` : '';
   const stage = `Group ${ctx.novaGroup}${ctx.novaGroup === 4 ? sub : ''}`;
   const cat = ctx.foodCategory || '미분류';
-  const desc = (ctx.briefDescription || '').slice(0, 300);
-  const nut = ctx.nutritionHint ? `\n(1회 제공량·표 기준 추정) ${ctx.nutritionHint}\n` : '';
+  const desc = (ctx.briefDescription || '').slice(0, 150);
+  const nut = ctx.nutritionHint ? `- 영양: ${ctx.nutritionHint}\n` : '';
   const scanned = (ctx.productName || '').trim();
-  const bmiHint =
-    ctx.bmiTier === 'overweight' || ctx.bmiTier === 'obese'
-      ? '\n[사용자 맞춤 — BMI] 과체중/비만 구간이에요. 같은 식품군에서 **당·나트륨·에너지(칼로리) 부담이 상대적으로 낮은** 실제 유통품을 우선하고, reason에는 그 근거를 토스 말투로 한 문장 넣어 주세요.\n'
-      : ctx.bmiTier === 'underweight'
-        ? '\n[사용자 맞춤 — BMI] 저체중 구간이에요. **포만감·에너지가 함께 따라오는** 실제 제품도 균형 있게 넣고, 무조건 제로·무맛만 고르진 않아도 돼요.\n'
-        : ctx.bmiTier === 'normal'
-          ? '\n[사용자 맞춤 — BMI] 정상 체중이에요. **비슷한 용도에서 가공·당·염을 한 단계 덜한** 실제 제품을 제안해 주세요.\n'
-          : '';
-
-  const categoryLockBlock =
-    '[식품군 고정 — 필수]\n' +
-    `- 현재 **foodCategory는 "${cat}"** 이에요.\n` +
-    '- 넣는 **모든 alternative**는 이 카테고리와 **같은 식품군**(같은 용도·같은 먹는 방식)이어야 해요. 카테고리를 바꾸는 추천은 안 돼요.\n' +
-    '- 금지 예시: **음료**인데 과자·라면·도시락·빵만 추천 / **간식**인데 주스·탄산만·한 끼 식사·시리얼 봉지 식사만 추천 / **한 끼**인데 음료·초소형 캔디만 추천 / **빵·시리얼**인데 라면·과자 봉지만·탄산음료만 추천 / **유제품·디저트**인데 라면·육포·칩만 추천.\n' +
-    '- **달콤한 간식·짭짤한 간식**이면 손으로 집어먹는 형태(통·봉지)를 유지하고, **잼·초콜릿 스프레드·넛버터 통**(발라 먹는 형태)으로 바꾸지 마세요.\n' +
-    (cat === '미분류'
-      ? '- foodCategory가 미분류면 제품명·원재료로 보이는 **용도(마심/집어 먹음/한 끼 등)** 를 유지한 **같은 축**의 실제 유통 품목만 추천하세요.\n'
-      : '') +
-    '\n';
 
   return (
-    '[말투]\n사용자에게 보이는 reason 문장은 토스 말투(친근한 -요체, 짧게)로 쓴다.\n\n' +
-    '**필수:** 웹 검색으로 실제 판매 페이지를 확인한 뒤, JSON만 출력해 주세요.\n\n' +
-    '[핵심 기준]\n' +
-    '1. 추천 **각 품목**은 모두 **촬영·분석한 제품보다 건강/가공 관점에서 나은 실제 유통품**이어야 합니다.\n' +
-    '2. **같은 제품**, **중량·용량·개입 수만 다른 제품**, **동일 라인·동일 품목의 다른 용량**은 절대 넣지 마세요.\n' +
-    `3. 비교 대상(금지 대상) 상품명: "${scanned || '(라벨 미확인)'}" — 이와 동일 계열·용량 변형으로 보이면 배제하세요.\n` +
-    '4. productName은 반드시 **브랜드 + 공식 출시명**(검색 스니펫·상세에 나오는 그대로)이어야 합니다. 일반명만 쓰지 마세요.\n' +
-    '5. 임의로 브랜드와 품목을 합성하지 마세요.\n\n' +
-    '[현재 식품 — 이미지 분석 결과]\n' +
-    `제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}\n` +
-    `제조사: ${ctx.companyName || '(없음)'}\n` +
-    `foodCategory: ${cat}\n` +
-    `NOVA(한국형): ${stage}\n` +
-    (desc ? `한 줄 설명: ${desc}\n` : '') +
-    (raw ? `원재료 일부: ${raw}\n` : '') +
-    (nut ? `영양(숫자):${nut}` : '') +
-    bmiHint +
-    '\n[한국 온라인 — 검색]\n' +
-    '- 네이버 쇼핑, 쿠팡, SSG, 대형마트 채널 등에서 **실제 상품 URL**이 나올 때까지 쿼리를 조정하세요.\n' +
-    (ctx.nutritionHint
-      ? '- 영양(숫자)가 있으면 같은 식품군 안에서 당·나트륨·포화지방 등이 상대적으로 유리한 쪽을 우선하세요.\n'
+    '웹 검색으로 실제 판매 중인 대체 식품을 찾고 JSON 하나만 출력해 주세요.\n\n' +
+    '[현재 제품]\n' +
+    `- 제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}\n` +
+    `- 제조사: ${ctx.companyName || '(없음)'}\n` +
+    `- foodCategory: ${cat}\n` +
+    `- NOVA: ${stage}\n` +
+    (desc ? `- 설명: ${desc}\n` : '') +
+    (raw ? `- 원재료 일부: ${raw}\n` : '') +
+    nut +
+    getAlternativeBmiHint(ctx.bmiTier) +
+    '\n[핵심 기준]\n' +
+    '- 모든 alternatives는 현재 제품보다 건강·가공 관점에서 더 나은 실제 유통품이어야 한다.\n' +
+    `- 비교 금지 대상 상품명: "${scanned || '(라벨 미확인)'}". 같은 제품, 같은 라인, 중량·용량·개입 수만 다른 변형은 절대 넣지 않는다.\n` +
+    '- productName은 반드시 브랜드 + 공식 상품명으로 쓴다.\n' +
+    '- 임의로 브랜드와 품목을 합성하지 않는다.\n' +
+    '- reason은 토스 말투의 짧은 한 문장으로 쓴다.\n' +
+    '- purchaseUrl은 눌렀을 때 실제 상품·스토어로 이동 가능한 링크여야 한다.\n\n' +
+
+    '[식품군 고정]\n' +
+    `- 현재 foodCategory는 "${cat}" 이다.\n` +
+    '- 모든 alternatives는 같은 식품군, 같은 용도, 같은 먹는 방식이어야 한다.\n' +
+    '- 음료면 음료, 간식이면 간식, 한 끼면 한 끼, 빵·시리얼이면 빵·시리얼, 유제품·디저트면 유제품·디저트로 유지한다.\n' +
+    '- 달콤한 간식·짭짤한 간식이면 손으로 집어먹는 형태를 유지하고, 잼·초콜릿 스프레드·넛버터 통처럼 발라 먹는 형태로 바꾸지 않는다.\n' +
+    (cat === '미분류'
+      ? '- foodCategory가 미분류면 제품명·원재료를 보고 마심/집어 먹음/한 끼 등 같은 축의 실제 유통 품목만 추천한다.\n'
       : '') +
-    '\n' +
+    '\n[검색]\n' +
+    '- 한국 온라인 판매 페이지 기준으로 찾는다.\n' +
+    '- 네이버 쇼핑, 쿠팡, SSG, 대형마트 채널 등 실제 상품 URL이 나올 때까지 쿼리를 조정한다.\n' +
+    (ctx.nutritionHint
+      ? '- 영양 숫자가 있으면 같은 식품군 안에서 당·나트륨·포화지방 등이 상대적으로 유리한 쪽을 우선한다.\n'
+      : '') +
     (ctx.novaGroup === 3
-      ? '[가공 단계] Group III이면 덜 가공된 방향(원재료 명확, 첨가 적은 실제 제품)을 우선합니다.\n\n'
+      ? '- 현재 제품이 Group III이면 더 덜 가공되고 원재료가 명확한 방향을 우선한다.\n'
       : ctx.novaGroup <= 2
-        ? '[가공 단계] Group I~II라도 사용자 요청 시 같은 식품군의 실제 제품명을 제안합니다.\n\n'
-        : '[가공 단계] Group IV면 한 단계 덜 가공된 방향(4C→4B 등)을 고려하되, 반드시 다른 SKU여야 합니다.\n\n') +
-    categoryLockBlock +
+        ? '- 현재 제품이 Group I~II라도 같은 식품군의 실제 제품명만 추천한다.\n'
+        : '- 현재 제품이 Group IV면 한 단계 덜 가공된 방향을 고려하되 반드시 다른 SKU만 추천한다.\n') +
+    '\n' +
     JSON_OUTPUT_SPEC
   );
 }
@@ -278,6 +275,7 @@ async function generateAlternativesOnce(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PER_ATTEMPT_TIMEOUT_MS);
   const started = Date.now();
+
   let res: Response;
   try {
     res = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -307,6 +305,7 @@ async function generateAlternativesOnce(
     console.warn('[alternatives] perplexity fetch failed:', msg);
     return { text: null, ok: false, status: 0, bodySnippet: '', elapsedMs };
   }
+
   clearTimeout(timer);
 
   const bodyText = await res.text();
@@ -316,6 +315,7 @@ async function generateAlternativesOnce(
   } catch {
     data = null;
   }
+
   if (!res.ok) {
     return {
       text: null,
@@ -325,9 +325,11 @@ async function generateAlternativesOnce(
       elapsedMs: Date.now() - started,
     };
   }
+
   const text =
     (data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content ?? '';
   const t = String(text).trim();
+
   if (!t) {
     console.warn('[alternatives] perplexity empty text');
     return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
@@ -348,10 +350,6 @@ async function generateAlternativesOnce(
   return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
 }
 
-/**
- * Perplexity 검색 — `sonar` 단일 고정.
- * 빈 응답·검증 탈락 시 1회 재시도.
- */
 export async function fetchAlternativesWithPerplexity(
   perplexityApiKey: string,
   prompt: string,
@@ -371,11 +369,12 @@ export async function fetchAlternativesWithPerplexity(
     prompt +
     '\n\n[재시도]\n' +
     '- JSON만 출력.\n' +
-    '- alternatives 최소 1개(권장 3개), tier slight/better/best 가능한 만큼.\n' +
-    '- 각 purchaseUrl은 http(s) 실제 상품·스토어 페이지.\n' +
+    '- alternatives 최소 1개, 가능하면 3개.\n' +
+    '- tier는 slight, better, best 중 가능한 것만 쓴다.\n' +
+    '- purchaseUrl은 http(s) 실제 상품·스토어 페이지.\n' +
     '- 촬영 제품과 동일하거나 중량·개입만 다른 SKU는 배제.\n' +
-    '- 반드시 촬영 제품보다 나은 다른 SKU만.\n' +
-    '- **foodCategory(식품군)는 반드시 지킬 것.** 다른 카테고리 상품으로 바꾸지 말 것.\n';
+    '- foodCategory는 반드시 지킨다.\n';
+
   const second = await generateAlternativesOnce(
     perplexityApiKey,
     PERPLEXITY_MODEL,

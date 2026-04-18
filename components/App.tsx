@@ -1899,7 +1899,7 @@ export default function App() {
       ) {
         html += `<div class="result-analysis-time">${lastAnalysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
       }
-      /* 순서: 제목 → NOVA → 맞춤 안내 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
+      /* 순서: 제목 → NOVA → 한눈에 보기 → 맞춤 안내 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
@@ -1956,15 +1956,13 @@ export default function App() {
       html += '</div></div>';
 
       const keyInsights = (result.keyInsights || []).filter((s) => String(s || '').trim().length > 0);
+      const labelPct = result.labelExplicitPercentages || [];
       const conf = result.analysisConfidence;
-      if (keyInsights.length > 0 || conf) {
+      const confLabelKo =
+        conf === 'high' ? '높음' : conf === 'medium' ? '보통' : conf === 'low' ? '낮음' : '';
+      if (keyInsights.length > 0 || labelPct.length > 0) {
         html += '<div class="card card-key-insights">';
-        html += '<div class="card-title">첨가·감미 등 미량 성분 요약</div>';
-        if (conf) {
-          const confLabel = conf === 'high' ? '높음' : conf === 'medium' ? '보통' : '낮음';
-          html +=
-            '<p class="analysis-confidence-badge">추정 신뢰도: ' + escapeHtml(confLabel) + '</p>';
-        }
+        html += '<div class="card-title">한눈에 보기</div>';
         if (keyInsights.length > 0) {
           html += '<ul class="analysis-key-insights">';
           keyInsights.forEach((k) => {
@@ -1972,32 +1970,12 @@ export default function App() {
           });
           html += '</ul>';
         }
-        const labelPct = result.labelExplicitPercentages || [];
         if (labelPct.length > 0) {
           html += '<p class="label-explicit-pct-note">라벨에 적힌 함량: ';
           html += labelPct
             .map((x) => escapeHtml(x.name) + ' ' + escapeHtml(String(x.percent)) + '%')
             .join(', ');
           html += '</p>';
-        }
-        const estList = result.estimatedIngredients || [];
-        if (estList.length > 0) {
-          html +=
-            '<details class="estimated-ingredients-details"><summary>첨가·감미 등 추정 함량 범위</summary><ul class="estimated-ingredients-ul">';
-          estList.forEach((e) => {
-            const tag = e.isConcern ? ' · 주의' : '';
-            html +=
-              '<li>' +
-              escapeHtml(e.name) +
-              ' · 약 ' +
-              escapeHtml(String(e.minPercent)) +
-              '~' +
-              escapeHtml(String(e.maxPercent)) +
-              '%' +
-              escapeHtml(tag) +
-              '</li>';
-          });
-          html += '</ul></details>';
         }
         html += '</div>';
       }
@@ -2027,36 +2005,48 @@ export default function App() {
         html += '<div class="advice-box">한 번에 많이 드시기보다는 조금씩 나눠 드시면 좋아요.</div>';
       html += '</div>';
 
-      if (concerns.length > 0) {
+      if (concerns.length > 0 || confLabelKo) {
         html += '<div class="card card-concern-ingredients">';
         html +=
           '<div class="nova-result-title-row">' +
           '<div class="card-title concern-ingredient-heading">주의 원재료</div>' +
           '<button type="button" class="nova-help-btn ingredient-help-btn" id="concernIngredientHelpBtn" aria-label="어떤 성분을 주의해서 보는지 안내" title="성분 안내">?</button>' +
           '</div>';
-        html += '<div class="concern-panel">';
-        concerns.forEach((c) => {
-          const pct =
-            c.minPercent != null && c.maxPercent != null
-              ? '<div class="concern-card-pct">추정 함량 약 ' +
-                escapeHtml(String(c.minPercent)) +
-                '~' +
-                escapeHtml(String(c.maxPercent)) +
-                '%</div>'
-              : '';
+        if (confLabelKo) {
           html +=
-            '<div class="concern-card">' +
-            '<div class="concern-card-icon" aria-hidden="true"></div>' +
-            '<div class="concern-card-body">' +
-            '<div class="concern-card-name">' +
-            escapeHtml(c.name) +
-            '</div>' +
-            pct +
-            '<div class="concern-card-desc">' +
-            escapeHtml(c.explanation) +
-            '</div></div></div>';
-        });
-        html += '</div></div>';
+            '<p class="analysis-confidence-badge analysis-confidence-badge--concern">추정 신뢰도: ' +
+            escapeHtml(confLabelKo) +
+            '</p>';
+        }
+        if (concerns.length > 0) {
+          html += '<div class="concern-panel">';
+          concerns.forEach((c) => {
+            const pct =
+              c.minPercent != null && c.maxPercent != null
+                ? '<div class="concern-card-pct">추정 함량 약 ' +
+                  escapeHtml(String(c.minPercent)) +
+                  '~' +
+                  escapeHtml(String(c.maxPercent)) +
+                  '%</div>'
+                : '';
+            html +=
+              '<div class="concern-card">' +
+              '<div class="concern-card-icon" aria-hidden="true"></div>' +
+              '<div class="concern-card-body">' +
+              '<div class="concern-card-name">' +
+              escapeHtml(c.name) +
+              '</div>' +
+              pct +
+              '<div class="concern-card-desc">' +
+              escapeHtml(c.explanation) +
+              '</div></div></div>';
+          });
+          html += '</div>';
+        } else {
+          html +=
+            '<p class="concern-empty-note">주의로 짚은 원재료는 없어요. 라벨이 흐릿하거나 해당 성분이 없을 수 있어요.</p>';
+        }
+        html += '</div>';
       }
 
       const showAlternativeSection = nova >= 1 && nova <= 4;

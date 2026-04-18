@@ -210,11 +210,11 @@ export interface AnalysisResult {
     minPercent?: number | null;
     maxPercent?: number | null;
   }>;
-  /** 첨가·감미 등 미량 성분별 추정 함량 범위 */
+  /** 스키마 호환용(모델은 빈 배열만 반환). 과거 분석에 값이 남을 수 있음 */
   estimatedIngredients?: EstimatedIngredient[] | null;
   /** 짧은 인사이트 문장 */
   keyInsights?: string[] | null;
-  /** 비율·라벨 해석 전체의 불확실도 */
+  /** 비율·라벨 해석 전체의 불확실도(LLM이 프롬프트 규칙으로 선택한 low|medium|high) */
   analysisConfidence?: AnalysisConfidenceLevel | null;
   /** 라벨에 직접 인쇄된 % (있을 때) */
   labelExplicitPercentages?: LabelExplicitPercentage[] | null;
