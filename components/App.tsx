@@ -11,6 +11,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { getClientId } from '@/lib/clientId';
+import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
 import { getTodayAnalyzeLabel } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import {
@@ -33,6 +34,8 @@ import {
   clearAllData,
   addBodyMeasurement,
   removeBodyMeasurement,
+  markDailyAnalyzeQuizDone,
+  getTotalXp,
   compareBodyMeasurementsAsc,
   compareBodyMeasurementsDesc,
   type Profile,
@@ -1008,6 +1011,31 @@ function displayName(item: HistoryItem | null): string {
   return (item?.customProductName || item?.productName || '').trim() || '';
 }
 
+function normalizeNovaSubgroupLabel(sub: string | null | undefined): '4A' | '4B' | '4C' | null {
+  const s = (sub || '').trim().toUpperCase();
+  if (s === '4A' || s === '4B' || s === '4C') return s;
+  return null;
+}
+
+/** 홈 최근 기록 줄: 1~3 또는 4A·4B·4C(미분류면 4) */
+function formatNovaTierForHistoryList(group: number, sub: string | null | undefined): string {
+  const g = Math.min(4, Math.max(1, Number.isFinite(group) ? group : 4));
+  if (g !== 4) return String(g);
+  return normalizeNovaSubgroupLabel(sub) ?? '4';
+}
+
+function formatHistoryListNovaCaption(item: HistoryItem): string {
+  if (item.entryKind === 'compare' && item.comparePayload) {
+    const a = item.comparePayload.productA;
+    const b = item.comparePayload.productB;
+    const ta = formatNovaTierForHistoryList(a.novaGroup ?? 4, a.novaSubgroup);
+    const tb = formatNovaTierForHistoryList(b.novaGroup ?? 4, b.novaSubgroup);
+    return `${ta} / ${tb}`;
+  }
+  const r = item.result;
+  return formatNovaTierForHistoryList(r.novaGroup ?? item.maxRiskScore ?? 4, r.novaSubgroup);
+}
+
 function getBirthYearFromProfile(p: Profile): number | null {
   if (p.birthYear != null && Number.isFinite(p.birthYear)) {
     const y = Math.round(Number(p.birthYear));
@@ -1093,6 +1121,13 @@ export default function App() {
     dailyCompleted: 0,
     dailyTotal: 2,
   });
+  /** 누적 경험치 */
+  const [totalXp, setTotalXp] = useState(0);
+  const [showDailyQuizModal, setShowDailyQuizModal] = useState(false);
+  const [dailyQuizOx, setDailyQuizOx] = useState<DailyOxQuizPayload | null>(null);
+  const [dailyQuizLoading, setDailyQuizLoading] = useState(false);
+  const [dailyQuizError, setDailyQuizError] = useState<string | null>(null);
+  const [dailyQuizWrongHint, setDailyQuizWrongHint] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
@@ -1290,6 +1325,7 @@ export default function App() {
     setHistoryList(state.history || []);
     setAnalysisStreak(getAnalysisStreak(clientId));
     setQuestBoard(getQuestBoard(clientId));
+    setTotalXp(getTotalXp(clientId));
     setOnboardingCompleted(state.onboardingCompleted);
     setShowOnboarding(!state.onboardingCompleted);
     setShowPrivacyConsentGate(
@@ -1376,6 +1412,7 @@ export default function App() {
     setHistoryList(getHistory(clientId));
     setAnalysisStreak(getAnalysisStreak(clientId));
     setQuestBoard(getQuestBoard(clientId));
+    setTotalXp(getTotalXp(clientId));
   }, [clientId]);
 
   const notifyStreakFromQuest = useCallback(
@@ -1392,6 +1429,56 @@ export default function App() {
     [],
   );
 
+  const openDailyQuizModal = useCallback(async () => {
+    if (!clientId) return;
+    setDailyQuizWrongHint(false);
+    setDailyQuizError(null);
+    setDailyQuizOx(null);
+    setShowDailyQuizModal(true);
+    setDailyQuizLoading(true);
+    try {
+      const res = await fetch('/api/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId,
+          foodLabel: getTodayAnalyzeLabel(clientId, new Date()),
+        }),
+      });
+      const data = (await res.json()) as DailyOxQuizPayload & { error?: string };
+      if (!res.ok) throw new Error(data.error || '퀴즈를 불러오지 못했어요.');
+      setDailyQuizOx({
+        questionType: data.questionType,
+        question: data.question,
+        correctAnswer: data.correctAnswer === 'X' ? 'X' : 'O',
+        explanation: data.explanation || '',
+        foodKeyword: data.foodKeyword || '',
+      });
+    } catch (e) {
+      setDailyQuizError(e instanceof Error ? e.message : '오류가 났어요.');
+    } finally {
+      setDailyQuizLoading(false);
+    }
+  }, [clientId]);
+
+  const submitDailyQuizOx = useCallback(
+    (picked: 'O' | 'X') => {
+      if (!clientId || !dailyQuizOx) return;
+      if (picked === dailyQuizOx.correctAnswer) {
+        const s = markDailyAnalyzeQuizDone(clientId);
+        setQuestBoard(getQuestBoard(clientId));
+        setTotalXp(getTotalXp(clientId));
+        notifyStreakFromQuest(s);
+        setShowDailyQuizModal(false);
+        setDailyQuizWrongHint(false);
+        setDailyQuizOx(null);
+      } else {
+        setDailyQuizWrongHint(true);
+      }
+    },
+    [clientId, dailyQuizOx, notifyStreakFromQuest],
+  );
+
   const tryCompleteAltQuest = useCallback(() => {
     if (!clientId || !currentResult) return;
     const altQuestRow = getQuestBoard(clientId).dailyRows.find((r) => r.id === 'alternative');
@@ -1402,6 +1489,7 @@ export default function App() {
     if ((r.novaGroup === 3 || r.novaGroup === 4) && r.alternativeFoodLoaded === false) return;
     const s = markQuestAlternativeReceived(clientId);
     setQuestBoard(getQuestBoard(clientId));
+    setTotalXp(getTotalXp(clientId));
     notifyStreakFromQuest(s);
   }, [clientId, currentResult, notifyStreakFromQuest]);
 
@@ -1445,7 +1533,6 @@ export default function App() {
           clientId,
           imageBase64: base64,
           mimeType,
-          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const startedAt = performance.now();
@@ -1529,7 +1616,6 @@ export default function App() {
           rawMimeType,
           nutritionImageBase64: nutritionBase64,
           nutritionMimeType,
-          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const startedAt = performance.now();
@@ -1618,7 +1704,6 @@ export default function App() {
             bRawMimeType: pairB.rawMime,
             bNutritionImageBase64: pairB.nut,
             bNutritionMimeType: pairB.nutMime,
-            dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
             ...(profilePayload ? { profile: profilePayload } : {}),
           }),
         });
@@ -1631,6 +1716,7 @@ export default function App() {
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
         const streak = markQuestCompareDone(clientId, data.dailyQuestProductMatch === true);
         setQuestBoard(getQuestBoard(clientId));
+        setTotalXp(getTotalXp(clientId));
         notifyStreakFromQuest(streak);
         const comparePayload = {
           productA: data.productA as AnalysisResult,
@@ -1776,6 +1862,53 @@ export default function App() {
       }
       html += '</div></div>';
 
+      const keyInsights = (result.keyInsights || []).filter((s) => String(s || '').trim().length > 0);
+      const conf = result.analysisConfidence;
+      if (keyInsights.length > 0 || conf) {
+        html += '<div class="card card-key-insights">';
+        html += '<div class="card-title">원재료·비율 추정 요약</div>';
+        if (conf) {
+          const confLabel = conf === 'high' ? '높음' : conf === 'medium' ? '보통' : '낮음';
+          html +=
+            '<p class="analysis-confidence-badge">추정 신뢰도: ' + escapeHtml(confLabel) + '</p>';
+        }
+        if (keyInsights.length > 0) {
+          html += '<ul class="analysis-key-insights">';
+          keyInsights.forEach((k) => {
+            html += '<li>' + escapeHtml(String(k).trim()) + '</li>';
+          });
+          html += '</ul>';
+        }
+        const labelPct = result.labelExplicitPercentages || [];
+        if (labelPct.length > 0) {
+          html += '<p class="label-explicit-pct-note">라벨에 적힌 함량: ';
+          html += labelPct
+            .map((x) => escapeHtml(x.name) + ' ' + escapeHtml(String(x.percent)) + '%')
+            .join(', ');
+          html += '</p>';
+        }
+        const estList = result.estimatedIngredients || [];
+        if (estList.length > 0) {
+          html +=
+            '<details class="estimated-ingredients-details"><summary>원재료별 추정 비율 범위</summary><ul class="estimated-ingredients-ul">';
+          estList.forEach((e) => {
+            const tag = e.isConcern ? ' · 주의' : '';
+            html +=
+              '<li>' +
+              escapeHtml(e.name) +
+              ' · 약 ' +
+              escapeHtml(String(e.minPercent)) +
+              '~' +
+              escapeHtml(String(e.maxPercent)) +
+              '%' +
+              escapeHtml(tag) +
+              '</li>';
+          });
+          html += '</ul></details>';
+        }
+        html += '</div>';
+      }
+
       html += '<div class="card"><div class="card-title">맞춤 참고</div>';
       if (personalizedIntakeNote) {
         html +=
@@ -1810,6 +1943,14 @@ export default function App() {
           '</div>';
         html += '<div class="concern-panel">';
         concerns.forEach((c) => {
+          const pct =
+            c.minPercent != null && c.maxPercent != null
+              ? '<div class="concern-card-pct">추정 함량 약 ' +
+                escapeHtml(String(c.minPercent)) +
+                '~' +
+                escapeHtml(String(c.maxPercent)) +
+                '%</div>'
+              : '';
           html +=
             '<div class="concern-card">' +
             '<div class="concern-card-icon" aria-hidden="true"></div>' +
@@ -1817,6 +1958,7 @@ export default function App() {
             '<div class="concern-card-name">' +
             escapeHtml(c.name) +
             '</div>' +
+            pct +
             '<div class="concern-card-desc">' +
             escapeHtml(c.explanation) +
             '</div></div></div>';
@@ -3604,6 +3746,10 @@ export default function App() {
                       <IconClipboard size={22} />
                     </span>
                     <span className="daily-quest-title">오늘의 퀘스트</span>
+                    <span className="daily-quest-xp-badge" title="누적 XP">
+                      <IconFlame size={16} aria-hidden />
+                      {totalXp} XP
+                    </span>
                     <span className="daily-quest-count">
                       {questBoard.dailyCompleted}/{questBoard.dailyTotal}
                     </span>
@@ -3621,6 +3767,18 @@ export default function App() {
                           <span className="daily-quest-row-title">{q.title}</span>
                           {q.subtitle ? (
                             <span className="daily-quest-row-sub">{q.subtitle}</span>
+                          ) : null}
+                          {q.id === 'analyze' && !q.done ? (
+                            <button
+                              type="button"
+                              className="daily-quiz-inline-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDailyQuizModal();
+                              }}
+                            >
+                              퀴즈 풀기
+                            </button>
                           ) : null}
                         </span>
                       </li>
@@ -3683,11 +3841,19 @@ export default function App() {
                       role="button"
                       tabIndex={0}
                     >
-                      {NOVA_IMG[item.maxRiskScore] ? (
-                        <img src={NOVA_IMG[item.maxRiskScore]} alt="" className="history-nova-icon" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className={`risk-dot risk-${item.maxRiskScore}`} />
-                      )}
+                      <div className="history-nova-wrap" title={`NOVA ${formatHistoryListNovaCaption(item)}`}>
+                        {NOVA_IMG[item.maxRiskScore] ? (
+                          <img
+                            src={NOVA_IMG[item.maxRiskScore]}
+                            alt=""
+                            className="history-nova-icon"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span className={`risk-dot risk-${item.maxRiskScore}`} />
+                        )}
+                        <span className="history-nova-caption">{formatHistoryListNovaCaption(item)}</span>
+                      </div>
                       <div className="history-item-main">
                         <div className="product-name">
                           {(item.customProductName || item.productName || '').trim() || '제품명 없음'}
@@ -4190,6 +4356,84 @@ export default function App() {
                   );
                 })()}
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showDailyQuizModal && (
+        <div
+          className="modal info-sheet visible"
+          role="dialog"
+          aria-label="오늘의 퀴즈"
+          onClick={(e) => e.target === e.currentTarget && !dailyQuizLoading && setShowDailyQuizModal(false)}
+        >
+          <div className="modal-panel daily-quiz-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-header">
+              <h2 className="sheet-title">오늘의 퀴즈 (OX)</h2>
+              <button
+                type="button"
+                className="sheet-close-x"
+                aria-label="닫기"
+                disabled={dailyQuizLoading}
+                onClick={() => {
+                  setShowDailyQuizModal(false);
+                  setDailyQuizOx(null);
+                  setDailyQuizError(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {dailyQuizLoading ? (
+              <p className="daily-quiz-loading">AI가 문제를 만들고 있어요…</p>
+            ) : dailyQuizError ? (
+              <>
+                <p className="daily-quiz-wrong" role="alert">
+                  {dailyQuizError}
+                </p>
+                <button type="button" className="daily-quiz-retry-btn" onClick={() => void openDailyQuizModal()}>
+                  다시 시도
+                </button>
+              </>
+            ) : dailyQuizOx ? (
+              <>
+                <p className="daily-quiz-keyword">
+                  오늘 키워드: 「{dailyQuizOx.foodKeyword}」 ·{' '}
+                  {dailyQuizOx.questionType === 1
+                    ? '유형 1 · 분류'
+                    : dailyQuizOx.questionType === 2
+                      ? '유형 2 · 성분 구분'
+                      : '유형 3 · 개념'}
+                </p>
+                <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러 주세요.</p>
+                <p className="daily-quiz-question">{dailyQuizOx.question}</p>
+                <div className="daily-quiz-ox-row">
+                  <button
+                    type="button"
+                    className="daily-quiz-ox-btn daily-quiz-ox-btn--o"
+                    onClick={() => submitDailyQuizOx('O')}
+                  >
+                    O
+                  </button>
+                  <button
+                    type="button"
+                    className="daily-quiz-ox-btn daily-quiz-ox-btn--x"
+                    onClick={() => submitDailyQuizOx('X')}
+                  >
+                    X
+                  </button>
+                </div>
+                {dailyQuizWrongHint ? (
+                  <p className="daily-quiz-wrong" role="status">
+                    {dailyQuizOx.explanation
+                      ? `참고: ${dailyQuizOx.explanation}`
+                      : '아쉬워요. 다시 골라 볼까요?'}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="daily-quiz-loading">문제를 불러오지 못했어요.</p>
             )}
           </div>
         </div>

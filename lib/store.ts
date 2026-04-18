@@ -11,6 +11,7 @@ import {
   questAfterAnalyze,
   questAfterAlternative,
   questAfterCompare,
+  questAfterDailyQuizPassed,
   questAfterTutorial,
   questAfterKnova,
   questAfterBodyMeasurement,
@@ -23,6 +24,13 @@ import {
   type QuestsSlice,
   type WeekDayCell,
 } from './daily-quests';
+import {
+  XP_ALTERNATIVE_QUEST,
+  XP_ANALYSIS,
+  XP_COMPARE_QUEST,
+  XP_DAILY_PAIR_COMPLETE,
+  XP_DAILY_QUIZ,
+} from './xp-rewards';
 
 export type { AnalysisStreak };
 export type { QuestsSlice };
@@ -173,13 +181,43 @@ export interface NutritionDailyPercent {
   dietaryFiber?: number;
 }
 
+/** 라벨에 명시된 원재료 함량 %(있을 때만) */
+export interface LabelExplicitPercentage {
+  name: string;
+  percent: number;
+}
+
+/** AI 추정 원재료 비율 범위(참고용) */
+export interface EstimatedIngredient {
+  name: string;
+  minPercent: number;
+  maxPercent: number;
+  isConcern: boolean;
+}
+
+export type AnalysisConfidenceLevel = 'low' | 'medium' | 'high';
+
 export interface AnalysisResult {
   product: { productName: string; companyName?: string; rawMaterials?: string };
   novaGroup: number;
   /** Group IV일 때 4A | 4B | 4C */
   novaSubgroup?: string | null;
   judgmentReason?: string | null;
-  concernIngredients: Array<{ name: string; explanation: string }>;
+  concernIngredients: Array<{
+    name: string;
+    explanation: string;
+    /** 통합 엔진 추정 함량 범위(%) */
+    minPercent?: number | null;
+    maxPercent?: number | null;
+  }>;
+  /** 주요 원재료별 추정 비율 범위 */
+  estimatedIngredients?: EstimatedIngredient[] | null;
+  /** 짧은 인사이트 문장 */
+  keyInsights?: string[] | null;
+  /** 비율·라벨 해석 전체의 불확실도 */
+  analysisConfidence?: AnalysisConfidenceLevel | null;
+  /** 라벨에 직접 인쇄된 % (있을 때) */
+  labelExplicitPercentages?: LabelExplicitPercentage[] | null;
   briefDescription?: string | null;
   consumptionAdvice?: string | null;
   foodCategory?: string | null;
@@ -360,6 +398,45 @@ export function getStreakToastSnapshot(clientId: string): {
   };
 }
 
+function clampXp(n: number): number {
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(Math.floor(n), 99_999_999);
+}
+
+export function getTotalXp(clientId: string): number {
+  const qs = normalizeQuestsSlice(loadState(clientId).quests);
+  return clampXp(qs.totalXp ?? 0);
+}
+
+export function addXp(clientId: string, delta: number): number {
+  if (delta <= 0 || !Number.isFinite(delta)) return getTotalXp(clientId);
+  const state = loadState(clientId);
+  const qs = normalizeQuestsSlice(state.quests);
+  const next = clampXp((qs.totalXp ?? 0) + Math.floor(delta));
+  state.quests = { ...qs, totalXp: next };
+  saveState(clientId, state);
+  return next;
+}
+
+/** 일일 첫 퀘스트(키워드 퀴즈) 정답 시 — 오늘 이미 한 경우 무시 */
+export function markDailyAnalyzeQuizDone(clientId: string): {
+  displayCurrent: number;
+  didIncrease: boolean;
+  totalXp: number;
+} {
+  const state = loadState(clientId);
+  const prev = normalizeQuestsSlice(state.quests);
+  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
+  if (daily.analyzeDone) {
+    return { ...getStreakToastSnapshot(clientId), totalXp: getTotalXp(clientId) };
+  }
+  state.quests = questAfterDailyQuizPassed(prev, new Date());
+  saveState(clientId, state);
+  addXp(clientId, XP_DAILY_QUIZ);
+  const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
+  return { ...streak, totalXp: getTotalXp(clientId) };
+}
+
 /** 매일 배정된 2개 미션을 모두 완료했을 때만 연속 일수를 올림. */
 export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   displayCurrent: number;
@@ -374,6 +451,7 @@ export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   }
   const qs = normalizeQuestsSlice(state.quests);
   const dateSet = new Set(qs.dailyPairCompleteYmds || []);
+  const firstPairCompleteToday = !dateSet.has(ymd);
   if (!dateSet.has(ymd)) {
     dateSet.add(ymd);
     state.quests = {
@@ -388,6 +466,9 @@ export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   const didIncrease = afterDisplay > beforeDisplay;
   state.analysisStreak = newStreak;
   saveState(clientId, state);
+  if (firstPairCompleteToday) {
+    addXp(clientId, XP_DAILY_PAIR_COMPLETE);
+  }
   return { displayCurrent: afterDisplay, didIncrease };
 }
 
@@ -409,8 +490,14 @@ export function markQuestAlternativeReceived(clientId: string): {
   didIncrease: boolean;
 } {
   const state = loadState(clientId);
-  state.quests = questAfterAlternative(normalizeQuestsSlice(state.quests), new Date());
+  const prev = normalizeQuestsSlice(state.quests);
+  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
+  const already = daily.alternativeDone === true;
+  state.quests = questAfterAlternative(prev, new Date());
   saveState(clientId, state);
+  if (!already) {
+    addXp(clientId, XP_ALTERNATIVE_QUEST);
+  }
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
@@ -422,14 +509,20 @@ export function markQuestCompareDone(
   didIncrease: boolean;
 } {
   const state = loadState(clientId);
+  const prev = normalizeQuestsSlice(state.quests);
+  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
+  const already = daily.compareDone === true;
   const scannedAtIso = new Date().toISOString();
   state.quests = questAfterCompare(
-    normalizeQuestsSlice(state.quests),
+    prev,
     new Date(),
     dailyQuestProductMatch,
     dailyQuestProductMatch === true ? scannedAtIso : undefined,
   );
   saveState(clientId, state);
+  if (!already) {
+    addXp(clientId, XP_COMPARE_QUEST);
+  }
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
@@ -484,6 +577,7 @@ export function addToHistory(
     result.dailyQuestProductMatch === true,
   );
   saveState(clientId, state);
+  addXp(clientId, XP_ANALYSIS);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
   return { id: itemId, item, streak };
 }

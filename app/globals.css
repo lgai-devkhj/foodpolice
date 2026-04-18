@@ -843,6 +843,23 @@
       letter-spacing: -0.02em;
       color: var(--text);
     }
+    .daily-quest-xp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+      font-weight: 800;
+      font-size: 0.86rem;
+      font-variant-numeric: tabular-nums;
+      color: #e65100;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 152, 0, 0.14);
+    }
+    [data-theme='dark'] .daily-quest-xp-badge {
+      color: #ffcc80;
+      background: rgba(255, 152, 0, 0.18);
+    }
     .daily-quest-lead {
       margin: 0 0 8px;
       font-size: 0.89rem;
@@ -950,6 +967,114 @@
       font-size: 0.86rem;
       line-height: 1.35;
       color: var(--text3);
+    }
+    .daily-quiz-inline-btn {
+      align-self: flex-start;
+      margin-top: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(46, 125, 50, 0.35);
+      background: rgba(46, 125, 50, 0.1);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+    }
+    .daily-quiz-inline-btn:active {
+      transform: scale(0.98);
+    }
+    .daily-quiz-panel {
+      max-width: 420px;
+      width: calc(100vw - 32px);
+    }
+    .daily-quiz-keyword {
+      margin: 0 0 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .daily-quiz-question {
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+      line-height: 1.5;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .daily-quiz-choices {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .daily-quiz-choice-btn {
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--card-stroke);
+      background: var(--card);
+      color: var(--text);
+      font-size: 0.98rem;
+      line-height: 1.45;
+      cursor: pointer;
+    }
+    .daily-quiz-choice-btn:active {
+      background: rgba(46, 125, 50, 0.1);
+    }
+    .daily-quiz-wrong {
+      margin: 12px 0 0;
+      font-size: 0.92rem;
+      color: var(--risk);
+      font-weight: 600;
+    }
+    .daily-quiz-loading {
+      margin: 12px 0;
+      font-size: 0.98rem;
+      color: var(--text2);
+      text-align: center;
+    }
+    .daily-quiz-ox-hint {
+      margin: 0 0 8px;
+      font-size: 0.86rem;
+      color: var(--text3);
+    }
+    .daily-quiz-ox-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .daily-quiz-ox-btn {
+      flex: 1;
+      max-width: 120px;
+      min-height: 52px;
+      border-radius: 14px;
+      font-size: 1.35rem;
+      font-weight: 800;
+      cursor: pointer;
+      border: 2px solid var(--card-stroke);
+      background: var(--card);
+      color: var(--text);
+    }
+    .daily-quiz-ox-btn--o {
+      border-color: rgba(46, 125, 50, 0.45);
+      background: rgba(46, 125, 50, 0.12);
+      color: var(--primary);
+    }
+    .daily-quiz-ox-btn--x {
+      border-color: rgba(179, 56, 46, 0.4);
+      background: rgba(179, 56, 46, 0.08);
+      color: var(--risk);
+    }
+    .daily-quiz-retry-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 12px;
+      font-weight: 700;
+      border: 1px solid var(--card-stroke);
+      background: rgba(46, 125, 50, 0.1);
+      color: var(--primary);
+      cursor: pointer;
     }
 
     .hero-section {
@@ -1543,7 +1668,28 @@
     }
     .history-item:active { background: rgba(255,255,255,0.6); }
     .risk-dot { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; }
+    .history-nova-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      min-width: 40px;
+    }
     .history-nova-icon { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+    .history-nova-caption {
+      display: block;
+      margin-top: 3px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      color: var(--text2);
+      line-height: 1.15;
+      text-align: center;
+      max-width: 72px;
+      word-break: keep-all;
+    }
     .risk-1 { background: var(--primary); }
     .risk-2 { background: #e6a800; }
     .risk-3 { background: #e86c00; }
@@ -2494,6 +2640,48 @@
       font-size: 1.12rem;
       color: #bf360c;
       letter-spacing: -0.02em;
+    }
+    .concern-card-pct {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text2);
+      margin-top: 4px;
+      letter-spacing: -0.01em;
+    }
+    .card-key-insights .analysis-key-insights {
+      margin: 8px 0 0;
+      padding-left: 1.15em;
+      font-size: 1.02rem;
+      line-height: 1.55;
+      color: var(--text2);
+    }
+    .analysis-confidence-badge {
+      font-size: 0.92rem;
+      color: var(--text3);
+      margin: 0 0 4px;
+    }
+    .label-explicit-pct-note {
+      font-size: 0.95rem;
+      color: var(--text3);
+      margin: 10px 0 0;
+      line-height: 1.45;
+    }
+    .estimated-ingredients-details {
+      margin-top: 12px;
+      font-size: 0.98rem;
+      color: var(--text2);
+    }
+    .estimated-ingredients-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--primary);
+      list-style: none;
+    }
+    .estimated-ingredients-details summary::-webkit-details-marker { display: none; }
+    .estimated-ingredients-ul {
+      margin: 8px 0 0;
+      padding-left: 1.1em;
+      line-height: 1.5;
     }
     .concern-card-desc {
       font-size: 1.04rem;

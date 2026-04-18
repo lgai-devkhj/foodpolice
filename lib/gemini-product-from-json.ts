@@ -3,7 +3,12 @@ import {
   type NutritionDailyPercent,
   type NutritionFactsInput,
 } from '@/lib/nutrition-daily';
-import type { AnalysisResult } from '@/lib/store';
+import type {
+  AnalysisConfidenceLevel,
+  AnalysisResult,
+  EstimatedIngredient,
+  LabelExplicitPercentage,
+} from '@/lib/store';
 
 function numOrNull(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -148,6 +153,84 @@ function normalizeNovaSubgroup(novaGroup: number, v: unknown): string | null {
   return null;
 }
 
+function clampPercent(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function parsePercentPair(
+  minRaw: unknown,
+  maxRaw: unknown,
+): { minPercent: number | null; maxPercent: number | null } {
+  if (minRaw == null && maxRaw == null) return { minPercent: null, maxPercent: null };
+  let min =
+    typeof minRaw === 'number' ? minRaw : parseFloat(String(minRaw ?? '').replace(/,/g, ''));
+  let max =
+    typeof maxRaw === 'number' ? maxRaw : parseFloat(String(maxRaw ?? '').replace(/,/g, ''));
+  if (!Number.isFinite(min)) min = Number.NaN;
+  if (!Number.isFinite(max)) max = Number.NaN;
+  if (!Number.isFinite(min) && !Number.isFinite(max)) return { minPercent: null, maxPercent: null };
+  if (!Number.isFinite(min)) min = max;
+  if (!Number.isFinite(max)) max = min;
+  let a = clampPercent(min);
+  let b = clampPercent(max);
+  if (a > b) [a, b] = [b, a];
+  return { minPercent: a, maxPercent: b };
+}
+
+function parseEstimatedIngredients(raw: unknown): EstimatedIngredient[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: EstimatedIngredient[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const name = o.name != null ? String(o.name).trim() : '';
+    if (!name) continue;
+    const { minPercent: mn, maxPercent: mx } = parsePercentPair(o.minPercent, o.maxPercent);
+    if (mn == null || mx == null) continue;
+    out.push({
+      name,
+      minPercent: mn,
+      maxPercent: mx,
+      isConcern: o.isConcern === true,
+    });
+    if (out.length >= 20) break;
+  }
+  return out.length > 0 ? out : null;
+}
+
+function parseKeyInsights(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: string[] = [];
+  for (const x of raw) {
+    const s = x != null ? String(x).trim() : '';
+    if (s) out.push(s);
+    if (out.length >= 5) break;
+  }
+  return out.length > 0 ? out : null;
+}
+
+function parseAnalysisConfidence(raw: unknown): AnalysisConfidenceLevel | null {
+  const s = raw != null ? String(raw).trim().toLowerCase() : '';
+  if (s === 'low' || s === 'medium' || s === 'high') return s;
+  return null;
+}
+
+function parseLabelExplicitPercentages(raw: unknown): LabelExplicitPercentage[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: LabelExplicitPercentage[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const name = o.name != null ? String(o.name).trim() : '';
+    const p = typeof o.percent === 'number' ? o.percent : parseFloat(String(o.percent ?? ''));
+    if (!name || !Number.isFinite(p)) continue;
+    out.push({ name, percent: clampPercent(p) });
+    if (out.length >= 15) break;
+  }
+  return out.length > 0 ? out : null;
+}
+
 function isNutritionLabelLike(name: string): boolean {
   const n = (name || '').trim().toLowerCase();
   if (!n) return true;
@@ -168,11 +251,31 @@ export function buildAnalysisResultFromGeminiObject(
   };
   const novaGroup = Math.min(4, Math.max(1, parseInt(String(parsed.novaGroup), 10) || 4));
   const concernIngredients = Array.isArray(parsed.concernIngredients)
-    ? (parsed.concernIngredients as Array<{ name?: string; explanation?: string }>)
-        .map((c) => ({ name: (c.name || '').trim(), explanation: (c.explanation || '').trim() }))
+    ? (
+        parsed.concernIngredients as Array<{
+          name?: string;
+          explanation?: string;
+          minPercent?: unknown;
+          maxPercent?: unknown;
+        }>
+      )
+        .map((c) => {
+          const { minPercent, maxPercent } = parsePercentPair(c.minPercent, c.maxPercent);
+          return {
+            name: (c.name || '').trim(),
+            explanation: (c.explanation || '').trim(),
+            minPercent,
+            maxPercent,
+          };
+        })
         .filter((c) => c.name.length > 0 && !isNutritionLabelLike(c.name))
         .slice(0, 3)
     : [];
+
+  const estimatedIngredients = parseEstimatedIngredients(parsed.estimatedIngredients);
+  const keyInsights = parseKeyInsights(parsed.keyInsights);
+  const analysisConfidence = parseAnalysisConfidence(parsed.analysisConfidence);
+  const labelExplicitPercentages = parseLabelExplicitPercentages(parsed.labelExplicitPercentages);
 
   const nutritionParsed = parseNutrition(parsed.nutrition);
   const nutritionDailyPercent: NutritionDailyPercent | null = nutritionParsed
@@ -199,6 +302,10 @@ export function buildAnalysisResultFromGeminiObject(
         ? String(parsed.judgmentReason).trim()
         : null,
     concernIngredients,
+    estimatedIngredients,
+    keyInsights,
+    analysisConfidence,
+    labelExplicitPercentages,
     briefDescription:
       parsed.briefDescription != null && String(parsed.briefDescription).trim().length > 0
         ? String(parsed.briefDescription).trim()

@@ -4,6 +4,7 @@ import {
   buildWeekStreakView,
   questAfterAnalyze,
   questAfterCompare,
+  questAfterDailyQuizPassed,
   resolveQuestSlice,
   emptyQuestDaily,
   ensureDailyForToday,
@@ -79,14 +80,14 @@ describe('daily-quests', () => {
     expect(ensureDailyForToday(next, '2026-06-15').compareDone).toBe(true);
   });
 
-  it('questAfterCompare: 미션 식품이 A·B 중 하나라도 맞으면 analyzeDone도 켠다', () => {
+  it('questAfterCompare는 compareDone만 켠다(첫 퀘스트는 퀴즈로 완료)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
     const now = new Date();
     const next = questAfterCompare({}, now, true, '2026-06-15T12:00:05.000Z');
     const d = ensureDailyForToday(next, '2026-06-15');
     expect(d.compareDone).toBe(true);
-    expect(d.analyzeDone).toBe(true);
+    expect(d.analyzeDone).toBe(false);
   });
 
   it('isDailyQuestPairComplete는 오늘 배정 2슬롯을 모두 만족할 때만 true', () => {
@@ -137,14 +138,22 @@ describe('daily-quests', () => {
     expect(week.find((c) => c.ymd === '2026-06-15')?.done).toBe(false);
   });
 
-  it('첫 퀘스트: AI 일치(dailyQuestProductMatch)가 true일 때만 analyzeDone', () => {
+  it('첫 퀘스트(analyzeDone): 촬영·AI 일치로는 완료되지 않고 퀴즈로만 완료', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-15T12:00:00'));
     const now = new Date();
     const no = questAfterAnalyze({}, '2026-06-15T12:00:00.000Z', now, false);
     expect(ensureDailyForToday(no, '2026-06-15').analyzeDone).toBe(false);
     const yes = questAfterAnalyze({}, '2026-06-15T12:00:00.000Z', now, true);
-    expect(ensureDailyForToday(yes, '2026-06-15').analyzeDone).toBe(true);
+    expect(ensureDailyForToday(yes, '2026-06-15').analyzeDone).toBe(false);
+  });
+
+  it('questAfterDailyQuizPassed는 analyzeDone을 켠다', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
+    const now = new Date();
+    const next = questAfterDailyQuizPassed({}, now);
+    expect(ensureDailyForToday(next, '2026-06-15').analyzeDone).toBe(true);
   });
 
   it('getTodayAnalyzeLabel은 8종 중 하나', () => {

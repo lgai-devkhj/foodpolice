@@ -33,6 +33,8 @@ export interface QuestsSlice {
   daily?: QuestDaily;
   /** 일일 2개 퀘스트를 모두 완료한 날(YYYY-MM-DD), 오름차순 */
   dailyPairCompleteYmds?: string[];
+  /** 누적 경험치(XP) */
+  totalXp?: number;
 }
 
 export function toLocalYmd(d: Date): string {
@@ -94,7 +96,11 @@ export function normalizeQuestsSlice(raw: unknown): QuestsSlice {
     dailyPairCompleteYmds = Array.from(new Set(dailyPairCompleteYmds)).sort();
     if (dailyPairCompleteYmds.length > 120) dailyPairCompleteYmds = dailyPairCompleteYmds.slice(-120);
   }
-  return { firstUseAt, lifetime, daily, dailyPairCompleteYmds };
+  let totalXp: number | undefined;
+  if (typeof q.totalXp === 'number' && Number.isFinite(q.totalXp) && q.totalXp >= 0) {
+    totalXp = Math.min(Math.floor(q.totalXp), 99_999_999);
+  }
+  return { firstUseAt, lifetime, daily, dailyPairCompleteYmds, totalXp };
 }
 
 /** 기록에만 있고 firstUseAt이 없을 때 마이그레이션 */
@@ -150,44 +156,44 @@ const QUEST_FLAVORS: Array<{
   {
     lead: '매일 미션은 2개뿐이에요. 다 하면 스트릭이 올라가요.',
     analyze: {
-      title: '「삼각김밥」 찍기',
-      subtitle: 'AI가 포장을 보고 삼각김밥이 맞는지 판단해요',
+      title: '「삼각김밥」 퀴즈',
+      subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요',
     },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘은 이렇게만 해볼까요?',
-    analyze: { title: '「샌드위치」 찍기', subtitle: 'AI가 샌드위치 포장인지 판단해요' },
+    analyze: { title: '「샌드위치」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '짧게 끝내고 스트릭 챙기기.',
-    analyze: { title: '「시리얼」 찍기', subtitle: 'AI가 시리얼·그래놀라 박스인지 판단해요' },
+    analyze: { title: '「시리얼」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘의 루틴 — 2개만 체크하면 끝.',
-    analyze: { title: '「요거트」 찍기', subtitle: 'AI가 요거트·요구르트인지 판단해요' },
+    analyze: { title: '「요거트」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '매일 조금씩, 쌓이는 스트릭.',
-    analyze: { title: '「냉동만두」 찍기', subtitle: 'AI가 만두·교자류인지 판단해요' },
+    analyze: { title: '「냉동만두」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '오늘도 가볍게! 두 가지만.',
-    analyze: { title: '「에너지바」 찍기', subtitle: 'AI가 에너지바·프로틴바·그래놀라바인지 판단해요' },
+    analyze: { title: '「에너지바」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '스트릭은 오늘의 2개로 올라가요.',
-    analyze: { title: '「바나나우유」 찍기', subtitle: 'AI가 바나나우유인지 판단해요' },
+    analyze: { title: '「바나나우유」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
   {
     lead: '루틴 유지 중이에요? 오늘도 2개.',
-    analyze: { title: '「쥬스」 찍기', subtitle: 'AI가 과일·채소 주스인지 판단해요(탄산음료 제외)' },
+    analyze: { title: '「쥬스」 퀴즈', subtitle: '오늘 키워드 맞춤 객관식 · 찍지 않아도 돼요' },
     alt: { title: '더 나은 선택 찾기', subtitle: '다른 제품이어도 괜찮아요 · 결과에서 「대체 식품」' },
   },
 ];
@@ -202,8 +208,8 @@ export function questFlavorIndex(ymd: string, clientId: string): number {
   return Math.abs(h) % DAILY_QUEST_ANALYZE_LABELS.length;
 }
 
-/** fnv-1a 스타일 해시 — 연속 일자 중복 회피용 보조 시드 */
-function hashStringFnv(seed: string): number {
+/** fnv-1a 스타일 해시 — 퀘스트·퀴즈 난수 시드용 */
+export function hashStringFnv(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
@@ -370,18 +376,24 @@ export function questAfterAnalyze(
   prev: QuestsSlice,
   scannedAtIso: string,
   now: Date,
-  dailyQuestProductMatch: boolean,
+  _dailyQuestProductMatch: boolean,
 ): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
   const firstUseAt =
     !prev.firstUseAt || scannedAtIso < prev.firstUseAt ? scannedAtIso : prev.firstUseAt;
-  const analyzeDone = daily.analyzeDone || dailyQuestProductMatch;
   return {
     ...prev,
     firstUseAt,
-    daily: { ...daily, analyzeDone },
+    daily: { ...daily },
   };
+}
+
+/** 첫 번째 일일 퀘스트(구 「찍기」)를 퀴즈 정답으로 완료 */
+export function questAfterDailyQuizPassed(prev: QuestsSlice, now: Date): QuestsSlice {
+  const todayYmd = toLocalYmd(now);
+  const daily = ensureDailyForToday(prev, todayYmd);
+  return { ...prev, daily: { ...daily, analyzeDone: true } };
 }
 
 export function questAfterAlternative(prev: QuestsSlice, now: Date): QuestsSlice {
@@ -399,13 +411,12 @@ export function questAfterCompare(
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
   const match = dailyQuestProductMatch === true;
-  const analyzeDone = daily.analyzeDone || match;
   let firstUseAt = prev.firstUseAt;
   if (match && scannedAtIso) {
     firstUseAt =
       !prev.firstUseAt || scannedAtIso < prev.firstUseAt ? scannedAtIso : prev.firstUseAt;
   }
-  return { ...prev, firstUseAt, daily: { ...daily, compareDone: true, analyzeDone } };
+  return { ...prev, firstUseAt, daily: { ...daily, compareDone: true } };
 }
 
 /** 오늘 배정된 2슬롯을 모두 완료했는지 */
