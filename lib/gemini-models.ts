@@ -20,4 +20,5 @@ export const SEARCH_MODEL = modelFromEnv('GEMINI_SEARCH_MODEL', 'gemini-2.5-flas
  * `/api/analyze`, `/api/compare`, `/api/quiz` 등 generateContent 공통 모델.
  * 지연을 줄이려면 `gemini-2.0-flash` 권장. 예전 프리뷰 모델은 `GEMINI_ANALYSIS_MODEL`로 지정.
  */
-export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.0-flash');
+/** v1beta generateContent에서 널리 지원되는 Flash 계열(모델 미지정 시 404 방지) */
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.5-flash');

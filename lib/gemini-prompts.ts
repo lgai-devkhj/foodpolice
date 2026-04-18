@@ -506,14 +506,50 @@ export function getDailyQuestProductMatchBlock(targetLabel: string): string {
   );
 }
 
+/**
+ * 모델이 마크다운·앞뒤 설명을 붙여도 첫 번째 최상위 JSON 객체를 집어낸다.
+ * 문자열 리터럴 안의 `{` `}` 는 따옴표 상태를 따라 건너뛴다.
+ */
+function extractBalancedJsonObject(s: string): string | null {
+  const start = s.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+    } else {
+      if (c === '"') inStr = true;
+      else if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) return s.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
 export function normalizeGeminiJson(response: string): string {
   if (typeof response !== 'string') return '';
-  return response
+  let s = response
     .trim()
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```\s*$/i, '')
     .trim();
+  if (!s) return s;
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    const ext = extractBalancedJsonObject(s);
+    return ext ?? s;
+  }
 }
 
 /** 일일 OX 퀴즈 1문항 — 한국형 NOVA·원재료 교육용 (텍스트만 생성). 특정 식품·미션과 무관한 일반 개념으로 낸다. */

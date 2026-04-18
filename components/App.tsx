@@ -14,7 +14,12 @@ import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import { encodeImageForAnalysis } from '@/lib/image-encode-for-analysis';
-import { readApiJson, tryParseJsonObject } from '@/lib/read-api-json';
+import {
+  readApiJson,
+  tryParseJsonObject,
+  formatApiErrorForDisplay,
+  type ApiErrorBody,
+} from '@/lib/read-api-json';
 import {
   loadState,
   setProfile as saveProfile,
@@ -1447,8 +1452,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientId }),
       });
-      const data = await readApiJson<DailyOxQuizPayload & { error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || '퀴즈를 불러오지 못했어요.');
+      const data = await readApiJson<DailyOxQuizPayload & Partial<ApiErrorBody>>(res);
+      if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
       setDailyQuizOx({
         questionType: data.questionType,
         question: data.question,
@@ -1553,8 +1558,8 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body,
         });
-        const data = await readApiJson<{ error?: string } & AnalysisResult>(res);
-        if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
+        const data = await readApiJson<AnalysisResult & Partial<ApiErrorBody>>(res);
+        if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
@@ -1640,8 +1645,8 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body,
         });
-        const data = await readApiJson<{ error?: string } & AnalysisResult>(res);
-        if (!res.ok) throw new Error(data.error || '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
+        const data = await readApiJson<AnalysisResult & Partial<ApiErrorBody>>(res);
+        if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
         const rawResult = data as AnalysisResult;
         const result = withAlternativesClientState(rawResult);
         const endedAt = performance.now();
@@ -1730,15 +1735,14 @@ export default function App() {
           }),
         });
         const data = await readApiJson<{
-          error?: string;
           dailyQuestProductMatch?: boolean;
           productA?: AnalysisResult;
           productB?: AnalysisResult;
           betterChoice?: string;
           comparisonSummary?: string;
           recommendationLine?: string;
-        }>(res);
-        if (!res.ok) throw new Error(data.error || '비교에 실패했어요. 다시 시도해 주세요.');
+        } & Partial<ApiErrorBody>>(res);
+        if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
         if (cameraStreamRef.current) {
           cameraStreamRef.current.getTracks().forEach((t) => t.stop());
           cameraStreamRef.current = null;
