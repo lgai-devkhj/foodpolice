@@ -18,8 +18,8 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
+import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from '@/lib/gemini-models';
-import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -116,38 +116,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
     const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), questTargetForPrompt);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              inlineDataPart(aRawMimeType, aRawImageBase64),
-              inlineDataPart(aNutritionMimeType, aNutritionImageBase64),
-              inlineDataPart(bRawMimeType, bRawImageBase64),
-              inlineDataPart(bNutritionMimeType, bNutritionImageBase64),
-              textPart(prompt),
-            ],
-          },
-        ],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-          temperature: 0.2,
-        }),
+    const generationBody = {
+      contents: [
+        {
+          parts: [
+            inlineDataPart(aRawMimeType, aRawImageBase64),
+            inlineDataPart(aNutritionMimeType, aNutritionImageBase64),
+            inlineDataPart(bRawMimeType, bRawImageBase64),
+            inlineDataPart(bNutritionMimeType, bNutritionImageBase64),
+            textPart(prompt),
+          ],
+        },
+      ],
+      generationConfig: generationConfigJsonMode({
+        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+        temperature: 0.2,
       }),
-    });
+    };
 
-    const text = await res.text();
-    if (!res.ok) {
-      logGeminiHttpError('api/compare', res.status, text);
-      const clientStatus = res.status >= 400 && res.status < 600 ? res.status : 502;
+    const upstream = await fetchGeminiGenerateContentWithFlashFallback(
+      GEMINI_MODEL,
+      key,
+      generationBody,
+      'api/compare',
+    );
+    const text = upstream.text;
+    if (!upstream.ok) {
+      const clientStatus = upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502;
       const upstreamCode = geminiErrorCodeFromBody(text);
       return NextResponse.json(
-        apiErrorBody(formatGeminiHttpError(res.status, text), upstreamCode),
+        apiErrorBody(formatGeminiHttpError(upstream.status, text), upstreamCode),
         { status: clientStatus }
       );
     }

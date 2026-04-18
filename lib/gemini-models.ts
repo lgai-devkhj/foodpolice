@@ -15,10 +15,16 @@ function modelFromEnv(envName: string, fallback: string): string {
 
 /**
  * `/api/analyze`, `/api/compare` 등 generateContent 공통 모델. (`/api/quiz`는 `lib/gemini-prompts`의 `GEMINI_MODEL` 사용)
- * 기본은 **gemini-3.1-flash-lite-preview**(비용·속도에 유리한 Flash-Lite).
- * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-2.5-flash)로 지정.
+ * 기본은 **gemini-3.1-flash-lite**.
+ * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-3.1-flash-lite)로 지정.
  */
-export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-3.1-flash-lite-preview');
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-3.1-flash-lite');
+
+/**
+ * 기본 모델이 503·429 등으로 실패할 때 `generateContent` 재시도용 모델.
+ * (환경 변수로 덮어쓰지 않음 — 안정성 우선 고정값)
+ */
+export const GEMINI_FALLBACK_FLASH_MODEL = 'gemini-2.5-flash';
 
 /**
  * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.

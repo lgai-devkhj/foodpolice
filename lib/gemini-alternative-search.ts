@@ -137,6 +137,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     '- productName은 반드시 브랜드 + 공식 상품명으로 쓴다.\n' +
     '- 임의로 브랜드와 품목을 합성하지 않는다.\n' +
     '- reason은 토스 말투의 짧은 한 문장으로 쓴다.\n' +
+    '- reason에서 사용자를 환자·진료 대상으로 부르거나 진료·병원 맥락으로 말하지 않는다.\n' +
     '- purchaseUrl은 눌렀을 때 실제 상품·스토어로 이동 가능한 링크여야 한다.\n\n' +
 
     '[식품군 고정]\n' +

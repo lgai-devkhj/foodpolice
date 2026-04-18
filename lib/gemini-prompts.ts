@@ -81,6 +81,7 @@ function getConsumptionAdviceUniversalBlock(): string {
     '- 일반 영양 상식 수준으로만 쓴다.\n' +
     '- 브랜드·제품명 지어내기 금지.\n' +
     '- 질병 진단·치료·약 복용 지시·공포 조장 금지.\n' +
+    '- 사용자를 환자·진료 대상·처방 대상처럼 부르거나, 진료·병원 맥락으로 말하지 않는다.\n' +
     '- 하루 n번, 주 n회, n개 같은 숫자 섭취 규칙 금지.\n'
   );
 }
@@ -90,6 +91,7 @@ function getTossToneBlock(): string {
     '[말투]\n' +
     '- 사용자에게 보이는 한국어는 짧고 읽기 쉬운 존댓말(-요체)로 쓴다.\n' +
     '- 적용 필드: briefDescription, judgmentReason, concernIngredients.explanation, consumptionAdvice, koreanReclassificationNote, comparisonSummary, recommendationLine.\n' +
+    '- 사용자를 환자·진료 대상·처방 대상으로 부르지 않는다. 진료·병원·처방 맥락의 호칭·표현은 쓰지 않는다.\n' +
     '- 보고서체·명령조·과장·공포 표현은 피한다.\n'
   );
 }
@@ -108,7 +110,8 @@ function getPersonalizationCompactBlock(profile?: PersonalizationInput | null): 
     `- ${focus.leniencyRule}\n` +
     '- novaGroup, novaSubgroup는 BMI로 바꾸지 않는다.\n' +
     '- briefDescription, concernIngredients.explanation, consumptionAdvice는 BMI에 따라 강도만 조절한다.\n' +
-    '- 과체중·비만이면 같은 내용을 더 주의 톤으로, 정상·저체중이면 덜 겁주는 톤으로 쓴다.\n'
+    '- 과체중·비만이면 같은 내용을 더 주의 톤으로, 정상·저체중이면 덜 겁주는 톤으로 쓴다.\n' +
+    '- BMI·체형은 생활·참고 수준이며, 환자 호칭이나 의료 대상자 취급은 하지 않는다.\n'
   );
 }
 
@@ -229,7 +232,7 @@ function getFoodPoliceCorePrompt(profile?: PersonalizationInput | null): string 
     '- concernIngredients.name에 나트륨, 당류, 탄수화물, 지방, 포화지방, 열량 같은 영양성분표 항목명은 넣지 않는다.\n' +
     '- concernIngredients.explanation은 짧은 한 문장, 쉬운 한국어로 쓴다.\n' +
     '- consumptionAdvice는 정확히 2문장이다.\n' +
-    '- 의료적 진단, 치료, 단정 표현은 금지한다.\n\n' +
+    '- 의료적 진단, 치료, 단정 표현은 금지한다. 사용자를 환자·진료 대상으로 부르지 않는다.\n\n' +
 
     getConsumptionAdviceUniversalBlock() +
     getPersonalizationCompactBlock(profile) +

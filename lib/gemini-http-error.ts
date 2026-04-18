@@ -27,7 +27,7 @@ export function formatGeminiHttpError(status: number, bodyText: string): string 
     }
     const msg = raw;
     if (/models\/[^\s]+.*(not found|is not supported|does not exist|was not found)/i.test(msg)) {
-      return '설정된 AI 모델을 사용할 수 없어요. 환경 변수 GEMINI_ANALYSIS_MODEL(예: gemini-3.1-flash-lite-preview, gemini-2.5-flash)을 확인해 주세요.';
+      return '설정된 AI 모델을 사용할 수 없어요. 환경 변수 GEMINI_ANALYSIS_MODEL(예: gemini-3.1-flash-lite, gemini-2.5-flash)을 확인해 주세요.';
     }
     if (/API key|API_KEY_INVALID|PERMISSION_DENIED|invalid.*api key/i.test(msg) || status === 403) {
       return 'Gemini API 키를 확인해 주세요. (환경 변수 GEMINI_API_KEY)';

@@ -19,8 +19,8 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
+import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from '@/lib/gemini-models';
-import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
 
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
@@ -103,7 +103,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
     const personalization = profileToPersonalization(profile);
     const basePrompt = hasTwoImages
       ? getTwoImagePackagePrompt(personalization)
@@ -111,37 +110,38 @@ export async function POST(request: NextRequest) {
     const dailyQuestBlock = questTargetValid ? getDailyQuestProductMatchBlock(dailyQuestTarget) : '';
     const prompt = basePrompt + dailyQuestBlock;
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              ...(hasTwoImages
-                ? [
-                    inlineDataPart(rawMimeType, rawImageBase64 || ''),
-                    inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
-                  ]
-                : [inlineDataPart(mimeType, imageBase64 || '')]),
-              textPart(prompt),
-            ],
-          },
-        ],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-          temperature: 0.2,
-        }),
+    const generationBody = {
+      contents: [
+        {
+          parts: [
+            ...(hasTwoImages
+              ? [
+                  inlineDataPart(rawMimeType, rawImageBase64 || ''),
+                  inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
+                ]
+              : [inlineDataPart(mimeType, imageBase64 || '')]),
+            textPart(prompt),
+          ],
+        },
+      ],
+      generationConfig: generationConfigJsonMode({
+        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+        temperature: 0.2,
       }),
-    });
+    };
 
-    const text = await res.text();
-    if (!res.ok) {
-      logGeminiHttpError('api/analyze', res.status, text);
-      const clientStatus = res.status >= 400 && res.status < 600 ? res.status : 502;
+    const upstream = await fetchGeminiGenerateContentWithFlashFallback(
+      GEMINI_MODEL,
+      key,
+      generationBody,
+      'api/analyze',
+    );
+    const text = upstream.text;
+    if (!upstream.ok) {
+      const clientStatus = upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502;
       const upstreamCode = geminiErrorCodeFromBody(text);
       return NextResponse.json(
-        apiErrorBody(formatGeminiHttpError(res.status, text), upstreamCode),
+        apiErrorBody(formatGeminiHttpError(upstream.status, text), upstreamCode),
         { status: clientStatus }
       );
     }

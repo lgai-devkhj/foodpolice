@@ -9,7 +9,7 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
-import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
+import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
@@ -49,25 +49,24 @@ async function geminiOxQuizOrNull(
   apiKey: string,
 ): Promise<QuizJson | null> {
   const prompt = getDailyOxQuizPrompt(questionType);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const requestBody = {
+    contents: [{ parts: [textPart(prompt)] }],
+    generationConfig: generationConfigJsonMode({
+      maxOutputTokens: 1024,
+      temperature: 0.7,
+      topP: 0.95,
+      topK: 40,
+    }),
+  };
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [textPart(prompt)] }],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-          topP: 0.95,
-          topK: 40,
-        }),
-      }),
-    });
-
-    const text = await res.text();
-    if (!res.ok) {
-      logGeminiHttpError('api/quiz', res.status, text);
+    const upstream = await fetchGeminiGenerateContentWithFlashFallback(
+      GEMINI_MODEL,
+      apiKey,
+      requestBody,
+      'api/quiz',
+    );
+    const text = upstream.text;
+    if (!upstream.ok) {
       return null;
     }
     let data: Record<string, unknown>;
