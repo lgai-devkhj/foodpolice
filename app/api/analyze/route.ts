@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       ],
       generationConfig: generationConfigJsonMode({
         maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-        temperature: 0.2,
+        temperature: 0,
         ...(isGemini3FamilyModelId(GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
       }),
     };

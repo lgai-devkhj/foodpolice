@@ -134,7 +134,7 @@ export async function generateIngredientPriorsWithAI(
       signal,
       body: JSON.stringify({
         contents: [{ parts: [textPart(userText)] }],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 2048, temperature: 0.15 }),
+        generationConfig: generationConfigJsonMode({ maxOutputTokens: 2048, temperature: 0 }),
       }),
     });
     clearTimeout(t);
@@ -250,7 +250,7 @@ export async function validateEstimatesWithAI(
       signal,
       body: JSON.stringify({
         contents: [{ parts: [textPart(userText)] }],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 1024, temperature: 0.1 }),
+        generationConfig: generationConfigJsonMode({ maxOutputTokens: 1024, temperature: 0 }),
       }),
     });
     clearTimeout(t);
