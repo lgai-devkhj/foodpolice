@@ -2680,6 +2680,32 @@
       font-size: 0.8rem;
       color: var(--text2);
     }
+    /** 스크롤해도 상단에 남김(본문 카드 위·배너 아래) */
+    .result-analysis-time--sticky {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      margin: 0 0 12px;
+      padding: 8px 12px 10px;
+      background: linear-gradient(
+        180deg,
+        var(--bg-top) 0%,
+        hsla(0, 0%, 100%, 0.92) 55%,
+        transparent 100%
+      );
+      border-bottom: 1px solid rgba(46, 125, 50, 0.1);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    [data-theme='dark'] .result-analysis-time--sticky {
+      background: linear-gradient(
+        180deg,
+        var(--bg-top) 0%,
+        hsla(0, 0%, 12%, 0.92) 55%,
+        transparent 100%
+      );
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
 
     .result-toolbar {
       flex-shrink: 0;
@@ -3069,13 +3095,6 @@
       margin-top: 4px;
       letter-spacing: -0.01em;
     }
-    .card-key-insights .analysis-key-insights {
-      margin: 8px 0 0;
-      padding-left: 1.15em;
-      font-size: 1.02rem;
-      line-height: 1.55;
-      color: var(--text2);
-    }
     .analysis-confidence-badge {
       font-size: 0.92rem;
       color: var(--text3);
@@ -3089,12 +3108,6 @@
       line-height: 1.5;
       color: var(--text2);
       margin: 0;
-    }
-    .label-explicit-pct-note {
-      font-size: 0.95rem;
-      color: var(--text3);
-      margin: 10px 0 0;
-      line-height: 1.45;
     }
     .estimated-ingredients-details {
       margin-top: 12px;

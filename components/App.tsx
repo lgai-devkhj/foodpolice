@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
-import { normalizeQuestsSlice } from '@/lib/daily-quests';
+import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import { encodeImageForAnalysis } from '@/lib/image-encode-for-analysis';
 import {
@@ -149,6 +149,19 @@ function escapeHtml(s: string): string {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+/** min≈max면 「추정 함량 약 n%」, 아니면 「약 a~b%」 */
+function formatConcernIngredientPercentRange(min: number, max: number): string {
+  const a = Number(min);
+  const b = Number(max);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
+  const fmt = (n: number) => {
+    if (Number.isInteger(n)) return String(n);
+    return String(Math.round(n * 100) / 100);
+  };
+  if (Math.abs(a - b) < 1e-9) return `추정 함량 약 ${fmt(a)}%`;
+  return `추정 함량 약 ${fmt(a)}~${fmt(b)}%`;
 }
 
 /** API·생성 문구에 남은 ** 표기 제거 */
@@ -470,21 +483,51 @@ function nutritionPctBarClass(pct: number): string {
   return 'nutrition-pct-fill';
 }
 
+/** 라벨 표 행 이름 → 일일 참고치 항목 키(겹침 판별용). 매칭 안 되면 null */
+function matchTableRowNameToDailyKey(name: string): keyof NutritionDailyPercent | null {
+  const n = (name || '').trim().replace(/\s+/g, '');
+  if (!n) return null;
+  if (n.includes('포화')) return 'saturatedFat';
+  if (n.includes('트랜스')) return 'transFat';
+  if (n.includes('콜레스테롤')) return 'cholesterol';
+  if (n.includes('식이섬유')) return 'dietaryFiber';
+  if (n.includes('탄수화물')) return 'carbs';
+  if (n.includes('당류') || n === '당') return 'sugar';
+  if (n.includes('나트륨')) return 'sodium';
+  if (n.includes('열량') || n.includes('칼로리') || n.includes('에너지')) return 'calories';
+  if (n.includes('단백질')) return 'protein';
+  if (n.includes('지방')) return 'fat';
+  return null;
+}
+
 function buildNutritionResultHtml(
   nutrition: NutritionFacts | null | undefined,
   daily: NutritionDailyPercent | null | undefined
 ): string {
   const hasDaily = daily && Object.keys(daily).length > 0;
-  const hasServingLine = !!(nutrition?.servingSizeText);
   const tableRows = nutrition?.tableRows?.filter((r) => r && (r.name || r.amount)) ?? [];
   const hasTableRows = tableRows.length > 0;
   if (!hasDaily && !hasTableRows) return '';
 
+  /** 일일 참고치에 이미 숫자가 있으면 같은 성분 라벨 줄은 아래에서 빼고 나머지만 표시 */
+  const labelRowsNonOverlapping = tableRows.filter((tr) => {
+    if (!hasDaily || !daily) return true;
+    const k = matchTableRowNameToDailyKey((tr.name || '').trim());
+    if (k == null) return true;
+    const pct = daily[k];
+    if (pct == null || !Number.isFinite(pct)) return true;
+    return false;
+  });
+  const hasLabelRemainder = labelRowsNonOverlapping.length > 0;
+
   let html = '<div class="result-details-body result-nutrition">';
-  if (hasTableRows && hasDaily) {
+  if (hasDaily && hasLabelRemainder) {
     html +=
-      '<p class="meta nutrition-intro-meta">위는 라벨에 적힌 항목이에요(%가 있으면 그 비율로 막대). 아래는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
-  } else if (hasTableRows) {
+      '<p class="meta nutrition-intro-meta">먼저 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준). 그 아래는 라벨에만 있거나 위와 겹치지 않는 항목이에요.</p>';
+  } else if (hasDaily && hasTableRows && !hasLabelRemainder) {
+    html +=
+      '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준). 라벨 항목은 위 성분과 겹쳐 별도로 두지 않았어요.</p>';
+  } else if (hasTableRows && !hasDaily) {
     html +=
       '<p class="meta nutrition-intro-meta">라벨에 적힌 항목을 그대로 막대로 보여줘요. %가 적힌 항목은 그 비율로 표시해요.</p>';
   } else {
@@ -500,32 +543,6 @@ function buildNutritionResultHtml(
         ? ' <span class="meta">(100g·100ml 등 기준일 수 있음)</span>'
         : '') +
       '</span></div>';
-  }
-
-  if (hasTableRows) {
-    html += '<p class="nutrition-daily-heading">라벨 전체 항목</p>';
-    tableRows.forEach((tr) => {
-      const name = (tr.name || '').trim() || '항목';
-      const amount = (tr.amount || '').trim() || '—';
-      const pm = amount.match(/(-?\d+(?:\.\d+)?)\s*%/);
-      const pct = pm ? parseFloat(pm[1]) : null;
-      const safePct =
-        pct != null && Number.isFinite(pct) ? Math.max(0, Math.min(100, Number(pct))) : 0;
-      html += '<div style="margin-bottom:14px;">';
-      html +=
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="color:var(--text);font-weight:500;">' +
-        escapeHtml(name) +
-        '</span><span style="color:var(--text2);font-size:0.95rem;">' +
-        escapeHtml(amount) +
-        '</span></div>';
-      html +=
-        '<div class="nutrition-pct-bar"><div class="' +
-        nutritionPctBarClass(safePct) +
-        '" style="width:' +
-        safePct +
-        '%;"></div></div>';
-      html += '</div>';
-    });
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
@@ -605,6 +622,32 @@ function buildNutritionResultHtml(
         nutritionPctBarClass(pct) +
         '" style="width:' +
         w +
+        '%;"></div></div>';
+      html += '</div>';
+    });
+  }
+
+  if (hasLabelRemainder) {
+    html += '<p class="nutrition-daily-heading">라벨 전체 항목</p>';
+    labelRowsNonOverlapping.forEach((tr) => {
+      const name = (tr.name || '').trim() || '항목';
+      const amount = (tr.amount || '').trim() || '—';
+      const pm = amount.match(/(-?\d+(?:\.\d+)?)\s*%/);
+      const pct = pm ? parseFloat(pm[1]) : null;
+      const safePct =
+        pct != null && Number.isFinite(pct) ? Math.max(0, Math.min(100, Number(pct))) : 0;
+      html += '<div style="margin-bottom:14px;">';
+      html +=
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;"><span style="color:var(--text);font-weight:500;">' +
+        escapeHtml(name) +
+        '</span><span style="color:var(--text2);font-size:0.95rem;">' +
+        escapeHtml(amount) +
+        '</span></div>';
+      html +=
+        '<div class="nutrition-pct-bar"><div class="' +
+        nutritionPctBarClass(safePct) +
+        '" style="width:' +
+        safePct +
         '%;"></div></div>';
       html += '</div>';
     });
@@ -1141,6 +1184,8 @@ export default function App() {
   const [dailyQuizLocked, setDailyQuizLocked] = useState(false);
   /** 오답 시 마지막으로 누른 선택 (해당 버튼만 흔들림) */
   const [dailyQuizLastPick, setDailyQuizLastPick] = useState<'O' | 'X' | null>(null);
+  /** 웹 로드 시 백그라운드로 받아 둔 오늘자 OX(열 때 즉시 표시) */
+  const dailyQuizPrefetchRef = useRef<{ ymd: string; payload: DailyOxQuizPayload } | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
@@ -1180,6 +1225,8 @@ export default function App() {
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [lastAnalysisSeconds, setLastAnalysisSeconds] = useState<number | null>(null);
   const [lastAnalysisForId, setLastAnalysisForId] = useState<string | null>(null);
+  /** 결과 본문 위·스크롤 시 상단 고정용(초). 기록에도 저장해 재진입 시 유지 */
+  const [resultAnalysisSeconds, setResultAnalysisSeconds] = useState<number | null>(null);
   const [resultContentHtml, setResultContentHtml] = useState('');
   const [showDeleteArea, setShowDeleteArea] = useState(false);
   const [profileGender, setProfileGender] = useState('male');
@@ -1349,6 +1396,37 @@ export default function App() {
     setPrivacyGateChecked(false);
   }, [clientId]);
 
+  /** OX 퀴즈: 웹 로드 직후 미리 받아 두어 모달을 열 때 대기 최소화 */
+  useEffect(() => {
+    if (!clientId) return;
+    const ymd = toLocalYmd(new Date());
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId }),
+        });
+        const data = await readApiJson<DailyOxQuizPayload & Partial<ApiErrorBody>>(res);
+        if (cancelled || !res.ok) return;
+        const payload: DailyOxQuizPayload = {
+          questionType: data.questionType,
+          question: data.question,
+          correctAnswer: data.correctAnswer === 'X' ? 'X' : 'O',
+          explanation: data.explanation || '',
+          foodKeyword: data.foodKeyword || '',
+        };
+        dailyQuizPrefetchRef.current = { ymd, payload };
+      } catch {
+        /* 백그라운드 프리패치 실패는 무시 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
+
   useEffect(() => {
     if (showPrivacyConsentGate) setPrivacyGateConsentError(false);
   }, [showPrivacyConsentGate]);
@@ -1362,6 +1440,10 @@ export default function App() {
       resultScrollRef.current.scrollTop = 0;
     }
   }, [showResult, currentHistoryId]);
+
+  useEffect(() => {
+    if (!showResult) setResultAnalysisSeconds(null);
+  }, [showResult]);
 
   useEffect(() => {
     if (!showOnboardingCompleteModal) return;
@@ -1476,8 +1558,18 @@ export default function App() {
     setDailyQuizLocked(false);
     setDailyQuizLastPick(null);
     setDailyQuizError(null);
-    setDailyQuizOx(null);
     setShowDailyQuizModal(true);
+
+    const ymd = toLocalYmd(new Date());
+    const pref = dailyQuizPrefetchRef.current;
+    if (pref && pref.ymd === ymd && pref.payload) {
+      setDailyQuizOx(pref.payload);
+      setDailyQuizLoading(false);
+      setDailyQuizError(null);
+      return;
+    }
+
+    setDailyQuizOx(null);
     setDailyQuizLoading(true);
     try {
       const res = await fetch('/api/quiz', {
@@ -1487,13 +1579,15 @@ export default function App() {
       });
       const data = await readApiJson<DailyOxQuizPayload & Partial<ApiErrorBody>>(res);
       if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
-      setDailyQuizOx({
+      const payload: DailyOxQuizPayload = {
         questionType: data.questionType,
         question: data.question,
         correctAnswer: data.correctAnswer === 'X' ? 'X' : 'O',
         explanation: data.explanation || '',
         foodKeyword: data.foodKeyword || '',
-      });
+      };
+      setDailyQuizOx(payload);
+      dailyQuizPrefetchRef.current = { ymd, payload };
     } catch (e) {
       setDailyQuizError(e instanceof Error ? e.message : '오류가 났어요.');
     } finally {
@@ -1609,7 +1703,7 @@ export default function App() {
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
         const prevXp = getTotalXp(clientId);
-        const { id, item, streak } = addToHistory(clientId, result);
+        const { id, item, streak } = addToHistory(clientId, result, sec);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
@@ -1701,7 +1795,7 @@ export default function App() {
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
         const prevXp = getTotalXp(clientId);
-        const { id, item, streak } = addToHistory(clientId, result);
+        const { id, item, streak } = addToHistory(clientId, result, sec);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
@@ -1884,22 +1978,30 @@ export default function App() {
         ? '초가공 식품이에요. 비만 위험을 높일 수 있어서, 자주 드시는 건 줄여 보시면 좋아요.'
         : '초가공 식품이에요. 자주 드시는 건 줄여 보시면 좋아요.';
 
-      const showTime =
+      const showTimeFromOpts =
         opts?.analysisSeconds != null &&
         opts?.historyId != null &&
         (opts.historyId === currentHistoryId || (historyItem?.id && opts.historyId === historyItem.id));
-
-      let html = '';
-      if (showTime && opts) {
-        html += `<div class="result-analysis-time">${opts.analysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
+      let displaySec: number | null = null;
+      if (showTimeFromOpts && opts) {
+        displaySec = opts.analysisSeconds;
+      } else if (
+        historyItem != null &&
+        typeof historyItem.analysisSeconds === 'number' &&
+        Number.isFinite(historyItem.analysisSeconds)
+      ) {
+        displaySec = historyItem.analysisSeconds;
       } else if (
         currentHistoryId &&
         lastAnalysisForId === currentHistoryId &&
         lastAnalysisSeconds != null
       ) {
-        html += `<div class="result-analysis-time">${lastAnalysisSeconds.toFixed(1)}초 만에 분석되었어요</div>`;
+        displaySec = lastAnalysisSeconds;
       }
-      /* 순서: 제목 → NOVA → 한눈에 보기 → 맞춤 안내 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
+      setResultAnalysisSeconds(displaySec);
+
+      let html = '';
+      /* 순서: 제목 → NOVA → 맞춤 참고 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
@@ -1955,30 +2057,9 @@ export default function App() {
       }
       html += '</div></div>';
 
-      const keyInsights = (result.keyInsights || []).filter((s) => String(s || '').trim().length > 0);
-      const labelPct = result.labelExplicitPercentages || [];
       const conf = result.analysisConfidence;
       const confLabelKo =
         conf === 'high' ? '높음' : conf === 'medium' ? '보통' : conf === 'low' ? '낮음' : '';
-      if (keyInsights.length > 0 || labelPct.length > 0) {
-        html += '<div class="card card-key-insights">';
-        html += '<div class="card-title">한눈에 보기</div>';
-        if (keyInsights.length > 0) {
-          html += '<ul class="analysis-key-insights">';
-          keyInsights.forEach((k) => {
-            html += '<li>' + escapeHtml(String(k).trim()) + '</li>';
-          });
-          html += '</ul>';
-        }
-        if (labelPct.length > 0) {
-          html += '<p class="label-explicit-pct-note">라벨에 적힌 함량: ';
-          html += labelPct
-            .map((x) => escapeHtml(x.name) + ' ' + escapeHtml(String(x.percent)) + '%')
-            .join(', ');
-          html += '</p>';
-        }
-        html += '</div>';
-      }
 
       html += '<div class="card"><div class="card-title">맞춤 참고</div>';
       if (personalizedIntakeNote) {
@@ -2023,11 +2104,9 @@ export default function App() {
           concerns.forEach((c) => {
             const pct =
               c.minPercent != null && c.maxPercent != null
-                ? '<div class="concern-card-pct">추정 함량 약 ' +
-                  escapeHtml(String(c.minPercent)) +
-                  '~' +
-                  escapeHtml(String(c.maxPercent)) +
-                  '%</div>'
+                ? '<div class="concern-card-pct">' +
+                  escapeHtml(formatConcernIngredientPercentRange(c.minPercent, c.maxPercent)) +
+                  '</div>'
                 : '';
             html +=
               '<div class="concern-card">' +
@@ -4088,6 +4167,11 @@ export default function App() {
             </div>
           ) : null}
           <div ref={resultScrollRef} className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
+            {resultAnalysisSeconds != null && (
+              <div className="result-analysis-time result-analysis-time--sticky" role="status">
+                {resultAnalysisSeconds.toFixed(1)}초 만에 분석되었어요
+              </div>
+            )}
             {editingName !== null && (
               <div className="card" id="productNameCardEdit">
                 <div className="form-group">
@@ -4539,7 +4623,7 @@ export default function App() {
               </button>
             </div>
             {dailyQuizLoading ? (
-              <p className="daily-quiz-loading">AI가 문제를 만들고 있어요…</p>
+              <p className="daily-quiz-loading">문제를 불러오는 중이에요…</p>
             ) : dailyQuizError ? (
               <>
                 <p className="daily-quiz-wrong" role="alert">
