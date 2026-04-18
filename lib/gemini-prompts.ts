@@ -95,38 +95,40 @@ export function getConsumptionAdviceUniversalBlock(): string {
 
 /** 사용자에게 보이는 JSON 문장 — 토스 앱 수준의 친근한 존댓말 */
 /**
- * 원재료 비율 범위 추정 + 주의 원재료 비율 표시 + NOVA(기존 한국형 규칙 유지).
- * 비율은 참고용이며 NOVA 직접 결정 근거로 쓰지 않는다.
+ * 첨가물·감미료 등 **미량 성분**만 비율 범위 추정 + 주의 원재료 비율 표시 + NOVA(기존 한국형 규칙 유지).
+ * 주원료(밀가루·우유·설탕·물엿 등 대량 기저 식품)는 전체 비율을 추정하지 않는다.
  */
 export function getIntegratedRatioEstimationEngineBlock(): string {
   return (
-    '\n[통합 엔진 — 비율 추정 + NOVA + 표시]\n' +
-    '당신은 식품 라벨을 분석하여 (1) 원재료 비율을 **범위로** 추정하고, (2) 주의 원재료에 **추정 비율 범위**를 표시하며, (3) 한국형 NOVA 분류를 수행한다.\n' +
+    '\n[통합 엔진 — 첨가·감미 등 미량 원재료 비율 추정 + NOVA + 표시]\n' +
+    '당신은 식품 라벨을 분석하여 (1) **첨가물·감미료·향료·색소·유화제·보존료 등 미량·기능성 원재료**에 대해서만 함량 **범위(min~max %)**를 추정하고, (2) 주의 원재료에도 **같은 기준의 추정 범위**를 넣으며, (3) 한국형 NOVA 분류를 수행한다.\n' +
     '추정 목적은 “정확한 단일 값”이 아니라 **합리적인 min~max 범위**다. 과학적으로 확정된 사실처럼 말하지 않는다.\n\n' +
+    '[비율 추정 대상 — 반드시 준수]\n' +
+    '- **포함(추정함)**: 식품첨가물로서의 감미료·감미료(합성·천연), 향료, 색소, 유화제·유화보조제, 보존료, 산도조절제, 품질안정제, 팽창제, 결착제, 이산화규소 등, 말토덱스트린·덱스트린·분리단백·전분가공품 등 **정제·분리 성분**, 기타 라벨에 소량·미량으로 함유되는 기능성 성분.\n' +
+    '- **제외(추정하지 않음)**: 제품의 **주원료·대량 기저** 식품(예: 밀가루, 쌀, 우유, 크림, 식용유, 물, 설탕·물엿 등 **주요 단맛·탄수**를 담당하는 대량 원재료), 과일·채소·육·수산 등 **원재료 그대로의 식품**.\n' +
+    '- 위 [제외]에 해당하는 항목은 estimatedIngredients에 **넣지 않는다**. rawMaterials 전체를 100%로 맞추는 **전체 배합** 추정은 하지 않는다.\n' +
+    '- 미량 성분 항목별 min~max는 **각각 독립적으로** 보수적으로 잡는다(합이 100%일 필요 없음). 통상 미량은 0~5% 이내, 더 미량이면 0~1% 등으로.\n\n' +
     '[입력으로 사용할 데이터]\n' +
     '- rawMaterials: 원재료 문자열(쉼표 등으로 구분, 앞쪽일수록 함량이 많은 순으로 해석)\n' +
     '- nutrition: 영양성분. fatG, carbsG, sugarG(있으면), proteinG 등. 표기가 100g/100ml 기준인지 1회 제공량 기준인지는 nutrition.basisIsPerServing·servingSizeText를 따른다.\n' +
     '- labelExplicitPercentages: 라벨에 **명시된** 원재료 함량 %(있으면). 없거나 읽을 수 없으면 빈 배열 [].\n\n' +
     '[처리 단계]\n' +
     '2-1. 사실 분리: 원재료 순서(앞>뒤), 명시 함량 %, 영양 수치는 확정 정보로 구분한다.\n' +
-    '2-2. 원재료 분류(내부 추론): 지방·당/탄수·단백질·수분·첨가물 등 역할로 나누어 생각한다.\n' +
-    '2-3. 비율 추정: 각 원재료 비율을 xi(%)로 두고 아래를 만족하는 **범위** minPercent~maxPercent를 제시한다.\n' +
-    '  · 모든 xi 합은 100%가 되도록 맞춘다(허용 오차는 설명에 쓰지 말고 범위로 반영).\n' +
-    '  · 지방·탄수화물·당·단백질 등은 영양표와 **대략 일관**되게(표기 기준에 맞춰 환산).\n' +
-    '  · 원재료 순서 제약: 앞에 나온 항목의 상한이 뒤 항목보다 지나치게 작아지지 않게(일반적으로 앞≥뒤 경향).\n' +
-    '  · 첨가물·향료·색소 등은 통상 0~2%·미량 등으로 보수적으로 둔다. 복합원재료는 가능하면 단순화한다.\n' +
-    '2-4. 주의 원재료: 당류 공급원, 정제/분리 성분, 문제 소지가 있는 첨가물 등 기존 규칙에 따라 최대 3개. 각 항목에 **minPercent, maxPercent**를 넣는다(estimatedIngredients와 맞출 것).\n' +
+    '2-2. rawMaterials에서 **미량·첨가 성분만** 골라 estimatedIngredients 후보를 만든다(위 [포함]/[제외] 규칙).\n' +
+    '2-3. 비율 추정: 각 **후보 항목**에 대해 minPercent~maxPercent만 제시한다. 라벨에 명시 %가 있으면 그에 맞추고, 없으면 일반적인 미량 범위로 보수적으로 잡는다.\n' +
+    '2-4. 주의 원재료: 당류 공급원, 정제/분리 성분, 문제 소지가 있는 첨가물 등 기존 규칙에 따라 최대 3개. 각 항목에 **minPercent, maxPercent**를 넣는다(estimatedIngredients에 같은 이름이 있으면 범위를 맞출 것).\n' +
     '2-5. NOVA: 식품 구조 유지, 정제·분리 성분, 기능성 설계, 첨가물 역할·복잡도 등 **기존 한국형 NOVA 규칙**으로만 판단한다.\n' +
-    '  · **비율 추정은 NOVA의 직접 결정 근거로 사용하지 않는다**(보조 이해용일 뿐).\n\n' +
+    '  · **미량 비율 추정은 NOVA의 직접 결정 근거로 사용하지 않는다**(보조 이해용일 뿐).\n\n' +
     '[출력 필드 — 반드시 포함]\n' +
-    '- estimatedIngredients: { name, minPercent, maxPercent, isConcern } 배열. rawMaterials에서 구분 가능한 주요 항목 위주(과다하게 늘리지 말고, 대략 15개 이내).\n' +
-    '- keyInsights: 짧은 문장 문자열 배열, 최대 5개. 예: 비율·가공·영양 균형을 한 줄씩.\n' +
+    '- estimatedIngredients: { name, minPercent, maxPercent, isConcern } 배열. **첨가·감미 등 미량 성분만**(위 [포함] 규칙). 해당 없으면 []. 있으면 최대 약 12개 이내.\n' +
+    '- keyInsights: 짧은 문장 문자열 배열, 최대 5개. 가공·영양·NOVA 등(필요 시 미량 첨가 성분 언급 가능).\n' +
     '- analysisConfidence: "low" | "medium" | "high". 불확실하면 반드시 낮춘다.\n' +
     '- labelExplicitPercentages: 라벨에 %가 **직접** 적힌 경우만 { name, percent } 배열. 없으면 [].\n' +
     '- concernIngredients: 기존과 동일하되 각 객체에 **minPercent, maxPercent** 숫자(해당 성분 추정 범위). 모르면 null.\n' +
     '- novaGroup: **숫자** 1~4만. "4A"처럼 문자를 넣지 않는다.\n' +
     '- novaGroup이 4일 때만 novaSubgroup "4A"|"4B"|"4C".\n\n' +
     '[금지]\n' +
+    '- 주원료·대량 기저 식품을 estimatedIngredients에 넣어 전체 비율을 맞추는 행위.\n' +
     '- 비율을 단일 숫자로만 확정해 출력하지 않는다(항상 min~max).\n' +
     '- 비율만 보고 NOVA 단계를 바꾸는 것처럼 서술하지 않는다.\n'
   );
@@ -368,7 +370,7 @@ export function getTwoImagePackagePrompt(profile?: PersonalizationInput | null):
     '- 마시는 것만 → "음료"\n' +
     '- 간식과 한 끼를 혼동하지 않는다.\n\n' +
     '[통합 엔진 JSON 필드]\n' +
-    '- estimatedIngredients, keyInsights, analysisConfidence, labelExplicitPercentages는 위 [통합 엔진 — 비율 추정 + NOVA + 표시]를 따른다.\n' +
+    '- estimatedIngredients, keyInsights, analysisConfidence, labelExplicitPercentages는 위 [통합 엔진 — 첨가·감미 등 미량 원재료 비율 추정 + NOVA + 표시]를 따른다.\n' +
     '- concernIngredients 각 항목에 minPercent, maxPercent를 포함한다(해당 없으면 null).\n\n' +
     '응답은 아래 JSON 하나만 출력해 주세요. 다른 말은 쓰지 않아요.\n' +
     getSingleProductJsonSchemaExample()
@@ -431,7 +433,7 @@ export function getPackageImagePrompt(profile?: PersonalizationInput | null): st
     '- nutrition: 객체 또는 null.\n' +
     '- nutrition 필드: caloriesKcal, sodiumMg, carbsG, sugarG, proteinG, fatG, saturatedFatG, transFatG, cholesterolMg, dietaryFiberG, servingSizeText, basisIsPerServing, tableRows.\n' +
     '[통합 엔진 JSON 필드]\n' +
-    '- estimatedIngredients, keyInsights, analysisConfidence, labelExplicitPercentages는 위 [통합 엔진 — 비율 추정 + NOVA + 표시]를 따른다.\n' +
+    '- estimatedIngredients, keyInsights, analysisConfidence, labelExplicitPercentages는 위 [통합 엔진 — 첨가·감미 등 미량 원재료 비율 추정 + NOVA + 표시]를 따른다.\n' +
     '- concernIngredients 각 항목에 minPercent, maxPercent를 포함한다(해당 없으면 null).\n\n' +
     '응답은 아래 JSON 하나만 출력해 주세요. 다른 말은 쓰지 않아요.\n' +
     getSingleProductJsonSchemaExample()

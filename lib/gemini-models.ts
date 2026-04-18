@@ -18,7 +18,20 @@ export const SEARCH_MODEL = modelFromEnv('GEMINI_SEARCH_MODEL', 'gemini-2.5-flas
 
 /**
  * `/api/analyze`, `/api/compare`, `/api/quiz` 등 generateContent 공통 모델.
- * 지연을 줄이려면 `gemini-2.0-flash` 권장. 예전 프리뷰 모델은 `GEMINI_ANALYSIS_MODEL`로 지정.
+ * 기본은 **gemini-2.0-flash**(응답이 더 빠른 편). 품질을 더 쓰고 싶으면
+ * 환경 변수 `GEMINI_ANALYSIS_MODEL=gemini-2.5-flash` 등으로 지정.
  */
-/** v1beta generateContent에서 널리 지원되는 Flash 계열(모델 미지정 시 404 방지) */
-export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.5-flash');
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-2.0-flash');
+
+/**
+ * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.
+ * 잘리면(MAX_TOKENS) 환경 변수 `GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS`로 올리면 됨.
+ */
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === '') return fallback;
+  const n = parseInt(String(raw).trim(), 10);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 32768) : fallback;
+}
+
+export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);

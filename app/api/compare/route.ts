@@ -18,6 +18,7 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
+import { ANALYSIS_MAX_OUTPUT_TOKENS } from '@/lib/gemini-models';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -134,7 +135,10 @@ export async function POST(request: NextRequest) {
             ],
           },
         ],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 8192, temperature: 0.2 }),
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+          temperature: 0.2,
+        }),
       }),
     });
 

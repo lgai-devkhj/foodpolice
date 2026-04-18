@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
+import { normalizeQuestsSlice } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import { encodeImageForAnalysis } from '@/lib/image-encode-for-analysis';
 import {
@@ -480,9 +481,16 @@ function buildNutritionResultHtml(
   if (!hasDaily && !hasTableRows) return '';
 
   let html = '<div class="result-details-body result-nutrition">';
-  html += hasTableRows
-    ? '<p class="meta nutrition-intro-meta">라벨에 적힌 항목을 그대로 막대로 보여줘요. %가 적힌 항목은 그 비율로 표시해요.</p>'
-    : '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
+  if (hasTableRows && hasDaily) {
+    html +=
+      '<p class="meta nutrition-intro-meta">위는 라벨에 적힌 항목이에요(%가 있으면 그 비율로 막대). 아래는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
+  } else if (hasTableRows) {
+    html +=
+      '<p class="meta nutrition-intro-meta">라벨에 적힌 항목을 그대로 막대로 보여줘요. %가 적힌 항목은 그 비율로 표시해요.</p>';
+  } else {
+    html +=
+      '<p class="meta nutrition-intro-meta">막대는 일일 참고치 대비 비율이에요(열량 2000kcal 등 근사 기준).</p>';
+  }
 
   if (nutrition?.servingSizeText) {
     html +=
@@ -518,8 +526,6 @@ function buildNutritionResultHtml(
         '%;"></div></div>';
       html += '</div>';
     });
-    html += '</div>';
-    return html;
   }
 
   type Row = { key: keyof NutritionDailyPercent; label: string; unit: string; dv: number };
@@ -1436,6 +1442,31 @@ export default function App() {
     [],
   );
 
+  const [xpRewardFx, setXpRewardFx] = useState<{ id: number; amount: number } | null>(null);
+  const [questRewardFx, setQuestRewardFx] = useState<{ id: number; title: string } | null>(null);
+  const xpRewardFxIdRef = useRef(0);
+  const questRewardFxIdRef = useRef(0);
+
+  /** 저장 직후 `getTotalXp` 기준으로 이번에 오른 XP만큼 상단 연출 */
+  const flashXpGain = useCallback((prevXp: number) => {
+    if (!clientId) return;
+    const delta = getTotalXp(clientId) - prevXp;
+    if (delta <= 0) return;
+    const id = ++xpRewardFxIdRef.current;
+    setXpRewardFx({ id, amount: delta });
+    window.setTimeout(() => {
+      setXpRewardFx((c) => (c?.id === id ? null : c));
+    }, 2600);
+  }, [clientId]);
+
+  const flashQuestDone = useCallback((title: string) => {
+    const id = ++questRewardFxIdRef.current;
+    setQuestRewardFx({ id, title });
+    window.setTimeout(() => {
+      setQuestRewardFx((c) => (c?.id === id ? null : c));
+    }, 2400);
+  }, []);
+
   const openDailyQuizModal = useCallback(async () => {
     if (!clientId) return;
     setDailyQuizWrongHint(false);
@@ -1475,9 +1506,11 @@ export default function App() {
         setDailyQuizLocked(true);
         setDailyQuizFeedback('correct');
         window.setTimeout(() => {
+          const prevXp = getTotalXp(clientId);
           const s = markDailyAnalyzeQuizDone(clientId);
           setQuestBoard(getQuestBoard(clientId));
           setTotalXp(getTotalXp(clientId));
+          flashXpGain(prevXp);
           notifyStreakFromQuest(s);
           setShowDailyQuizModal(false);
           setDailyQuizWrongHint(false);
@@ -1492,7 +1525,7 @@ export default function App() {
         window.setTimeout(() => setDailyQuizFeedback('idle'), 520);
       }
     },
-    [clientId, dailyQuizOx, dailyQuizLocked, notifyStreakFromQuest],
+    [clientId, dailyQuizOx, dailyQuizLocked, notifyStreakFromQuest, flashXpGain],
   );
 
   const tryCompleteAltQuest = useCallback(() => {
@@ -1503,11 +1536,13 @@ export default function App() {
     if (!altQuestDetailsOpenRef.current) return;
     const r = currentResult;
     if ((r.novaGroup === 3 || r.novaGroup === 4) && r.alternativeFoodLoaded === false) return;
+    const prevXp = getTotalXp(clientId);
     const s = markQuestAlternativeReceived(clientId);
     setQuestBoard(getQuestBoard(clientId));
     setTotalXp(getTotalXp(clientId));
+    flashXpGain(prevXp);
     notifyStreakFromQuest(s);
-  }, [clientId, currentResult, notifyStreakFromQuest]);
+  }, [clientId, currentResult, notifyStreakFromQuest, flashXpGain]);
 
   const openStreakWeekSheet = useCallback(() => {
     if (!clientId) return;
@@ -1522,10 +1557,14 @@ export default function App() {
 
   useEffect(() => {
     if (!clientId || !showInfoCriteria) return;
+    const prevXp = getTotalXp(clientId);
+    const wasKnovaDone = normalizeQuestsSlice(loadState(clientId).quests).lifetime?.knovaLearnDone === true;
     const s = markQuestKnovaLearnDone(clientId);
     setQuestBoard(getQuestBoard(clientId));
+    flashXpGain(prevXp);
+    if (!wasKnovaDone) flashQuestDone('NOVA 기준을 읽었어요');
     notifyStreakFromQuest(s);
-  }, [clientId, showInfoCriteria, notifyStreakFromQuest]);
+  }, [clientId, showInfoCriteria, notifyStreakFromQuest, flashXpGain, flashQuestDone]);
 
   const runAnalyze = useCallback(
     async (base64: string, mimeType: string) => {
@@ -1565,12 +1604,14 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
+        const prevXp = getTotalXp(clientId);
         const { id, item, streak } = addToHistory(clientId, result);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
+        flashXpGain(prevXp);
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
@@ -1601,7 +1642,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile, notifyStreakFromQuest]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest, flashXpGain]
   );
 
   const runAnalyzeTwoImages = useCallback(
@@ -1652,12 +1693,14 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
+        const prevXp = getTotalXp(clientId);
         const { id, item, streak } = addToHistory(clientId, result);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
+        flashXpGain(prevXp);
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
@@ -1688,7 +1731,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile, notifyStreakFromQuest]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest, flashXpGain]
   );
 
   const runCompareProducts = useCallback(
@@ -1748,6 +1791,7 @@ export default function App() {
           cameraStreamRef.current = null;
         }
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
+        const prevXp = getTotalXp(clientId);
         const streak = markQuestCompareDone(clientId, data.dailyQuestProductMatch === true);
         setQuestBoard(getQuestBoard(clientId));
         setTotalXp(getTotalXp(clientId));
@@ -1768,11 +1812,15 @@ export default function App() {
           setTutorialHoleRect(null);
           setTutorialFocusDecoration(null);
           if (clientId) {
+            const wasTutorialDone =
+              normalizeQuestsSlice(loadState(clientId).quests).lifetime?.tutorialDone === true;
             const s = markQuestTutorialDone(clientId);
             setQuestBoard(getQuestBoard(clientId));
+            if (!wasTutorialDone) flashQuestDone('사용 가이드를 완료했어요');
             notifyStreakFromQuest(s);
           }
         }
+        flashXpGain(prevXp);
         setShowCompareResult(true);
         setShowHome(false);
         setShowCamera(false);
@@ -1791,7 +1839,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, profile, notifyStreakFromQuest, refreshHistory]
+    [clientId, profile, notifyStreakFromQuest, refreshHistory, flashXpGain, flashQuestDone]
   );
 
   const renderResult = useCallback(
@@ -1900,7 +1948,7 @@ export default function App() {
       const conf = result.analysisConfidence;
       if (keyInsights.length > 0 || conf) {
         html += '<div class="card card-key-insights">';
-        html += '<div class="card-title">원재료·비율 추정 요약</div>';
+        html += '<div class="card-title">첨가·감미 등 미량 성분 요약</div>';
         if (conf) {
           const confLabel = conf === 'high' ? '높음' : conf === 'medium' ? '보통' : '낮음';
           html +=
@@ -1924,7 +1972,7 @@ export default function App() {
         const estList = result.estimatedIngredients || [];
         if (estList.length > 0) {
           html +=
-            '<details class="estimated-ingredients-details"><summary>원재료별 추정 비율 범위</summary><ul class="estimated-ingredients-ul">';
+            '<details class="estimated-ingredients-details"><summary>첨가·감미 등 추정 함량 범위</summary><ul class="estimated-ingredients-ul">';
           estList.forEach((e) => {
             const tag = e.isConcern ? ' · 주의' : '';
             html +=
@@ -2434,11 +2482,14 @@ export default function App() {
     setTutorialHoleRect(null);
     setTutorialFocusDecoration(null);
     if (clientId) {
+      const wasTutorialDone =
+        normalizeQuestsSlice(loadState(clientId).quests).lifetime?.tutorialDone === true;
       const s = markQuestTutorialDone(clientId);
       setQuestBoard(getQuestBoard(clientId));
+      if (!wasTutorialDone) flashQuestDone('사용 가이드를 완료했어요');
       notifyStreakFromQuest(s);
     }
-  }, [clientId, notifyStreakFromQuest]);
+  }, [clientId, notifyStreakFromQuest, flashQuestDone]);
 
   const closeCompareFlowHintModal = useCallback(() => {
     if (compareFlowHintDontShowAgain) {
@@ -3612,6 +3663,44 @@ export default function App() {
         </div>
       )}
 
+      {xpRewardFx && (
+        <div
+          key={xpRewardFx.id}
+          className="screen-reward-xp-overlay"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div className="screen-reward-xp-sparks" aria-hidden>
+            {Array.from({ length: 10 }, (_, i) => (
+              <span key={i} className="screen-reward-xp-spark" />
+            ))}
+          </div>
+          <div className="screen-reward-xp-bubble">
+            <span className="screen-reward-xp-plus">+</span>
+            <span className="screen-reward-xp-num">{xpRewardFx.amount}</span>
+            <span className="screen-reward-xp-suffix">XP</span>
+          </div>
+        </div>
+      )}
+
+      {questRewardFx && (
+        <div
+          key={questRewardFx.id}
+          className="screen-reward-quest-overlay"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div className="screen-reward-quest-card">
+            <span className="screen-reward-quest-icon" aria-hidden>
+              <IconCheck size={22} strokeWidth={2.5} />
+            </span>
+            <span className="screen-reward-quest-text">{questRewardFx.title}</span>
+          </div>
+        </div>
+      )}
+
       {showTutorial && tutorialPhase === 'tutorial_mode_pick' && (
         <div
           className="tutorial-mode-pick-overlay"
@@ -4753,9 +4842,11 @@ export default function App() {
         <AddBodyMeasurementSheet
           onAdd={(date, h, w) => {
             if (clientId) {
+              const prevXp = getTotalXp(clientId);
               const s = addBodyMeasurement(clientId, date, h, w);
               setProfileState(loadState(clientId).profile || {});
               refreshHistory();
+              flashXpGain(prevXp);
               notifyStreakFromQuest(s);
             }
             setShowAddMeasurement(false);

@@ -187,7 +187,7 @@ export interface LabelExplicitPercentage {
   percent: number;
 }
 
-/** AI 추정 원재료 비율 범위(참고용) */
+/** AI 추정 첨가·감미 등 미량 성분 함량 범위(참고용) */
 export interface EstimatedIngredient {
   name: string;
   minPercent: number;
@@ -210,7 +210,7 @@ export interface AnalysisResult {
     minPercent?: number | null;
     maxPercent?: number | null;
   }>;
-  /** 주요 원재료별 추정 비율 범위 */
+  /** 첨가·감미 등 미량 성분별 추정 함량 범위 */
   estimatedIngredients?: EstimatedIngredient[] | null;
   /** 짧은 인사이트 문장 */
   keyInsights?: string[] | null;
