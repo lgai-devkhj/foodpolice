@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import {
+  engineRecommendationsToAlternativeJson,
   inferFoodType,
+  runRecommendationPipeline,
   type RecommendationEngineInput,
 } from '@/lib/alternative-recommendation-engine';
 import {
@@ -13,6 +15,11 @@ import {
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+export type AlternativeUnavailableReason =
+  | 'NO_SEARCH_KEY'
+  | 'FETCH_FAILED'
+  | 'NO_MATCH';
 
 interface AlternativesBody {
   productName?: string;
@@ -61,12 +68,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         alternativeFoodText: null,
         alternativeFoodFromWebSearch: false,
+        alternativeFoodEngineFallback: false,
         inferredFoodType,
+        alternativeUnavailableReason: 'NO_SEARCH_KEY',
       });
     }
 
     const scanned = input.productName;
-    const webJson = await fetchAlternativesWithPerplexity(
+    const plex = await fetchAlternativesWithPerplexity(
       perplexityKey,
       buildAlternativeFoodWebSearchPrompt({
         productName: scanned,
@@ -86,10 +95,31 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    let payloadJson = plex.json;
+    let fromWebSearch = Boolean(payloadJson);
+    let engineFallback = false;
+    let unavailable: AlternativeUnavailableReason | null = null;
+
+    if (!payloadJson) {
+      const recs = runRecommendationPipeline(input);
+      if (recs.length > 0) {
+        const root = engineRecommendationsToAlternativeJson(input, recs);
+        payloadJson = JSON.stringify(root);
+        engineFallback = true;
+        fromWebSearch = false;
+      } else if (plex.perplexityTransportFailed) {
+        unavailable = 'FETCH_FAILED';
+      } else {
+        unavailable = 'NO_MATCH';
+      }
+    }
+
     return NextResponse.json({
-      alternativeFoodText: webJson,
-      alternativeFoodFromWebSearch: Boolean(webJson),
+      alternativeFoodText: payloadJson,
+      alternativeFoodFromWebSearch: fromWebSearch && !engineFallback,
+      alternativeFoodEngineFallback: engineFallback,
       inferredFoodType,
+      alternativeUnavailableReason: unavailable,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';

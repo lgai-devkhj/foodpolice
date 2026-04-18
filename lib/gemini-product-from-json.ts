@@ -321,6 +321,8 @@ export function buildAnalysisResultFromGeminiObject(
     personalizedIntakeFootnote,
     alternativeFoodText: null,
     alternativeFoodFromWebSearch: false,
+    alternativeFoodEngineFallback: false,
+    alternativeUnavailableReason: null,
     dailyQuestProductMatch,
   };
 }

@@ -4,6 +4,18 @@ import {
 } from '@/lib/gemini-models';
 import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
 
+/** 2.5 폴백은 thinkingConfig를 지원하지 않거나 거부할 수 있어 제거한다. */
+function cloneRequestBodyWithoutThinkingConfig(body: unknown): unknown {
+  if (!body || typeof body !== 'object') return body;
+  const o = body as Record<string, unknown>;
+  const gc = o.generationConfig;
+  if (!gc || typeof gc !== 'object') return body;
+  const ggc = gc as Record<string, unknown>;
+  if (!('thinkingConfig' in ggc)) return body;
+  const { thinkingConfig: _removed, ...restGen } = ggc;
+  return { ...o, generationConfig: restGen };
+}
+
 function geminiGenerateUrl(modelId: string, apiKey: string): string {
   const m = normalizeGeminiModelId(modelId);
   return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -80,10 +92,11 @@ export async function fetchGeminiGenerateContentWithFlashFallback(
   }
 
   const url2 = geminiGenerateUrl(fallback, apiKey);
+  const retryBody = JSON.stringify(cloneRequestBodyWithoutThinkingConfig(requestBody));
   res = await fetch(url2, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: bodyStr,
+    body: retryBody,
   });
   text = await res.text();
   if (!res.ok) {

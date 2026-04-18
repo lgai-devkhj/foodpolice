@@ -20,7 +20,7 @@ import {
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
 import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
-import { ANALYSIS_MAX_OUTPUT_TOKENS } from '@/lib/gemini-models';
+import { ANALYSIS_MAX_OUTPUT_TOKENS, isGemini3FamilyModelId } from '@/lib/gemini-models';
 
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       generationConfig: generationConfigJsonMode({
         maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
         temperature: 0.2,
+        ...(isGemini3FamilyModelId(GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
       }),
     };
 
@@ -240,6 +241,8 @@ export async function POST(request: NextRequest) {
       ...core,
       alternativeFoodText: null,
       alternativeFoodFromWebSearch: false,
+      alternativeFoodEngineFallback: false,
+      alternativeUnavailableReason: null,
     };
 
     return NextResponse.json(result);

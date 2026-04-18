@@ -31,6 +31,10 @@ import {
   XP_DAILY_PAIR_COMPLETE,
   XP_DAILY_QUIZ,
 } from './xp-rewards';
+import { analysisProductIdentityKey, comparePairIdentityKey } from './product-identity';
+
+/** 결과 화면을 이 시간(초) 이상 본 뒤에만 분석·비교 퀘스트 XP 지급 */
+export const MIN_VIEW_SECONDS_FOR_XP = 5;
 
 export type { AnalysisStreak };
 export type { QuestsSlice };
@@ -135,6 +139,8 @@ export interface HistoryItem {
   customProductName?: string | null;
   /** 기본 analyze. compare면 comparePayload로 비교 결과 재표시 */
   entryKind?: 'analyze' | 'compare';
+  /** 비교 API 소요 시간(초). 기록에서 다시 열어도 표시용 */
+  compareSeconds?: number;
   comparePayload?: {
     productA: AnalysisResult;
     productB: AnalysisResult;
@@ -142,6 +148,12 @@ export interface HistoryItem {
     comparisonSummary: string;
     recommendationLine: string;
   };
+  /** 분석 XP(10) 지급 대상(중복 상품이 아닐 때만 true). 옛 기록에는 없을 수 있음 */
+  pendingAnalysisXp?: boolean;
+  analysisXpGranted?: boolean;
+  /** 비교 퀘스트 XP(15) 지급 대상 */
+  pendingCompareXp?: boolean;
+  compareXpGranted?: boolean;
 }
 
 /** 영양표 한 줄(항목명 + 표기량 문자열). 칼슘·비타민 등 임의 항목 포함 */
@@ -231,6 +243,10 @@ export interface AnalysisResult {
   alternativeFoodText?: string | null;
   /** true면 대체 식품 문구가 Google Search 그라운딩 2차 호출 결과 */
   alternativeFoodFromWebSearch?: boolean;
+  /** 웹 검색이 비었을 때 앱 내 추천 엔진으로 채운 경우 */
+  alternativeFoodEngineFallback?: boolean;
+  /** 로드 완료 후에도 비어 있을 때 사유(찾는 중과 구분). 로딩 중에는 보통 없음 */
+  alternativeUnavailableReason?: 'NO_SEARCH_KEY' | 'FETCH_FAILED' | 'NO_MATCH' | null;
   /** NOVA 3·4: /api/alternatives 응답 전 false → 로딩. 1·2는 즉시 true */
   alternativeFoodLoaded?: boolean;
   /** NOVA 1~2 등: 대체 추천 없음 이유(즉시 표시, 웹 검색 없음) */
@@ -512,8 +528,6 @@ export function markQuestCompareDone(
 } {
   const state = loadState(clientId);
   const prev = normalizeQuestsSlice(state.quests);
-  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
-  const already = daily.compareDone === true;
   const scannedAtIso = new Date().toISOString();
   state.quests = questAfterCompare(
     prev,
@@ -522,9 +536,6 @@ export function markQuestCompareDone(
     dailyQuestProductMatch === true ? scannedAtIso : undefined,
   );
   saveState(clientId, state);
-  if (!already) {
-    addXp(clientId, XP_COMPARE_QUEST);
-  }
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
@@ -550,6 +561,24 @@ export function markQuestKnovaLearnDone(clientId: string): {
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
+function historyHasAnalyzeIdentityKey(list: HistoryItem[], key: string): boolean {
+  if (!key) return false;
+  for (const h of list) {
+    if (h.entryKind === 'compare') continue;
+    if (analysisProductIdentityKey(h.result) === key) return true;
+  }
+  return false;
+}
+
+function historyHasComparePairKey(list: HistoryItem[], key: string): boolean {
+  if (!key) return false;
+  for (const h of list) {
+    if (h.entryKind !== 'compare' || !h.comparePayload) continue;
+    if (comparePairIdentityKey(h.comparePayload.productA, h.comparePayload.productB) === key) return true;
+  }
+  return false;
+}
+
 export function addToHistory(
   clientId: string,
   result: AnalysisResult,
@@ -566,6 +595,9 @@ export function addToHistory(
     analysisSeconds != null && Number.isFinite(analysisSeconds) && analysisSeconds >= 0
       ? analysisSeconds
       : undefined;
+  const identityKey = analysisProductIdentityKey(result);
+  const duplicateAnalyze =
+    identityKey.length > 0 && historyHasAnalyzeIdentityKey(list, identityKey);
   const item: HistoryItem = {
     id: itemId,
     productName: (result.product && result.product.productName) || '',
@@ -575,6 +607,8 @@ export function addToHistory(
     result,
     ...(sec != null ? { analysisSeconds: sec } : {}),
     customProductName: null,
+    pendingAnalysisXp: !duplicateAnalyze,
+    analysisXpGranted: false,
   };
   list.unshift(item);
   state.history = list.slice(0, 100);
@@ -585,21 +619,87 @@ export function addToHistory(
     result.dailyQuestProductMatch === true,
   );
   saveState(clientId, state);
-  addXp(clientId, XP_ANALYSIS);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);
   return { id: itemId, item, streak };
+}
+
+/**
+ * 결과 화면을 MIN_VIEW_SECONDS_FOR_XP 이상 본 뒤 호출. 중복 상품이 아니면 분석 XP(10) 지급.
+ */
+export function grantAnalysisXpAfterView(
+  clientId: string,
+  historyId: string,
+  viewSeconds: number,
+): { granted: boolean; totalXp: number } {
+  if (viewSeconds < MIN_VIEW_SECONDS_FOR_XP) {
+    return { granted: false, totalXp: getTotalXp(clientId) };
+  }
+  const state = loadState(clientId);
+  const list = state.history || [];
+  const idx = list.findIndex((i) => i.id === historyId);
+  if (idx === -1) return { granted: false, totalXp: getTotalXp(clientId) };
+  const item = list[idx];
+  if (item.entryKind === 'compare') return { granted: false, totalXp: getTotalXp(clientId) };
+  if (item.analysisXpGranted === true || item.pendingAnalysisXp !== true) {
+    return { granted: false, totalXp: getTotalXp(clientId) };
+  }
+  item.analysisXpGranted = true;
+  list[idx] = item;
+  state.history = list;
+  saveState(clientId, state);
+  addXp(clientId, XP_ANALYSIS);
+  return { granted: true, totalXp: getTotalXp(clientId) };
+}
+
+/**
+ * 비교 결과 화면을 충분히 본 뒤 호출. 같은 제품 쌍 재비교가 아니면 비교 퀘스트 XP(15) 지급.
+ */
+export function grantCompareXpAfterView(
+  clientId: string,
+  historyId: string,
+  viewSeconds: number,
+): { granted: boolean; totalXp: number } {
+  if (viewSeconds < MIN_VIEW_SECONDS_FOR_XP) {
+    return { granted: false, totalXp: getTotalXp(clientId) };
+  }
+  const state = loadState(clientId);
+  const list = state.history || [];
+  const idx = list.findIndex((i) => i.id === historyId);
+  if (idx === -1) return { granted: false, totalXp: getTotalXp(clientId) };
+  const item = list[idx];
+  if (item.entryKind !== 'compare' || !item.comparePayload) {
+    return { granted: false, totalXp: getTotalXp(clientId) };
+  }
+  if (item.compareXpGranted === true || item.pendingCompareXp !== true) {
+    return { granted: false, totalXp: getTotalXp(clientId) };
+  }
+  item.compareXpGranted = true;
+  list[idx] = item;
+  state.history = list;
+  saveState(clientId, state);
+  addXp(clientId, XP_COMPARE_QUEST);
+  return { granted: true, totalXp: getTotalXp(clientId) };
 }
 
 /** 비교 결과를 최근 기록에 남김(퀘스트·스트릭은 호출부에서 이미 처리된 경우가 많음) */
 export function addCompareToHistory(
   clientId: string,
   payload: NonNullable<HistoryItem['comparePayload']>,
+  compareSeconds?: number,
 ): { id: string; item: HistoryItem } {
   const state = loadState(clientId);
   const list = state.history || [];
   const itemId = 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
   const na = (payload.productA.product?.productName || '').trim() || '제품 A';
   const nb = (payload.productB.product?.productName || '').trim() || '제품 B';
+  const pairKey = comparePairIdentityKey(payload.productA, payload.productB);
+  const duplicateCompare =
+    pairKey.length > 0 && historyHasComparePairKey(list, pairKey);
+  const secOk =
+    compareSeconds != null &&
+    typeof compareSeconds === 'number' &&
+    Number.isFinite(compareSeconds) &&
+    compareSeconds >= 0;
   const item: HistoryItem = {
     id: itemId,
     productName: `비교: ${na} · ${nb}`,
@@ -609,6 +709,9 @@ export function addCompareToHistory(
     customProductName: null,
     entryKind: 'compare',
     comparePayload: payload,
+    ...(secOk ? { compareSeconds } : {}),
+    pendingCompareXp: !duplicateCompare,
+    compareXpGranted: false,
   };
   list.unshift(item);
   state.history = list.slice(0, 100);

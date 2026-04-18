@@ -3,8 +3,9 @@
  * (브라우저 전용; App.tsx 등 클라이언트에서만 import)
  */
 
-const MAX_EDGE_PX = 1280;
-const JPEG_QUALITY = 0.82;
+/** 라벨·영양표 OCR에는 충분하면서 멀티모달 입력 토큰·업로드 시간을 줄이기 위해 1280보다 약간 작게 둔다. */
+const MAX_EDGE_PX = 1024;
+const JPEG_QUALITY = 0.78;
 
 function normalizeMime(mime: string): string {
   const m = (mime || 'image/jpeg').toLowerCase();

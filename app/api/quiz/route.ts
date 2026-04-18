@@ -10,6 +10,7 @@ import {
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
 import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
+import { isGemini3FamilyModelId } from '@/lib/gemini-models';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
@@ -56,6 +57,7 @@ async function geminiOxQuizOrNull(
       temperature: 0.7,
       topP: 0.95,
       topK: 40,
+      ...(isGemini3FamilyModelId(GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
     }),
   };
   try {

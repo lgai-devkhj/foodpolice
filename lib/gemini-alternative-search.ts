@@ -351,12 +351,19 @@ async function generateAlternativesOnce(
   return { text: null, ok: true, status: res.status, bodySnippet: '', elapsedMs: Date.now() - started };
 }
 
+/** Perplexity 호출은 했으나 유효 JSON·대체 후보가 없음 */
+export type PerplexityAlternativesOutcome = {
+  json: string | null;
+  /** HTTP 오류·네트워크 끊김 등(둘 다 실패할 때만 true에 가깝게 쓴다) */
+  perplexityTransportFailed: boolean;
+};
+
 export async function fetchAlternativesWithPerplexity(
   perplexityApiKey: string,
   prompt: string,
   scannedProductName: string,
   scanContext?: AlternativesScanContext | null
-): Promise<string | null> {
+): Promise<PerplexityAlternativesOutcome> {
   const first = await generateAlternativesOnce(
     perplexityApiKey,
     PERPLEXITY_MODEL,
@@ -364,7 +371,7 @@ export async function fetchAlternativesWithPerplexity(
     scannedProductName,
     scanContext
   );
-  if (first.text) return first.text;
+  if (first.text) return { json: first.text, perplexityTransportFailed: false };
 
   const relaxedPrompt =
     prompt +
@@ -383,5 +390,11 @@ export async function fetchAlternativesWithPerplexity(
     scannedProductName,
     scanContext
   );
-  return second.text;
+  if (second.text) return { json: second.text, perplexityTransportFailed: false };
+
+  const transportFailed =
+    first.status === 0 ||
+    second.status === 0 ||
+    (!first.ok && !second.ok);
+  return { json: null, perplexityTransportFailed: transportFailed };
 }

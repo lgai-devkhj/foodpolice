@@ -16,6 +16,11 @@ export function normalizeGeminiModelId(id: string): string {
   return GEMINI_MODEL_ID_ALIASES[base] ?? base;
 }
 
+/** Gemini 3.x는 generationConfig.thinkingConfig(추론 깊이)를 쓸 수 있다. 2.5 폴백과는 호환되지 않아 폴백 시 제거한다. */
+export function isGemini3FamilyModelId(id: string): boolean {
+  return normalizeGeminiModelId(id).startsWith('gemini-3');
+}
+
 function modelFromEnv(envName: string, fallback: string): string {
   const raw = process.env[envName];
   if (raw == null || String(raw).trim() === '') return fallback;

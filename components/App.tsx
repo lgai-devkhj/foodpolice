@@ -28,6 +28,9 @@ import {
   getHistory,
   addToHistory,
   addCompareToHistory,
+  grantAnalysisXpAfterView,
+  grantCompareXpAfterView,
+  MIN_VIEW_SECONDS_FOR_XP,
   getAnalysisStreak,
   getWeekStreakSheetData,
   getQuestBoard,
@@ -668,7 +671,8 @@ function stripWebCitationMarkers(text: string): string {
 function buildAlternativeFoodHtml(
   altText: string,
   fromWebSearch?: boolean,
-  scannedProductName?: string
+  scannedProductName?: string,
+  engineFallback?: boolean
 ): string {
   if (!altText) return '';
 
@@ -721,7 +725,9 @@ function buildAlternativeFoodHtml(
             '<p class="alt-disclaimer">' +
             (fromWebSearch
               ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
-              : '먹는 맥락(유형)·라벨 분석을 바탕으로 한 참고용 유형 제안이에요. 특정 브랜드 SKU가 아니라, 마트에서 같은 축으로 찾을 만한 방향이에요. 링크는 검색용이에요.') +
+              : engineFallback
+                ? '웹 검색으로 실제 판매 제품을 찾지 못해, 앱 안 추천 엔진으로 비슷한 맥락의 방향만 잡았어요. 링크는 검색용이에요. 사기 전에 라벨을 확인해 주세요.'
+                : '먹는 맥락(유형)·라벨 분석을 바탕으로 한 참고용 유형 제안이에요. 특정 브랜드 SKU가 아니라, 마트에서 같은 축으로 찾을 만한 방향이에요. 링크는 검색용이에요.') +
             '</p>';
           return '<div class="alt-block">' + topMeta.join('') + `<div class="alt-grid">${grid}</div>` + disclaimer + '</div>';
         }
@@ -848,7 +854,9 @@ function buildAlternativeFoodHtml(
     '<p class="alt-disclaimer">' +
     (fromWebSearch
       ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
-      : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
+      : engineFallback
+        ? '웹 검색이 비어 있어 앱 안 추천 엔진으로 방향만 잡았어요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.'
+        : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
     '</p>';
 
   return (
@@ -859,6 +867,25 @@ function buildAlternativeFoodHtml(
     disclaimer +
     '</div>'
   );
+}
+
+/** NOVA 3·4: /api/alternatives 요청 중(분석 완료 후 비동기) */
+const ALT_LOADING_MESSAGE =
+  '대체 식품을 찾는 중이에요. 보통 10~30초 걸릴 수 있어요.';
+
+function messageForAlternativeUnavailable(
+  reason: AnalysisResult['alternativeUnavailableReason'] | undefined
+): string {
+  switch (reason) {
+    case 'NO_SEARCH_KEY':
+      return '서버에 웹 검색 API가 연결되어 있지 않아 대체 식품을 불러올 수 없어요.';
+    case 'FETCH_FAILED':
+      return '검색 서버와 통신하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    case 'NO_MATCH':
+      return '웹 검색으로 조건에 맞는 실제 제품을 찾지 못했어요. 다른 제품으로 다시 시도해 볼 수 있어요.';
+    default:
+      return ALTERNATIVE_NOT_FOUND_MESSAGE;
+  }
 }
 
 /** NOVA 1~2: 웹 대체 추천 없음 — 로딩 없이 바로 표시 */
@@ -878,6 +905,8 @@ function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
       alternativeFoodNotice: ALT_NOVA_1_2_NOTICE,
       alternativeFoodText: null,
       alternativeFoodFromWebSearch: false,
+      alternativeFoodEngineFallback: false,
+      alternativeUnavailableReason: null,
       alternativeFoodUserRequested: false,
     };
   }
@@ -886,6 +915,8 @@ function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
       ...raw,
       alternativeFoodLoaded: false,
       alternativeFoodNotice: null,
+      alternativeFoodEngineFallback: false,
+      alternativeUnavailableReason: null,
     };
   }
   return {
@@ -912,19 +943,28 @@ function applyAlternativesFetchResult(
   ) => void,
   /** 서버가 Perplexity 등 실제 검색 근거 응답을 줬을 때만 true */
   fromWebSearch?: boolean,
+  extras?: {
+    engineFallback?: boolean;
+    unavailableReason?: AnalysisResult['alternativeUnavailableReason'];
+  },
 ): void {
   const alt = altRaw.trim();
+  const hasAlt = Boolean(alt);
   const merged: AnalysisResult = {
     ...baseResult,
     alternativeFoodNotice: null,
     alternativeFoodText: alt || null,
-    alternativeFoodFromWebSearch: Boolean(httpOk && alt && fromWebSearch),
+    alternativeFoodFromWebSearch: Boolean(httpOk && hasAlt && fromWebSearch),
+    alternativeFoodEngineFallback: Boolean(httpOk && hasAlt && extras?.engineFallback),
+    alternativeUnavailableReason: hasAlt ? null : (extras?.unavailableReason ?? 'NO_MATCH'),
     alternativeFoodLoaded: true,
   };
   updateHistoryResult(clientId, historyId, {
     alternativeFoodNotice: null,
     alternativeFoodText: merged.alternativeFoodText,
     alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
+    alternativeFoodEngineFallback: merged.alternativeFoodEngineFallback,
+    alternativeUnavailableReason: merged.alternativeUnavailableReason,
     alternativeFoodLoaded: true,
   });
   refreshHistory();
@@ -994,6 +1034,18 @@ function requestAlternativesFromApi(
       const alt =
         r.ok && d.alternativeFoodText != null ? String(d.alternativeFoodText).trim() : '';
       const fromWebSearch = d.alternativeFoodFromWebSearch === true;
+      const engineFallback = d.alternativeFoodEngineFallback === true;
+      const rawU = d.alternativeUnavailableReason;
+      const parsedReason =
+        typeof rawU === 'string' &&
+        (rawU === 'NO_SEARCH_KEY' || rawU === 'FETCH_FAILED' || rawU === 'NO_MATCH')
+          ? rawU
+          : undefined;
+      const unavailableReason: AnalysisResult['alternativeUnavailableReason'] | undefined = alt
+        ? undefined
+        : r.ok
+          ? parsedReason ?? 'NO_MATCH'
+          : 'FETCH_FAILED';
       applyAlternativesFetchResult(
         clientId,
         historyId,
@@ -1006,6 +1058,7 @@ function requestAlternativesFromApi(
         setCurrentResult,
         renderResult,
         fromWebSearch,
+        { engineFallback, unavailableReason },
       );
     })
     .catch(() => {
@@ -1021,6 +1074,7 @@ function requestAlternativesFromApi(
         setCurrentResult,
         renderResult,
         false,
+        { unavailableReason: 'FETCH_FAILED' },
       );
     });
 }
@@ -1152,6 +1206,38 @@ function BirthYearSelect({
   );
 }
 
+/**
+ * 라벨·영양표 촬영에는 720p 전후면 충분. 1080p 이상을 강하게 요구하면 AF가 늦게 잡히는 기기가 많다.
+ * (촬영 후 `encodeImageForAnalysis`에서 긴 변 1024px로 축소)
+ */
+const CAMERA_PREVIEW_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: 'environment',
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 },
+  },
+};
+
+/** 오디오 트랙이 붙는 경우 제거, 연속 초점 시도(미지원·거부 시 무시) */
+function tuneCameraStream(stream: MediaStream): void {
+  for (const t of stream.getAudioTracks()) {
+    try {
+      t.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+  const vt = stream.getVideoTracks()[0];
+  if (!vt?.applyConstraints) return;
+  void vt
+    .applyConstraints({
+      advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+    } as MediaTrackConstraints)
+    .catch(() => undefined);
+}
+
 export default function App() {
   const [clientId, setClientId] = useState('');
   const [isLikelyDesktop, setIsLikelyDesktop] = useState(false);
@@ -1202,6 +1288,8 @@ export default function App() {
   const homeProductModeRef = useRef(homeProductMode);
   const compareSlotRef = useRef(compareSlot);
   const [showCompareResult, setShowCompareResult] = useState(false);
+  /** 비교 XP·뷰 타이머용 기록 id (addCompareToHistory 또는 기록에서 열었을 때) */
+  const [compareHistoryId, setCompareHistoryId] = useState<string | null>(null);
   const [compareApiResult, setCompareApiResult] = useState<{
     productA: AnalysisResult;
     productB: AnalysisResult;
@@ -1209,6 +1297,8 @@ export default function App() {
     comparisonSummary: string;
     recommendationLine: string;
   } | null>(null);
+  /** 비교 API 소요 시간(초). 신규 비교·기록에서 열 때 표시 */
+  const [compareResultSeconds, setCompareResultSeconds] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsPage, setSettingsPage] = useState<'list' | 'display' | 'profile'>('list');
@@ -1543,6 +1633,63 @@ export default function App() {
     }, 2600);
   }, [clientId]);
 
+  const resultViewSecondsRef = useRef(0);
+  const lastViewTickRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    resultViewSecondsRef.current = 0;
+    lastViewTickRef.current = null;
+  }, [currentHistoryId, compareHistoryId]);
+
+  useEffect(() => {
+    if (!clientId) return;
+    const id = window.setInterval(() => {
+      const now = performance.now();
+      if (lastViewTickRef.current == null) lastViewTickRef.current = now;
+      const dt = Math.min(0.45, (now - lastViewTickRef.current) / 1000);
+      lastViewTickRef.current = now;
+      if (document.hidden) return;
+
+      const analysisFlow = showResult && currentHistoryId && !showCompareResult;
+      const compareFlow = showCompareResult && compareHistoryId;
+      if (!analysisFlow && !compareFlow) {
+        resultViewSecondsRef.current = 0;
+        lastViewTickRef.current = null;
+        return;
+      }
+
+      resultViewSecondsRef.current += dt;
+      if (resultViewSecondsRef.current < MIN_VIEW_SECONDS_FOR_XP) return;
+
+      if (analysisFlow && currentHistoryId) {
+        const prevXp = getTotalXp(clientId);
+        const r = grantAnalysisXpAfterView(clientId, currentHistoryId, resultViewSecondsRef.current);
+        if (r.granted) {
+          setTotalXp(r.totalXp);
+          flashXpGain(prevXp);
+          refreshHistory();
+        }
+      } else if (compareFlow && compareHistoryId) {
+        const prevXp = getTotalXp(clientId);
+        const r = grantCompareXpAfterView(clientId, compareHistoryId, resultViewSecondsRef.current);
+        if (r.granted) {
+          setTotalXp(r.totalXp);
+          flashXpGain(prevXp);
+          refreshHistory();
+        }
+      }
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [
+    clientId,
+    showResult,
+    showCompareResult,
+    currentHistoryId,
+    compareHistoryId,
+    flashXpGain,
+    refreshHistory,
+  ]);
+
   const flashQuestDone = useCallback((title: string) => {
     const id = ++questRewardFxIdRef.current;
     setQuestRewardFx({ id, title });
@@ -1702,14 +1849,12 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
-        const prevXp = getTotalXp(clientId);
         const { id, item, streak } = addToHistory(clientId, result, sec);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
-        flashXpGain(prevXp);
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
@@ -1741,7 +1886,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile, notifyStreakFromQuest, flashXpGain]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest]
   );
 
   const runAnalyzeTwoImages = useCallback(
@@ -1794,14 +1939,12 @@ export default function App() {
         const endedAt = performance.now();
         const sec = Math.max(0, (endedAt - startedAt) / 1000);
         setLastAnalysisSeconds(sec);
-        const prevXp = getTotalXp(clientId);
         const { id, item, streak } = addToHistory(clientId, result, sec);
         setCurrentResult(result);
         setCurrentHistoryId(id);
         setLastAnalysisForId(id);
         setProfileState(getProfile(clientId));
         refreshHistory();
-        flashXpGain(prevXp);
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
         /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
@@ -1833,7 +1976,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, refreshHistory, profile, notifyStreakFromQuest, flashXpGain]
+    [clientId, refreshHistory, profile, notifyStreakFromQuest]
   );
 
   const runCompareProducts = useCallback(
@@ -1865,6 +2008,7 @@ export default function App() {
           encodeImageForAnalysis(pairB.raw, pairB.rawMime),
           encodeImageForAnalysis(pairB.nut, pairB.nutMime),
         ]);
+        const compareStartedAt = performance.now();
         const res = await fetch('/api/compare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1890,15 +2034,14 @@ export default function App() {
           recommendationLine?: string;
         } & Partial<ApiErrorBody>>(res);
         if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
+        const compareElapsedSec = Math.max(0, (performance.now() - compareStartedAt) / 1000);
         if (cameraStreamRef.current) {
           cameraStreamRef.current.getTracks().forEach((t) => t.stop());
           cameraStreamRef.current = null;
         }
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-        const prevXp = getTotalXp(clientId);
         const streak = markQuestCompareDone(clientId, data.dailyQuestProductMatch === true);
         setQuestBoard(getQuestBoard(clientId));
-        setTotalXp(getTotalXp(clientId));
         notifyStreakFromQuest(streak);
         const comparePayload = {
           productA: data.productA as AnalysisResult,
@@ -1907,7 +2050,9 @@ export default function App() {
           comparisonSummary: String(data.comparisonSummary ?? ''),
           recommendationLine: String(data.recommendationLine ?? ''),
         };
-        addCompareToHistory(clientId, comparePayload);
+        const { id: compareHistId } = addCompareToHistory(clientId, comparePayload, compareElapsedSec);
+        setCompareHistoryId(compareHistId);
+        setCompareResultSeconds(compareElapsedSec);
         refreshHistory();
         setCompareApiResult(comparePayload);
         if (showTutorialRef.current) {
@@ -1924,7 +2069,6 @@ export default function App() {
             notifyStreakFromQuest(s);
           }
         }
-        flashXpGain(prevXp);
         setShowCompareResult(true);
         setShowHome(false);
         setShowCamera(false);
@@ -1944,7 +2088,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [clientId, profile, notifyStreakFromQuest, refreshHistory, flashXpGain, flashQuestDone]
+    [clientId, profile, notifyStreakFromQuest, refreshHistory, flashQuestDone]
   );
 
   const renderResult = useCallback(
@@ -2136,14 +2280,17 @@ export default function App() {
             ? buildAlternativeFoodHtml(
                 altText,
                 result.alternativeFoodFromWebSearch === true,
-                (result.product?.productName || '').trim()
+                (result.product?.productName || '').trim(),
+                result.alternativeFoodEngineFallback === true
               )
             : '';
           const showNoticeWithButton = !result.alternativeFoodUserRequested;
           if (altPending) {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
-              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+              escapeHtml(ALT_LOADING_MESSAGE) +
+              '</div></div></div>';
             html += '</details>';
           } else if (altHtml) {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
@@ -2165,7 +2312,7 @@ export default function App() {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
-              escapeHtml(ALTERNATIVE_NOT_FOUND_MESSAGE) +
+              escapeHtml(messageForAlternativeUnavailable(result.alternativeUnavailableReason)) +
               '</div>' +
               emptyDisc +
               '</div></div>';
@@ -2177,13 +2324,16 @@ export default function App() {
             ? buildAlternativeFoodHtml(
                 altText,
                 result.alternativeFoodFromWebSearch === true,
-                (result.product?.productName || '').trim()
+                (result.product?.productName || '').trim(),
+                result.alternativeFoodEngineFallback === true
               )
             : '';
           if (altPending) {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
-              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">웹 검색으로 대안을 찾는 중이에요. 20초 안팎이 걸릴 수 있어요.</div></div></div>';
+              '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
+              escapeHtml(ALT_LOADING_MESSAGE) +
+              '</div></div></div>';
             html += '</details>';
           } else if (altHtml) {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
@@ -2195,7 +2345,7 @@ export default function App() {
             html += `<details class="result-details"${opts?.keepAltOpen ? ' open' : ''}><summary>대체 식품</summary>`;
             html +=
               '<div class="result-details-body"><div class="alt-block"><div class="alt-fallback">' +
-              escapeHtml(ALTERNATIVE_NOT_FOUND_MESSAGE) +
+              escapeHtml(messageForAlternativeUnavailable(result.alternativeUnavailableReason)) +
               '</div>' +
               emptyDisc +
               '</div></div>';
@@ -2462,7 +2612,7 @@ export default function App() {
       if (!recentlyScrolling) return '스크롤해야 줄어요';
       return `약 ${secLeft}초 남았어요`;
     }
-    if (altLoading) return '대체 식품 불러오는 중… 잠시만 기다려 주세요';
+    if (altLoading) return '대체 식품을 찾는 중… 잠시만 기다려 주세요';
     if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
     return null;
   }, [
@@ -2478,15 +2628,9 @@ export default function App() {
   const startCamera = useCallback(() => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
     navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-        },
-        audio: false,
-      })
+      .getUserMedia(CAMERA_PREVIEW_CONSTRAINTS)
       .then((stream) => {
+        tuneCameraStream(stream);
         cameraStreamRef.current = stream;
         setShowCamera(true);
         if (captureStepRef.current === 1) {
@@ -3208,6 +3352,8 @@ export default function App() {
             autoPlay
             playsInline
             muted
+            disablePictureInPicture
+            controls={false}
           />
           <div className="camera-ui">
             <div className="camera-top-bar">
@@ -4027,6 +4173,11 @@ export default function App() {
                       onClick={() => {
                         if (item.entryKind === 'compare' && item.comparePayload) {
                           setCompareApiResult(item.comparePayload);
+                          setCompareHistoryId(item.id);
+                          const cs = item.compareSeconds;
+                          setCompareResultSeconds(
+                            typeof cs === 'number' && Number.isFinite(cs) && cs >= 0 ? cs : null,
+                          );
                           setCurrentHistoryId(item.id);
                           setShowCompareResult(true);
                           setShowHome(false);
@@ -4249,6 +4400,7 @@ export default function App() {
               setShowCompareResult(false);
               setShowHome(true);
               setCompareApiResult(null);
+              setCompareHistoryId(null);
             }
           }}
         >
@@ -4261,6 +4413,7 @@ export default function App() {
                 setShowCompareResult(false);
                 setShowHome(true);
                 setCompareApiResult(null);
+                setCompareHistoryId(null);
               }}
             >
               ×
@@ -4268,6 +4421,11 @@ export default function App() {
             <h2 id="compare-result-title" className="compare-result-title">
               제품 비교 결과
             </h2>
+            {compareResultSeconds != null && (
+              <div className="result-analysis-time" role="status">
+                {compareResultSeconds.toFixed(1)}초 만에 비교되었어요
+              </div>
+            )}
             <div className="compare-result-grid compare-result-grid--nova">
               <CompareProductNovaCard label="제품 A" result={compareApiResult.productA} />
               <CompareProductNovaCard label="제품 B" result={compareApiResult.productB} />
@@ -4291,6 +4449,7 @@ export default function App() {
                 setShowCompareResult(false);
                 setShowHome(true);
                 setCompareApiResult(null);
+                setCompareHistoryId(null);
               }}
             >
               확인
