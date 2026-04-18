@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   GEMINI_MODEL,
   getDailyOxQuizPrompt,
-  normalizeGeminiJson,
 } from '@/lib/gemini-prompts';
+import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
 import { hashStringFnv, toLocalYmd } from '@/lib/daily-quests';
 import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
 import { apiErrorBody } from '@/lib/read-api-json';
@@ -77,10 +77,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(apiErrorBody('퀴즈를 받지 못했어요.', 'NO_MODEL_TEXT'), { status: 500 });
     }
 
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(normalizeGeminiJson(raw)) as Record<string, unknown>;
-    } catch {
+    const parsed = parseGeminiModelObject(raw);
+    if (!parsed) {
       return NextResponse.json(apiErrorBody('퀴즈 형식이 올바르지 않아요.', 'QUIZ_JSON'), { status: 500 });
     }
 

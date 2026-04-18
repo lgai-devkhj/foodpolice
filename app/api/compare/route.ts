@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getCompareFourImagesPrompt,
-  normalizeGeminiJson,
   GEMINI_MODEL,
   type BmiTier,
   type PersonalizationInput,
@@ -9,6 +8,7 @@ import {
 import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
+import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
 import type { AnalysisResult } from '@/lib/store';
 import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
 import { apiErrorBody } from '@/lib/read-api-json';
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.2,
           top_p: 0.95,
           top_k: 40,
-          maxOutputTokens: 3072,
+          maxOutputTokens: 4096,
         },
       }),
     });
@@ -192,11 +192,8 @@ export async function POST(request: NextRequest) {
     }
 
     const raw = partText;
-    const normalized = normalizeGeminiJson(raw);
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(normalized);
-    } catch {
+    const parsed = parseGeminiModelObject(raw);
+    if (!parsed) {
       return NextResponse.json(
         apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러 주세요.', 'RESULT_JSON'),
         { status: 500 }
