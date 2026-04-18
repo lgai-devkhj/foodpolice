@@ -12,4 +12,9 @@ describe('parseGeminiModelObject', () => {
     expect(o?.productName).toBe('x');
     expect(o?.novaGroup).toBe(3);
   });
+
+  it('루트가 배열 한 칸이면 첫 요소를 쓴다', () => {
+    const o = parseGeminiModelObject('[{"productName":"y","novaGroup":2}]');
+    expect(o?.productName).toBe('y');
+  });
 });

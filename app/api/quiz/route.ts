@@ -7,6 +7,12 @@ import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
 import { hashStringFnv, toLocalYmd } from '@/lib/daily-quests';
 import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
 import { apiErrorBody } from '@/lib/read-api-json';
+import {
+  getGeminiCandidateText,
+  getGeminiPromptBlockReason,
+  hasGeminiCandidates,
+} from '@/lib/gemini-response-envelope';
+import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
@@ -19,7 +25,15 @@ function requireClientId(clientId: string): void {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: { clientId?: string };
+    try {
+      body = (await request.json()) as { clientId?: string };
+    } catch {
+      return NextResponse.json(
+        apiErrorBody('요청 본문을 읽을 수 없어요.', 'BODY_JSON'),
+        { status: 400 }
+      );
+    }
     const clientId = String(body.clientId || '').trim();
     requireClientId(clientId);
 
@@ -41,13 +55,13 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.7,
-          top_p: 0.95,
+        contents: [{ parts: [textPart(prompt)] }],
+        generationConfig: generationConfigJsonMode({
           maxOutputTokens: 1024,
-        },
+          temperature: 0.7,
+          topP: 0.95,
+          topK: 40,
+        }),
       }),
     });
 
@@ -64,15 +78,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let data: unknown;
+    let data: Record<string, unknown>;
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(text) as Record<string, unknown>;
     } catch {
       return NextResponse.json(apiErrorBody('응답을 읽지 못했어요.', 'ENVELOPE_JSON'), { status: 500 });
     }
-    const parts = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> })
-      ?.candidates?.[0]?.content?.parts;
-    const raw = parts?.[0]?.text;
+    const blockReason = getGeminiPromptBlockReason(data);
+    if (blockReason) {
+      return NextResponse.json(
+        apiErrorBody(
+          '퀴즈를 만들 수 없는 요청이에요. 잠시 뒤에 다시 시도해 주세요.',
+          `PROMPT_BLOCKED:${blockReason}`
+        ),
+        { status: 400 }
+      );
+    }
+    if (!hasGeminiCandidates(data)) {
+      return NextResponse.json(
+        apiErrorBody('퀴즈 응답이 비어 있어요. 잠시 뒤 다시 시도해 주세요.', 'NO_CANDIDATES'),
+        { status: 502 }
+      );
+    }
+    const raw = getGeminiCandidateText(data);
     if (!raw || typeof raw !== 'string') {
       return NextResponse.json(apiErrorBody('퀴즈를 받지 못했어요.', 'NO_MODEL_TEXT'), { status: 500 });
     }
@@ -104,6 +132,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[api/quiz] SERVER', e);
+    }
     return NextResponse.json(apiErrorBody(message, 'SERVER'), { status: 500 });
   }
 }

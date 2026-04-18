@@ -54,8 +54,11 @@ function tryParseObject(s: string): Record<string, unknown> | null {
     if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
       return v as Record<string, unknown>;
     }
-    if (Array.isArray(v)) {
-      return null;
+    if (Array.isArray(v) && v.length >= 1) {
+      const first = v[0];
+      if (first !== null && typeof first === 'object' && !Array.isArray(first)) {
+        return first as Record<string, unknown>;
+      }
     }
     return null;
   } catch {
@@ -67,9 +70,22 @@ function tryParseObject(s: string): Record<string, unknown> | null {
  * Gemini가 돌려준 텍스트(또는 JSON MIME 모드 한 줄)를 객체로 파싱한다.
  * 마크다운·후행 쉼표·잘린 괄호 등을 순서대로 보정해 본다.
  */
-export function parseGeminiModelObject(raw: string): Record<string, unknown> | null {
+export function parseGeminiModelObject(raw: string, depth = 0): Record<string, unknown> | null {
   let s = (raw || '').replace(/^\uFEFF/, '').trim();
   if (!s) return null;
+
+  // 모델이 JSON 전체를 한 번 더 문자열로 감싼 경우: "{\"productName\":...}"
+  if (depth < 2 && s.startsWith('"') && s.endsWith('"')) {
+    try {
+      const inner = JSON.parse(s);
+      if (typeof inner === 'string' && inner.trim()) {
+        const nested = parseGeminiModelObject(inner, depth + 1);
+        if (nested) return nested;
+      }
+    } catch {
+      /* 다음 단계로 */
+    }
+  }
 
   s = normalizeGeminiJson(s);
 

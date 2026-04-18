@@ -13,6 +13,12 @@ import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-j
 import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
 import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
 import { apiErrorBody } from '@/lib/read-api-json';
+import {
+  getGeminiCandidateText,
+  getGeminiPromptBlockReason,
+  hasGeminiCandidates,
+} from '@/lib/gemini-response-envelope';
+import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -56,7 +62,15 @@ function profileToPersonalization(profile?: AnalyzeBody['profile']): Personaliza
 
 export async function POST(request: NextRequest) {
   try {
-    const body: AnalyzeBody = await request.json();
+    let body: AnalyzeBody;
+    try {
+      body = (await request.json()) as AnalyzeBody;
+    } catch {
+      return NextResponse.json(
+        apiErrorBody('요청 본문을 읽을 수 없어요. 사진을 줄이거나 다시 시도해 주세요.', 'BODY_JSON'),
+        { status: 400 }
+      );
+    }
     const {
       clientId,
       imageBase64,
@@ -104,26 +118,15 @@ export async function POST(request: NextRequest) {
             parts: [
               ...(hasTwoImages
                 ? [
-                    { inline_data: { mime_type: rawMimeType, data: rawImageBase64 || '' } },
-                    {
-                      inline_data: {
-                        mime_type: nutritionMimeType,
-                        data: nutritionImageBase64 || '',
-                      },
-                    },
+                    inlineDataPart(rawMimeType, rawImageBase64 || ''),
+                    inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
                   ]
-                : [{ inline_data: { mime_type: mimeType, data: imageBase64 || '' } }]),
-              { text: prompt },
+                : [inlineDataPart(mimeType, imageBase64 || '')]),
+              textPart(prompt),
             ],
           },
         ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.2,
-          top_p: 0.95,
-          top_k: 40,
-          maxOutputTokens: 4096,
-        },
+        generationConfig: generationConfigJsonMode({ maxOutputTokens: 8192, temperature: 0.2 }),
       }),
     });
 
@@ -140,14 +143,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let data: {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-        finishReason?: string;
-      }>;
-    };
+    let data: Record<string, unknown>;
     try {
-      data = JSON.parse(text) as typeof data;
+      data = JSON.parse(text) as Record<string, unknown>;
     } catch {
       if (process.env.NODE_ENV === 'development') {
         console.error('[api/analyze] envelope JSON.parse failed', text.slice(0, 800));
@@ -158,10 +156,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cand = data?.candidates?.[0];
-    const parts = cand?.content?.parts ?? [];
+    const blockReason = getGeminiPromptBlockReason(data);
+    if (blockReason) {
+      return NextResponse.json(
+        apiErrorBody(
+          '이 요청은 안전 정책으로 처리할 수 없어요. 다른 사진이나 표시만 있는 화면으로 시도해 주세요.',
+          `PROMPT_BLOCKED:${blockReason}`
+        ),
+        { status: 400 }
+      );
+    }
+
+    if (!hasGeminiCandidates(data)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[api/analyze] empty candidates', JSON.stringify(data).slice(0, 2000));
+      }
+      return NextResponse.json(
+        apiErrorBody('AI가 응답을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.', 'NO_CANDIDATES'),
+        { status: 502 }
+      );
+    }
+
+    const cand = (data as { candidates?: Array<{ finishReason?: string }> })?.candidates?.[0];
     const finishReason = cand?.finishReason;
-    const partText = parts[0]?.text;
+    const partText = getGeminiCandidateText(data);
 
     if (!partText || typeof partText !== 'string') {
       if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
@@ -191,6 +209,9 @@ export async function POST(request: NextRequest) {
     const raw = partText;
     const parsed = parseGeminiModelObject(raw);
     if (!parsed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[api/analyze] RESULT_JSON raw head:', raw.slice(0, 2500));
+      }
       return NextResponse.json(
         apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러 주세요.', 'RESULT_JSON'),
         { status: 500 }
@@ -199,7 +220,18 @@ export async function POST(request: NextRequest) {
 
     const dailyQuestProductMatch = questTargetValid && parsed.dailyQuestProductMatch === true;
 
-    const core = buildAnalysisResultFromGeminiObject(parsed, { dailyQuestProductMatch });
+    let core: ReturnType<typeof buildAnalysisResultFromGeminiObject>;
+    try {
+      core = buildAnalysisResultFromGeminiObject(parsed, { dailyQuestProductMatch });
+    } catch (buildErr) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[api/analyze] buildAnalysisResultFromGeminiObject', buildErr);
+      }
+      return NextResponse.json(
+        apiErrorBody('결과를 가공하는 데 실패했어요. 다시 시도해 주세요.', 'BUILD_RESULT'),
+        { status: 500 }
+      );
+    }
 
     const result = {
       ...core,
@@ -210,6 +242,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[api/analyze] SERVER', e);
+    }
     return NextResponse.json(apiErrorBody(message, 'SERVER'), { status: 500 });
   }
 }
