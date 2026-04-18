@@ -3,8 +3,17 @@
  * SDK 예시의 `models/gemini-2.5-flash` 형태도 허용 — 내부에서 접두어만 제거.
  */
 
+/**
+ * 예전 문서·환경 변수에만 있던 이름 → 현재 API(v1beta)에 노출된 ID.
+ * `GEMINI_ANALYSIS_MODEL=gemini-3.1-flash-lite`처럼 `-preview` 없이 넣어도 동작하게 한다.
+ */
+const GEMINI_MODEL_ID_ALIASES: Record<string, string> = {
+  'gemini-3.1-flash-lite': 'gemini-3.1-flash-lite-preview',
+};
+
 export function normalizeGeminiModelId(id: string): string {
-  return id.replace(/^models\//, '').trim();
+  const base = id.replace(/^models\//, '').trim();
+  return GEMINI_MODEL_ID_ALIASES[base] ?? base;
 }
 
 function modelFromEnv(envName: string, fallback: string): string {
@@ -15,10 +24,13 @@ function modelFromEnv(envName: string, fallback: string): string {
 
 /**
  * `/api/analyze`, `/api/compare` 등 generateContent 공통 모델. (`/api/quiz`는 `lib/gemini-prompts`의 `GEMINI_MODEL` 사용)
- * 기본은 **gemini-3.1-flash-lite**.
- * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-3.1-flash-lite)로 지정.
+ * 기본은 **gemini-3.1-flash-lite-preview** (Google AI API 문서의 모델 ID 그대로).
+ * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-3.1-flash-lite-preview, gemini-2.5-flash)로 지정.
  */
-export const ANALYSIS_GEMINI_MODEL = modelFromEnv('GEMINI_ANALYSIS_MODEL', 'gemini-3.1-flash-lite');
+export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
+  'GEMINI_ANALYSIS_MODEL',
+  'gemini-3.1-flash-lite-preview',
+);
 
 /**
  * 기본 모델이 503·429 등으로 실패할 때 `generateContent` 재시도용 모델.
