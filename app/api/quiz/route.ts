@@ -13,15 +13,10 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
+import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
-
-function requireClientId(clientId: string): void {
-  if (!clientId || String(clientId).trim().length < 8) {
-    throw new Error('잠깐만요, 이 기기 정보가 없어요.');
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,8 +29,13 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const clientId = String(body.clientId || '').trim();
-    requireClientId(clientId);
+    const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
+    if (!clientId || clientId.length < 8) {
+      return NextResponse.json(
+        apiErrorBody('잠깐만요, 이 기기 정보가 없어요.', 'BAD_CLIENT_ID'),
+        { status: 400 }
+      );
+    }
 
     const ymd = toLocalYmd(new Date());
     const h = Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquiz`));
@@ -67,9 +67,7 @@ export async function POST(request: NextRequest) {
 
     const text = await res.text();
     if (!res.ok) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[api/quiz] Gemini HTTP', res.status, text.slice(0, 1500));
-      }
+      logGeminiHttpError('api/quiz', res.status, text);
       const clientStatus = res.status >= 400 && res.status < 600 ? res.status : 502;
       const upstreamCode = geminiErrorCodeFromBody(text);
       return NextResponse.json(

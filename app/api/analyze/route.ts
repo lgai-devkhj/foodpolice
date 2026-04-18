@@ -20,6 +20,8 @@ import {
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
 import { ANALYSIS_MAX_OUTPUT_TOKENS } from '@/lib/gemini-models';
+import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
+
 /** 이미지→텍스트·K-NOVA: 단일 멀티모달 호출 (`GEMINI_MODEL`). 웹 그라운딩은 `/api/alternatives`만 사용. */
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -42,12 +44,6 @@ interface AnalyzeBody {
   };
   /** 오늘 첫 퀘스트 미션 식품(8종 중 하나). 있으면 AI가 일치 여부를 판단 */
   dailyQuestTarget?: string;
-}
-
-function requireClientId(clientId: string): void {
-  if (!clientId || String(clientId).trim().length < 8) {
-    throw new Error('잠깐만요, 이 기기 정보가 없어요.');
-  }
 }
 
 function profileToPersonalization(profile?: AnalyzeBody['profile']): PersonalizationInput | undefined {
@@ -73,7 +69,6 @@ export async function POST(request: NextRequest) {
       );
     }
     const {
-      clientId,
       imageBase64,
       mimeType = 'image/jpeg',
       rawImageBase64,
@@ -83,7 +78,13 @@ export async function POST(request: NextRequest) {
       profile,
       dailyQuestTarget: dailyQuestTargetRaw,
     } = body;
-    requireClientId(clientId);
+    const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
+    if (!clientId || clientId.length < 8) {
+      return NextResponse.json(
+        apiErrorBody('잠깐만요, 이 기기 정보가 없어요.', 'BAD_CLIENT_ID'),
+        { status: 400 }
+      );
+    }
     const dailyQuestTarget =
       typeof dailyQuestTargetRaw === 'string' ? dailyQuestTargetRaw.trim() : '';
     const questTargetValid = (DAILY_QUEST_ANALYZE_LABELS as readonly string[]).includes(
@@ -136,9 +137,7 @@ export async function POST(request: NextRequest) {
 
     const text = await res.text();
     if (!res.ok) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[api/analyze] Gemini HTTP', res.status, text.slice(0, 1500));
-      }
+      logGeminiHttpError('api/analyze', res.status, text);
       const clientStatus = res.status >= 400 && res.status < 600 ? res.status : 502;
       const upstreamCode = geminiErrorCodeFromBody(text);
       return NextResponse.json(

@@ -1172,6 +1172,8 @@ export default function App() {
   const [showInfoCriteria, setShowInfoCriteria] = useState(false);
   const [showInfoPhoto, setShowInfoPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** 분석·비교 API가 이미 진행 중이면 중복 호출 방지(연속 탭 등). setLoading보다 먼저 막음 */
+  const geminiRequestInFlightRef = useRef(false);
   const [loadingText, setLoadingText] = useState('라벨 읽고 있어요');
   const [error, setError] = useState('');
   const [currentResult, setCurrentResult] = useState<AnalysisResult | null>(null);
@@ -1569,6 +1571,8 @@ export default function App() {
   const runAnalyze = useCallback(
     async (base64: string, mimeType: string) => {
       if (!clientId) return;
+      if (geminiRequestInFlightRef.current) return;
+      geminiRequestInFlightRef.current = true;
       setLoading(true);
       setLoadingText('분석하고 있어요');
       setError('');
@@ -1639,6 +1643,7 @@ export default function App() {
       } catch (err) {
         setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
+        geminiRequestInFlightRef.current = false;
         setLoading(false);
       }
     },
@@ -1653,6 +1658,8 @@ export default function App() {
       nutritionMimeType: string
     ) => {
       if (!clientId) return;
+      if (geminiRequestInFlightRef.current) return;
+      geminiRequestInFlightRef.current = true;
       setLoading(true);
       setLoadingText('분석하고 있어요');
       setError('');
@@ -1728,6 +1735,7 @@ export default function App() {
       } catch (err) {
         setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
       } finally {
+        geminiRequestInFlightRef.current = false;
         setLoading(false);
       }
     },
@@ -1740,6 +1748,8 @@ export default function App() {
       pairB: { raw: string; rawMime: string; nut: string; nutMime: string }
     ) => {
       if (!clientId) return;
+      if (geminiRequestInFlightRef.current) return;
+      geminiRequestInFlightRef.current = true;
       setLoading(true);
       setLoadingText('두 제품 비교 중이에요');
       setError('');
@@ -1836,6 +1846,7 @@ export default function App() {
       } catch (err) {
         setError(err instanceof Error ? err.message : '비교에 실패했어요. 다시 시도해 볼까요?');
       } finally {
+        geminiRequestInFlightRef.current = false;
         setLoading(false);
       }
     },
