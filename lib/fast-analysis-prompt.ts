@@ -33,7 +33,11 @@ export function buildFastAnalysisUserPromptFromOcrText(ocrText: string, hasTwoIm
     '{"processingLevel":"…","flaggedIngredients":["…"],"correctedOcrText":"…"}',
     'processingLevel: "1","2","3","4A","4B","4C" 중 하나.',
     'flaggedIngredients: 주의 성분명 최대 2개(보정된 표기로), 없으면 [].',
-    'correctedOcrText: 위 OCR 전체를 읽기 쉽게 고친 한국어 텍스트(줄바꿈 유지 가능). 너무 길면 앞부분 위주. 불확실하면 빈 문자열 "".',
+    'correctedOcrText 규칙:',
+    '- OCR에 보이는 글자·숫자·단위(kcal, g, mg 등)를 우선 살리고, 깨진 글자·오타만 문맥상 고친다.',
+    '- "[정보 불명]", "정보 없음", "불명", "해당 없음" 같은 플레이스홀더는 절대 쓰지 말 것. 읽기 어려운 줄은 생략하거나 OCR 원문을 유지한다.',
+    '- 라벨을 "제품명: … 원재료명: …"처럼 양식에 맞춰 새로 짜지 말고, 실제 패키지 문구 순서에 가깝게 줄만 다듬는다.',
+    '- 너무 길면 앞부분 위주. 정말 보정할 내용이 없으면 correctedOcrText는 빈 문자열 "".',
     '위 세 키만 사용하고 다른 키는 넣지 말 것.',
   ].join('\n');
 }

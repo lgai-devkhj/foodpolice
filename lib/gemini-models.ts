@@ -61,8 +61,11 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
 
 export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
 
-/** 빠른 분석(Gemini 텍스트 분석 단계) — `correctedOcrText` 포함 시 길어질 수 있음 */
+/** 빠른 분석 — Gemini 2차(분석·correctedOcrText) */
 export const FAST_ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('FAST_ANALYSIS_MAX_OUTPUT_TOKENS', 1536);
+
+/** 빠른 분석 — Gemini 1차(이미지→extractedText JSON) */
+export const FAST_OCR_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('FAST_OCR_MAX_OUTPUT_TOKENS', 2048);
 
 /**
  * 시연용 단일 Gemini 호출 — 워터폴 없이 이 모델만 사용.

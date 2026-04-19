@@ -1230,7 +1230,7 @@ function BirthYearSelect({
 
 /**
  * 라벨·영양표 촬영에는 720p 전후면 충분. 1080p 이상을 강하게 요구하면 AF가 늦게 잡히는 기기가 많다.
- * (촬영 후 `encodeImageForFastAnalysis`에서 긴 변 ~896px·~300KB로 축소)
+ * (촬영 후 `encodeImageForFastAnalysis`에서 긴 변 ~640px·~200KB로 축소)
  */
 const CAMERA_PREVIEW_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,

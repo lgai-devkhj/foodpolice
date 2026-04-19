@@ -1,10 +1,10 @@
 /**
- * 시연용 빠른 분석:
- * 1) Tesseract.js — 이미지에서 OCR 텍스트
- * 2) Gemini 1회 — 텍스트만으로 `processingLevel` + `flaggedIngredients`
+ * 시연용 빠른 분석 — Gemini **2회** (Tesseract 없음):
+ * 1) 멀티모달: 낮은 화질 이미지 → OCR JSON (`extractedText`)
+ * 2) 텍스트만: `processingLevel` + `flaggedIngredients` + 선택 `correctedOcrText`
  */
-import { parseAndValidateFastAnalysisJson } from '@/lib/fast-analysis-json';
-import { buildFastAnalysisUserPromptFromOcrText } from '@/lib/fast-analysis-prompt';
+import { parseAndValidateFastAnalysisJson, parseGeminiOcrExtractedText } from '@/lib/fast-analysis-json';
+import { buildFastAnalysisUserPromptFromOcrText, buildFastGeminiOcrPrompt } from '@/lib/fast-analysis-prompt';
 import { mapFastPayloadToAnalysisResult } from '@/lib/fast-analysis-mapper';
 import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
 import { fetchGeminiGenerateContentOnce, type GeminiFetchWithFallbackResult } from '@/lib/gemini-fetch-with-fallback';
@@ -13,13 +13,13 @@ import {
   getGeminiPromptBlockReason,
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
-import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
+import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
 import {
   FAST_ANALYSIS_GEMINI_MODEL,
   FAST_ANALYSIS_MAX_OUTPUT_TOKENS,
+  FAST_OCR_MAX_OUTPUT_TOKENS,
   isGemini3FamilyModelId,
 } from '@/lib/gemini-models';
-import { tesseractExtractFromBase64Images } from '@/lib/tesseract-ocr';
 import type { AnalysisResult } from '@/lib/store';
 
 export type FastAnalyzePipelineError = {
@@ -42,12 +42,28 @@ function buildThinkingGemini3() {
     : {};
 }
 
+function buildOcrGenerationConfig() {
+  return generationConfigJsonMode({
+    maxOutputTokens: FAST_OCR_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    ...buildThinkingGemini3(),
+  });
+}
+
 function buildAnalysisGenerationConfig() {
   return generationConfigJsonMode({
     maxOutputTokens: FAST_ANALYSIS_MAX_OUTPUT_TOKENS,
     temperature: 0,
     ...buildThinkingGemini3(),
   });
+}
+
+function buildOcrGenerationBody(hasTwoImages: boolean, imageParts: ReturnType<typeof inlineDataPart>[]) {
+  const prompt = buildFastGeminiOcrPrompt(hasTwoImages);
+  return {
+    contents: [{ parts: [...imageParts, textPart(prompt)] }],
+    generationConfig: buildOcrGenerationConfig(),
+  };
 }
 
 function buildGenerationBodyTextOnly(ocrText: string, hasTwoImages: boolean) {
@@ -158,26 +174,20 @@ export async function runFastAnalysisPipeline(
   hasTwoImages: boolean,
   images: FastAnalysisImageInput[],
 ): Promise<{ result: AnalysisResult } | { error: FastAnalyzePipelineError }> {
-  const items =
-    images.length >= 2
-      ? [
-          { label: '[원재료/성분]', base64: images[0]!.base64 },
-          { label: '[영양표]', base64: images[1]!.base64 },
-        ]
-      : [{ label: '[라벨]', base64: images[0]!.base64 }];
+  const imageParts = images.map((im) => inlineDataPart(im.mimeType, im.base64));
+  const ocrBody = buildOcrGenerationBody(hasTwoImages, imageParts);
 
-  const ocr = await tesseractExtractFromBase64Images(items);
-  if ('error' in ocr) {
-    return {
-      error: {
-        message: '글자 인식(Tesseract)에 실패했어요. 잠시 뒤 다시 시도해요.',
-        code: ocr.error.code,
-        status: 502,
-      },
-    };
-  }
+  const ocrUpstream = await fetchGeminiGenerateContentOnce(
+    FAST_ANALYSIS_GEMINI_MODEL,
+    geminiKey,
+    ocrBody,
+    'api/analyze:fast:ocr',
+  );
 
-  const ocrText = ocr.text.trim();
+  const ocrPt = partTextFromUpstream(ocrUpstream);
+  if ('error' in ocrPt) return ocrPt;
+
+  const ocrText = parseGeminiOcrExtractedText(ocrPt.partText);
   if (!ocrText || ocrText.length < MIN_OCR_CHARS) {
     return {
       error: {

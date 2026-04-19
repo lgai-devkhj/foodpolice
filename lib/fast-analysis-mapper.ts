@@ -14,7 +14,7 @@ function novaFromLevel(level: string): { novaGroup: number; novaSubgroup?: strin
 }
 
 export type MapFastPayloadOptions = {
-  /** Vision OCR 등으로 추출한 원재료·라벨 텍스트(표시용) */
+  /** 1차(Gemini OCR) 등으로 추출한 원재료·라벨 텍스트(표시용) */
   rawMaterialsFromOcr?: string;
 };
 

@@ -3,10 +3,10 @@
  * (브라우저 전용; App.tsx 등 클라이언트에서만 import)
  */
 
-/** 시연 빠른 분석: 512~1024 권장 — 긴 변 기준(토큰·지연 최소화). */
-const MAX_EDGE_FAST_PX = 896;
+/** 시연 빠른 분석: 화질·용량 낮춰 멀티모달 토큰·업로드 시간 절감 */
+const MAX_EDGE_FAST_PX = 640;
 /** 시연 모드 JPEG 상한(바이트) — 초과 시 품질·해상도 순으로 낮춤 */
-const FAST_TARGET_MAX_BYTES = 300 * 1024;
+const FAST_TARGET_MAX_BYTES = 200 * 1024;
 
 function approxBytesFromBase64(b64: string): number {
   return Math.floor((b64.length * 3) / 4);
@@ -106,7 +106,7 @@ export async function encodeImageForAnalysis(
 }
 
 /**
- * `/api/analyze` 시연 빠른 분석 전용: 긴 변 896px 이하 + 약 300KB 이하가 되도록 JPEG 품질 조정.
+ * `/api/analyze` 시연 빠른 분석 전용: 긴 변 640px 이하 + 약 200KB 이하가 되도록 JPEG 품질 조정.
  */
 export async function encodeImageForFastAnalysis(
   base64: string,
@@ -152,15 +152,15 @@ export async function encodeImageForFastAnalysis(
               tryEncode(q - 0.09, edgePx);
               return;
             }
-            if (edgePx > 512) {
-              const nextEdge = Math.max(512, Math.floor(edgePx * 0.85));
+            if (edgePx > 480) {
+              const nextEdge = Math.max(480, Math.floor(edgePx * 0.85));
               const sc = nextEdge / Math.max(w, h);
               canvas.width = Math.max(1, Math.round(w * sc));
               canvas.height = Math.max(1, Math.round(h * sc));
               const c2 = canvas.getContext('2d');
               if (c2) {
                 c2.drawImage(img, 0, 0, canvas.width, canvas.height);
-                tryEncode(0.72, nextEdge);
+                tryEncode(0.58, nextEdge);
               } else {
                 resolve({ base64: b64 || base64, mimeType: 'image/jpeg' });
               }
@@ -171,7 +171,7 @@ export async function encodeImageForFastAnalysis(
           .catch(() => resolve({ base64, mimeType: mime }));
       };
 
-      tryEncode(0.74, MAX_EDGE_FAST_PX);
+      tryEncode(0.58, MAX_EDGE_FAST_PX);
     };
     img.onerror = () => resolve({ base64, mimeType: mime });
     img.src = dataUrl;
