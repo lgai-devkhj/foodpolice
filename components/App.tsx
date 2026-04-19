@@ -1672,7 +1672,7 @@ export default function App() {
 
       let toss: { remaining: number; progress: number } | null = null;
       if (analysisFlow && currentHistoryId) {
-        const item = getHistory(clientId).find((h) => h.id === currentHistoryId);
+        const item = history.find((h) => h.id === currentHistoryId);
         if (
           item &&
           item.entryKind !== 'compare' &&
@@ -1683,7 +1683,7 @@ export default function App() {
           toss = { remaining: rem, progress: Math.min(1, elapsed / MIN_VIEW_SECONDS_FOR_XP) };
         }
       } else if (compareFlow && compareHistoryId) {
-        const item = getHistory(clientId).find((h) => h.id === compareHistoryId);
+        const item = history.find((h) => h.id === compareHistoryId);
         if (
           item &&
           item.entryKind === 'compare' &&
@@ -1723,6 +1723,7 @@ export default function App() {
     showCompareResult,
     currentHistoryId,
     compareHistoryId,
+    history,
     flashXpGain,
     refreshHistory,
   ]);
@@ -3976,18 +3977,25 @@ export default function App() {
       )}
 
       {xpGrantToss && (showResult || showCompareResult) && (
-        <div className="xp-grant-toss-strip" role="status" aria-live="polite">
-          <div className="xp-grant-toss-track" aria-hidden>
-            <div
-              className="xp-grant-toss-fill"
-              style={{ transform: `scaleX(${xpGrantToss.progress})` }}
-            />
+        <div className="xp-grant-toast-anchor">
+          <div className="xp-grant-toast" role="status" aria-live="polite">
+            <div className="xp-grant-toast-body">
+              <span className="xp-grant-toast-icon" aria-hidden>
+                <IconFlame size={20} strokeWidth={2.4} />
+              </span>
+              <p className="xp-grant-toast-msg">
+                {xpGrantToss.remaining > 0
+                  ? `XP까지 약 ${xpGrantToss.remaining}초 남았어요`
+                  : '곧 XP가 적립돼요'}
+              </p>
+            </div>
+            <div className="xp-grant-toast-meter" aria-hidden>
+              <div
+                className="xp-grant-toast-meter-fill"
+                style={{ width: `${Math.round(xpGrantToss.progress * 100)}%` }}
+              />
+            </div>
           </div>
-          <p className="xp-grant-toss-text">
-            {xpGrantToss.remaining > 0
-              ? `상품을 확인하는 중 · XP까지 약 ${xpGrantToss.remaining}초`
-              : '곧 XP가 적립돼요'}
-          </p>
         </div>
       )}
 

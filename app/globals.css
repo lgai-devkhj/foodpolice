@@ -434,52 +434,101 @@
       font-size: 1.1rem;
       min-width: 1ch;
     }
-    /* 상단 토스형: 결과 화면에서 XP 지급까지 남은 시간 */
-    .xp-grant-toss-strip {
+    /* 토스형 캡슐 토스트: XP 지급까지 남은 시간 */
+    .xp-grant-toast-anchor {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
       z-index: 125;
-      padding: var(--safe-top, env(safe-area-inset-top, 0px)) 0 0;
-      background: linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.97) 0%,
-        rgba(255, 255, 255, 0.88) 100%
-      );
-      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      display: flex;
+      justify-content: center;
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+      padding-top: max(10px, calc(env(safe-area-inset-top, 0px) + 6px));
       pointer-events: none;
     }
-    [data-theme='dark'] .xp-grant-toss-strip {
-      background: linear-gradient(180deg, rgba(28, 32, 30, 0.98) 0%, rgba(22, 26, 24, 0.92) 100%);
-      border-bottom-color: rgba(255, 255, 255, 0.08);
+    .xp-grant-toast {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-width: min(92vw, 340px);
+      max-width: min(92vw, 400px);
+      padding: 11px 18px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.65) inset;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      animation: xp-grant-toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
-    .xp-grant-toss-track {
+    [data-theme='dark'] .xp-grant-toast {
+      background: rgba(38, 42, 40, 0.92);
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    }
+    .xp-grant-toast-body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .xp-grant-toast-icon {
+      flex-shrink: 0;
+      display: flex;
+      color: #f57c00;
+      filter: drop-shadow(0 0 6px rgba(255, 152, 0, 0.35));
+    }
+    [data-theme='dark'] .xp-grant-toast-icon {
+      color: #ffcc80;
+    }
+    .xp-grant-toast-msg {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.35;
+      color: #1a1a1a;
+      text-align: center;
+    }
+    [data-theme='dark'] .xp-grant-toast-msg {
+      color: rgba(255, 255, 255, 0.92);
+    }
+    .xp-grant-toast-meter {
+      margin-top: 8px;
       height: 3px;
-      margin: 0 12px;
-      border-radius: 2px;
-      background: rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.07);
       overflow: hidden;
     }
-    [data-theme='dark'] .xp-grant-toss-track {
-      background: rgba(255, 255, 255, 0.1);
+    [data-theme='dark'] .xp-grant-toast-meter {
+      background: rgba(255, 255, 255, 0.12);
     }
-    .xp-grant-toss-fill {
+    .xp-grant-toast-meter-fill {
       height: 100%;
-      width: 100%;
-      transform-origin: left center;
-      border-radius: 2px;
-      background: linear-gradient(90deg, #29b6f6 0%, #5c6bc0 55%, #7e57c2 100%);
-      transition: transform 0.18s linear;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #29b6f6 0%, #5c6bc0 50%, #7e57c2 100%);
+      transition: width 0.18s linear;
     }
-    .xp-grant-toss-text {
-      margin: 6px 16px 10px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text2);
-      text-align: center;
-      letter-spacing: -0.02em;
+    @keyframes xp-grant-toast-in {
+      from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .xp-grant-toast {
+        animation: none;
+      }
     }
 
     .xp-week-panel .sheet-title {
@@ -1749,7 +1798,7 @@
       padding-bottom: calc(24px + var(--safe-bottom));
     }
     .compare-result-overlay--xp-toss {
-      padding-top: calc(44px + env(safe-area-inset-top, 0px));
+      padding-top: calc(76px + env(safe-area-inset-top, 0px));
     }
     .compare-result-panel {
       width: 100%;
@@ -2343,7 +2392,7 @@
       box-sizing: border-box;
     }
     #resultView.result-view--xp-toss {
-      padding-top: calc(40px + env(safe-area-inset-top, 0px));
+      padding-top: calc(72px + env(safe-area-inset-top, 0px));
     }
     #homeView.hidden { display: none; }
     #resultView.visible { display: flex; }

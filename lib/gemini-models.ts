@@ -28,13 +28,13 @@ function modelFromEnv(envName: string, fallback: string): string {
 }
 
 /**
- * `/api/analyze`, `/api/compare` 등 generateContent 공통 모델. (`/api/quiz`는 `lib/gemini-prompts`의 `GEMINI_MODEL` 사용)
- * 기본은 **gemini-3.1-flash-lite-preview** (Google AI API 문서의 모델 ID 그대로).
- * 다른 모델을 쓰려면 `GEMINI_ANALYSIS_MODEL`(예: gemini-3.1-flash-lite-preview, gemini-2.5-flash)로 지정.
+ * `/api/analyze`, `/api/quiz` 등 `GEMINI_MODEL`로 쓰는 기본 모델.
+ * 지연을 줄이기 위해 기본값은 **gemini-2.5-flash**. 더 무거운 3.x 라이트를 쓰려면
+ * `GEMINI_ANALYSIS_MODEL=gemini-3.1-flash-lite-preview` 등으로 지정.
  */
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',
-  'gemini-3.1-flash-lite-preview',
+  'gemini-2.5-flash',
 );
 
 /**
@@ -42,6 +42,11 @@ export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
  * (환경 변수로 덮어쓰지 않음 — 안정성 우선 고정값)
  */
 export const GEMINI_FALLBACK_FLASH_MODEL = 'gemini-2.5-flash';
+
+/**
+ * primary가 이미 `GEMINI_FALLBACK_FLASH_MODEL`과 같을 때(예: 기본 분석 모델이 2.5-flash) 재시도용 대안.
+ */
+export const GEMINI_ALTERNATE_FALLBACK_MODEL = 'gemini-3.1-flash-lite-preview';
 
 /**
  * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.
