@@ -369,7 +369,7 @@ export function getCompareFourImagesPrompt(
     '4) 제품 B 영양정보 표\n\n' +
 
     '[제품별 추출]\n' +
-    '- 최상위 JSON 키 이름은 반드시 정확히 "productA", "productB" 두 개만 사용한다(스네이크 케이스·다른 이름·배열 하나에 두 제품 넣기 금지).\n' +
+    '- 최상위 키 이름은 반드시 정확히 "productA", "productB" 두 개만 사용한다(다른 이름·한 배열에 두 제품 넣기 금지).\n' +
     '- productA와 productB는 단일 제품 분석과 동일한 필드·규칙을 따른다.\n' +
     '- 각 제품의 nutrition은 표가 보이면 숫자 필드와 tableRows를 채우고, 없으면 null이다.\n' +
     '- OCR 보정은 의미 유지 범위에서만 허용한다.\n\n' +
@@ -378,7 +378,7 @@ export function getCompareFourImagesPrompt(
     '- betterChoice: "A" | "B" | "similar" 중 하나.\n' +
     '- 기본적으로 한국형 NOVA 단계가 더 낮은 쪽을 고른다.\n' +
     '- 같은 novaGroup이면 당류, 나트륨, 포화지방이 더 유리한 쪽을 우선한다.\n' +
-    '- 둘 다 Group IV면 4A → 4B → 4C 순으로 덜 강한 가공을 선호한다.\n' +
+    '- 둘 다 NOVA 4단계(초가공)이면 4A → 4B → 4C 순으로 덜 강한 가공을 선호한다.\n' +
     '- comparisonSummary: 3~5문장, 쉬운 한국어·토스 말투(-요). 두 제품의 NOVA·영양 차이와 왜 한쪽이 더 나은 선택인지 또는 비슷한지 설명한다.\n' +
     '- recommendationLine: 한 줄 요약.\n' +
     '- 카테고리가 완전히 달라 직접 비교가 어렵거나 정보가 부족하면 "similar"를 사용할 수 있다.\n' +

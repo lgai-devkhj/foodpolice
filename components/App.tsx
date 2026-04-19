@@ -297,7 +297,7 @@ type TutorialFocusDecoration =
   | { kind: 'ring'; rect: CoachRect }
   | null;
 
-/** 비교 결과 패널: 단일 제품 NOVA + Group IV 시 4A·4B·4C 그래프(분석 결과와 동일) */
+/** 비교 결과 패널: 단일 제품 NOVA + 4단계(초가공)일 때 4A·4B·4C 그래프(분석 결과와 동일) */
 function CompareProductNovaCard({ label, result }: { label: string; result: AnalysisResult }) {
   const nova = result.novaGroup || 4;
   const sub = (result.novaSubgroup || '').trim().toUpperCase();
@@ -729,8 +729,8 @@ function buildAlternativeFoodHtml(
             (fromWebSearch
               ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
               : engineFallback
-                ? '웹 검색으로 실제 판매 제품을 찾지 못해, 앱 안 추천 엔진으로 비슷한 맥락의 방향만 잡았어요. 링크는 검색용이에요. 사기 전에 라벨을 확인해 주세요.'
-                : '먹는 맥락(유형)·라벨 분석을 바탕으로 한 참고용 유형 제안이에요. 특정 브랜드 SKU가 아니라, 마트에서 같은 축으로 찾을 만한 방향이에요. 링크는 검색용이에요.') +
+                ? '웹 검색으로 실제 판매 제품을 찾지 못해, 앱이 비슷한 맥락의 방향만 잡아 드렸어요. 링크는 검색용이에요. 사기 전에 라벨을 확인해 주세요.'
+                : '어떻게 먹는지·라벨 분석을 바탕으로 한 참고용 제안이에요. 특정 브랜드 제품 하나를 집어 말하는 게 아니라, 마트에서 비슷한 줄로 찾아볼 만한 방향이에요. 링크는 검색용이에요.') +
             '</p>';
           return '<div class="alt-block">' + topMeta.join('') + `<div class="alt-grid">${grid}</div>` + disclaimer + '</div>';
         }
@@ -1656,20 +1656,21 @@ export default function App() {
     [],
   );
 
-  const [xpRewardFx, setXpRewardFx] = useState<{ id: number; amount: number } | null>(null);
+  /** XP 적립 순간 — `xp-grant-toast` 캡슐에만 표시(전체 화면 연출과 통합) */
+  const [xpGrantCelebrate, setXpGrantCelebrate] = useState<{ id: number; amount: number } | null>(null);
   const [questRewardFx, setQuestRewardFx] = useState<{ id: number; title: string } | null>(null);
-  const xpRewardFxIdRef = useRef(0);
+  const xpGrantCelebrateIdRef = useRef(0);
   const questRewardFxIdRef = useRef(0);
 
-  /** 저장 직후 `getTotalXp` 기준으로 이번에 오른 XP만큼 상단 연출 */
+  /** 저장 직후 `getTotalXp` 기준으로 이번에 오른 XP만큼 상단 캡슐 연출 */
   const flashXpGain = useCallback((prevXp: number) => {
     if (!clientId) return;
     const delta = getTotalXp(clientId) - prevXp;
     if (delta <= 0) return;
-    const id = ++xpRewardFxIdRef.current;
-    setXpRewardFx({ id, amount: delta });
+    const id = ++xpGrantCelebrateIdRef.current;
+    setXpGrantCelebrate({ id, amount: delta });
     window.setTimeout(() => {
-      setXpRewardFx((c) => (c?.id === id ? null : c));
+      setXpGrantCelebrate((c) => (c?.id === id ? null : c));
     }, 2600);
   }, [clientId]);
 
@@ -3563,19 +3564,6 @@ export default function App() {
               <span className={`step-dot ${captureStep === 1 ? 'active' : ''}`}>1</span>
               <span className="step-sep">/</span>
               <span className={`step-dot ${captureStep === 2 ? 'active' : ''}`}>2</span>
-              <span className="step-text">
-                {homeProductMode === 'compare'
-                  ? compareSlot === 'A'
-                    ? captureStep === 1
-                      ? '1/4 · 제품 A 원재료'
-                      : '2/4 · 제품 A 영양표'
-                    : captureStep === 1
-                      ? '3/4 · 제품 B 원재료'
-                      : '4/4 · 제품 B 영양표'
-                  : captureStep === 1
-                    ? '1단계 · 원재료 촬영'
-                    : '2단계 · 영양정보 표 촬영'}
-              </span>
             </div>
             <div className="camera-bottom-row">
               <button
@@ -3624,19 +3612,6 @@ export default function App() {
                 영양정보 표 없음
               </button>
             )}
-            <p className="camera-hint">
-              {homeProductMode === 'compare'
-                ? compareSlot === 'A'
-                  ? captureStep === 1
-                    ? '1/4: 제품 A 원재료'
-                    : '2/4: 제품 A 영양표'
-                  : captureStep === 1
-                    ? '3/4: 제품 B 원재료'
-                    : '4/4: 제품 B 영양표'
-                : captureStep === 1
-                  ? '1/2: 포장 뒷면(원재료) 촬영'
-                  : '2/2: 영양정보 표 촬영'}
-            </p>
             <p className="camera-hint-sub">지금은 한국어만 분석할 수 있어요</p>
           </div>
         </div>
@@ -3652,19 +3627,11 @@ export default function App() {
           }
         >
           <div id="tutorial-capture-overlay-card" className="capture-step-overlay-card">
-            <p className="capture-step-overlay-badge" aria-hidden>
-              {homeProductMode === 'compare' && showTutorial
-                ? compareSlot === 'A'
-                  ? captureStepGuide === 1
-                    ? '1 / 4'
-                    : '2 / 4'
-                  : captureStepGuide === 1
-                    ? '3 / 4'
-                    : '4 / 4'
-                : captureStepGuide === 1
-                  ? '1 / 2'
-                  : '2 / 2'}
-            </p>
+            {homeProductMode !== 'compare' && (
+              <p className="capture-step-overlay-badge" aria-hidden>
+                {captureStepGuide === 1 ? '1 / 2' : '2 / 2'}
+              </p>
+            )}
             {captureStepGuide === 1 ? (
               <>
                 <h2 id="capture-step-overlay-title-1" className="capture-step-overlay-title">
@@ -3742,19 +3709,6 @@ export default function App() {
             className="capture-preview-img"
             onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
           />
-          <p style={{ margin: '14px 0 0', color: 'var(--text2)', fontWeight: 700, textAlign: 'center' }}>
-            {homeProductMode === 'compare'
-              ? compareSlot === 'A'
-                ? captureStep === 1
-                  ? '1/4 · 제품 A 원재료'
-                  : '2/4 · 제품 A 영양표'
-                : captureStep === 1
-                  ? '3/4 · 제품 B 원재료'
-                  : '4/4 · 제품 B 영양표'
-              : captureStep === 1
-                ? '1/2 · 원재료'
-                : '2/2 · 영양정보 표'}
-          </p>
           <div className="capture-preview-actions">
             <button type="button" className="capture-preview-btn retake" onClick={retakePhoto}>
               다시 촬영
@@ -4065,27 +4019,6 @@ export default function App() {
         </div>
       )}
 
-      {xpRewardFx && (
-        <div
-          key={xpRewardFx.id}
-          className="screen-reward-xp-overlay"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <div className="screen-reward-xp-sparks" aria-hidden>
-            {Array.from({ length: 10 }, (_, i) => (
-              <span key={i} className="screen-reward-xp-spark" />
-            ))}
-          </div>
-          <div className="screen-reward-xp-bubble">
-            <span className="screen-reward-xp-plus">+</span>
-            <span className="screen-reward-xp-num">{xpRewardFx.amount}</span>
-            <span className="screen-reward-xp-suffix">XP</span>
-          </div>
-        </div>
-      )}
-
       {questRewardFx && (
         <div
           key={questRewardFx.id}
@@ -4103,23 +4036,47 @@ export default function App() {
         </div>
       )}
 
-      {xpGrantToss && (showResult || showCompareResult) && (
+      {((xpGrantToss && (showResult || showCompareResult)) || xpGrantCelebrate) && (
         <div className="xp-grant-toast-anchor">
-          <div className="xp-grant-toast" role="status" aria-live="polite">
+          <div
+            className={`xp-grant-toast${xpGrantCelebrate ? ' xp-grant-toast--granted' : ''}`}
+            role="status"
+            aria-live="polite"
+            key={xpGrantCelebrate ? `g-${xpGrantCelebrate.id}` : 'progress'}
+          >
             <div className="xp-grant-toast-body">
               <span className="xp-grant-toast-icon" aria-hidden>
-                <IconFlame size={20} strokeWidth={2.4} />
+                {xpGrantCelebrate ? (
+                  <IconCheck size={20} strokeWidth={2.6} />
+                ) : (
+                  <IconFlame size={20} strokeWidth={2.4} />
+                )}
               </span>
-              <p className="xp-grant-toast-msg">
-                {xpGrantToss.remaining > 0
-                  ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
-                  : '곧 XP가 적립돼요'}
-              </p>
+              {xpGrantCelebrate ? (
+                <p className="xp-grant-toast-msg xp-grant-toast-msg--granted">
+                  <span className="xp-grant-toast-plus">+</span>
+                  <span className="xp-grant-toast-amt">{xpGrantCelebrate.amount}</span>
+                  <span className="xp-grant-toast-xp-label"> XP</span>
+                  <span className="xp-grant-toast-granted-suffix"> 적립</span>
+                </p>
+              ) : xpGrantToss ? (
+                <p className="xp-grant-toast-msg">
+                  {xpGrantToss.remaining > 0
+                    ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
+                    : '곧 XP가 적립돼요'}
+                </p>
+              ) : null}
             </div>
             <div className="xp-grant-toast-meter" aria-hidden>
               <div
                 className="xp-grant-toast-meter-fill"
-                style={{ width: `${Math.round(xpGrantToss.progress * 100)}%` }}
+                style={{
+                  width: xpGrantCelebrate
+                    ? '100%'
+                    : xpGrantToss
+                      ? `${Math.round(xpGrantToss.progress * 100)}%`
+                      : '0%',
+                }}
               />
             </div>
           </div>
@@ -4471,38 +4428,15 @@ export default function App() {
                   </span>
                 </div>
               </div>
-              <span className="fab-step-label">
-                {homeProductMode === 'compare'
-                  ? compareSlot === 'A'
-                    ? captureStep === 1
-                      ? uploadSource === 'gallery'
-                        ? '1/4 · 제품 A 원재료(앨범)'
-                        : '1/4 · 제품 A 원재료(촬영)'
-                      : uploadSource === 'gallery'
-                        ? '2/4 · 제품 A 영양표(앨범)'
-                        : '2/4 · 제품 A 영양표(촬영)'
-                    : captureStep === 1
-                      ? uploadSource === 'gallery'
-                        ? '3/4 · 제품 B 원재료(앨범)'
-                        : '3/4 · 제품 B 원재료(촬영)'
-                      : uploadSource === 'gallery'
-                        ? '4/4 · 제품 B 영양표(앨범)'
-                        : '4/4 · 제품 B 영양표(촬영)'
-                  : captureStep === 1
-                    ? uploadSource === 'gallery'
-                      ? '1/2 · 원재료(앨범 선택)'
-                      : '1/2 · 원재료(촬영)'
-                    : uploadSource === 'gallery'
-                      ? '2/2 · 영양정보 표(앨범 선택)'
-                      : '2/2 · 영양정보 표(촬영)'}
-              </span>
             </div>
           </div>
         </div>
 
         <div
           id="resultView"
-          className={`${showResult ? 'visible' : ''}${xpGrantToss && showResult ? ' result-view--xp-toss' : ''}`}
+          className={`${showResult ? 'visible' : ''}${
+            showResult && (xpGrantToss || xpGrantCelebrate) ? ' result-view--xp-toss' : ''
+          }`}
           style={{ display: showResult ? 'flex' : 'none' }}
         >
           <div className="result-toolbar">
@@ -4600,7 +4534,9 @@ export default function App() {
 
       {showCompareResult && compareApiResult && (
         <div
-          className={`compare-result-overlay${xpGrantToss ? ' compare-result-overlay--xp-toss' : ''}`}
+          className={`compare-result-overlay${
+            xpGrantToss || xpGrantCelebrate ? ' compare-result-overlay--xp-toss' : ''
+          }`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="compare-result-title"
@@ -5270,10 +5206,10 @@ export default function App() {
                 {NOVA_CLASSIFICATION_INTRO}
               </p>
               <p className="info-knova-intro-line">
-                Group IV는 4A·4B·4C로 더 나눠서 봐요. 4A는 재료 기반 경계형, 4B는 기능성 재구성형, 4C는 복합 첨가가 강한 고도형에 가까워요.
+                4단계(초가공)는 4A·4B·4C로 더 나눠서 봐요. 4A는 재료에 가깝게 남은 편, 4B는 가공·맛 조정이 분명한 편, 4C는 당·염·첨가가 강한 편에 가깝다고 보면 돼요.
               </p>
               <p className="info-knova-intro-line info-knova-intro-line--muted">
-                참고로 SIGA 체계도 초가공 식품을 세분해 보는 접근이에요. 이 앱은 한국형 NOVA를 기본으로 쓰되, Group IV 설명 톤은 SIGA 취지를 참고해요.
+                해외에서 쓰는 다른 분류 이름도 있지만, 이 앱은 한국형 NOVA를 기준으로 설명해요.
               </p>
               <p className="info-knova-intro-line info-knova-intro-line--muted">
                 아래는 그룹별로 자주 쓰는 설명이에요. 세부 기준은 논문·정책 문서랑 다를 수 있어요.

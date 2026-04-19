@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     const key = process.env.GEMINI_API_KEY;
     if (!key || key.length === 0) {
       return NextResponse.json(
-        apiErrorBody('Gemini API 키를 설정해 주세요. (환경 변수 GEMINI_API_KEY)', 'NO_API_KEY'),
+        apiErrorBody('AI 키가 서버에 설정돼 있지 않아요. 관리자에게 문의해 주세요.', 'NO_API_KEY'),
         { status: 500 }
       );
     }

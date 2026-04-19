@@ -1,8 +1,8 @@
 export const NOVA_NAMES: Record<number, string> = {
-  1: 'Group I (비가공·최소 가공)',
-  2: 'Group II (조리용 가공 재료)',
-  3: 'Group III (가공 식품)',
-  4: 'Group IV (초가공 식품)',
+  1: '1단계 · 비가공·최소 가공',
+  2: '2단계 · 조리용 가공 재료',
+  3: '3단계 · 가공 식품',
+  4: '4단계 · 초가공 식품',
 };
 
 /** 프로젝트 내 업로드 이미지 (public/images/) — 드라이브 미사용 */
@@ -20,7 +20,7 @@ export const NOVA_SHORT_REASON: Record<number, string> = {
   4: '원재료 구조 상실, 산업적 첨가물 다수 포함 등',
 };
 
-/** Group IV 세분화 (한국형 NOVA 보조 표기) */
+/** 4단계(초가공) 세분 (한국형 NOVA 보조 표기) */
 export const NOVA_SUBGROUP_NAMES: Record<string, string> = {
   '4A': '4A · 경계형 초가공',
   '4B': '4B · 명확한 초가공',

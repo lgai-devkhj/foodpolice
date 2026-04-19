@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GEMINI_MODEL, getDailyOxQuizPrompt } from '@/lib/gemini-prompts';
 import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
 import { hashStringFnv, toLocalYmd } from '@/lib/daily-quests';
+import { quizApiErrorFromGeminiUpstream } from '@/lib/gemini-http-error';
 import { apiErrorBody } from '@/lib/read-api-json';
 import {
   getGeminiCandidateText,
@@ -44,11 +45,16 @@ function clampQuizFromGemini(
   };
 }
 
-/** Gemini 성공 시 JSON, 실패·차단·파싱 실패 시 null */
-async function geminiOxQuizOrNull(
+type OxQuizGenResult =
+  | { kind: 'ok'; quiz: QuizJson }
+  | { kind: 'upstream'; status: number; bodyText: string }
+  | { kind: 'bad_response' };
+
+/** Gemini HTTP 실패 시 상태·본문을 넘겨 사용자 메시지 구분에 사용 */
+async function geminiOxQuizGenerate(
   questionType: 1 | 2 | 3,
   apiKey: string,
-): Promise<QuizJson | null> {
+): Promise<OxQuizGenResult> {
   const prompt = getDailyOxQuizPrompt(questionType);
   const requestBody = {
     contents: [{ parts: [textPart(prompt)] }],
@@ -69,25 +75,27 @@ async function geminiOxQuizOrNull(
     );
     const text = upstream.text;
     if (!upstream.ok) {
-      return null;
+      return { kind: 'upstream', status: upstream.status, bodyText: text };
     }
     let data: Record<string, unknown>;
     try {
       data = JSON.parse(text) as Record<string, unknown>;
     } catch {
-      return null;
+      return { kind: 'bad_response' };
     }
-    if (getGeminiPromptBlockReason(data) || !hasGeminiCandidates(data)) return null;
+    if (getGeminiPromptBlockReason(data) || !hasGeminiCandidates(data)) return { kind: 'bad_response' };
     const raw = getGeminiCandidateText(data);
-    if (!raw || typeof raw !== 'string') return null;
+    if (!raw || typeof raw !== 'string') return { kind: 'bad_response' };
     const parsed = parseGeminiModelObject(raw);
-    if (!parsed) return null;
-    return clampQuizFromGemini(parsed, questionType);
+    if (!parsed) return { kind: 'bad_response' };
+    const quiz = clampQuizFromGemini(parsed, questionType);
+    if (!quiz) return { kind: 'bad_response' };
+    return { kind: 'ok', quiz };
   } catch (e) {
     if (process.env.NODE_ENV === 'development') {
       console.error('[api/quiz] Gemini', e);
     }
-    return null;
+    return { kind: 'bad_response' };
   }
 }
 
@@ -118,14 +126,18 @@ export async function POST(request: NextRequest) {
     const key = process.env.GEMINI_API_KEY;
     if (!key || key.length === 0) {
       return NextResponse.json(
-        apiErrorBody('퀴즈를 만들려면 서버에 GEMINI_API_KEY가 필요해요.', 'NO_GEMINI_KEY'),
+        apiErrorBody('퀴즈를 만들려면 서버에 AI 키가 설정돼 있어야 해요.', 'NO_GEMINI_KEY'),
         { status: 503 },
       );
     }
 
-    const quiz = await geminiOxQuizOrNull(questionType, key);
-    if (quiz) {
-      return NextResponse.json(quiz);
+    const gen = await geminiOxQuizGenerate(questionType, key);
+    if (gen.kind === 'ok') {
+      return NextResponse.json(gen.quiz);
+    }
+    if (gen.kind === 'upstream') {
+      const err = quizApiErrorFromGeminiUpstream(gen.status, gen.bodyText);
+      return NextResponse.json(apiErrorBody(err.message, err.errorCode), { status: err.httpStatus });
     }
 
     return NextResponse.json(

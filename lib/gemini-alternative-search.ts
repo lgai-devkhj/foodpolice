@@ -68,7 +68,7 @@ const JSON_OUTPUT_SPEC =
   JSON.stringify(
     {
       currentFood: '현재 제품명과 동일',
-      processingStage: '예: Group 4 · 4A',
+      processingStage: '예: NOVA 4단계 · 세부 4A',
       alternatives: [
         {
           tier: 'slight',
@@ -133,7 +133,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     getAlternativeBmiHint(ctx.bmiTier) +
     '\n[핵심 기준]\n' +
     '- 모든 alternatives는 현재 제품보다 건강·가공 관점에서 더 나은 실제 유통품이어야 한다.\n' +
-    `- 비교 금지 대상 상품명: "${scanned || '(라벨 미확인)'}". 같은 제품, 같은 라인, 중량·용량·개입 수만 다른 변형은 절대 넣지 않는다.\n` +
+    `- 비교 금지: "${scanned || '(라벨 미확인)'}"와 **같은 제품**이거나, 같은 줄에서 **용량·개수만 다른 것**은 넣지 않는다.\n` +
     '- productName은 반드시 브랜드 + 공식 상품명으로 쓴다.\n' +
     '- 임의로 브랜드와 품목을 합성하지 않는다.\n' +
     '- reason은 토스 말투의 짧은 한 문장으로 쓴다.\n' +
@@ -155,10 +155,10 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
       ? '- 영양 숫자가 있으면 같은 식품군 안에서 당·나트륨·포화지방 등이 상대적으로 유리한 쪽을 우선한다.\n'
       : '') +
     (ctx.novaGroup === 3
-      ? '- 현재 제품이 Group III이면 더 덜 가공되고 원재료가 명확한 방향을 우선한다.\n'
+      ? '- 현재 제품이 NOVA 3단계(가공 식품)이면 더 덜 가공되고 원재료가 명확한 방향을 우선한다.\n'
       : ctx.novaGroup <= 2
-        ? '- 현재 제품이 Group I~II라도 같은 식품군의 실제 제품명만 추천한다.\n'
-        : '- 현재 제품이 Group IV면 한 단계 덜 가공된 방향을 고려하되 반드시 다른 SKU만 추천한다.\n') +
+        ? '- 현재 제품이 NOVA 1~2단계라도 같은 식품군의 실제 제품명만 추천한다.\n'
+        : '- 현재 제품이 NOVA 4단계(초가공)이면 한 단계 덜 가공된 방향을 고려하되, 이름이 다른 **다른 제품**만 추천한다.\n') +
     '\n' +
     JSON_OUTPUT_SPEC
   );
@@ -380,7 +380,7 @@ export async function fetchAlternativesWithPerplexity(
     '- alternatives 최소 1개, 가능하면 3개.\n' +
     '- tier는 slight, better, best 중 가능한 것만 쓴다.\n' +
     '- purchaseUrl은 http(s) 실제 상품·스토어 페이지.\n' +
-    '- 촬영 제품과 동일하거나 중량·개입만 다른 SKU는 배제.\n' +
+    '- 촬영한 제품과 같거나, 중량·용량·개수만 다른 같은 제품은 넣지 않는다.\n' +
     '- foodCategory는 반드시 지킨다.\n';
 
   const second = await generateAlternativesOnce(

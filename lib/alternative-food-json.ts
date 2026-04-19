@@ -43,7 +43,7 @@ export function isPurchaseableProductUrl(raw: string): boolean {
   }
 }
 
-/** 숫자·용량·개입 등을 제거한 식별용 코어(동일·중량만 다른 SKU 근사 비교) */
+/** 숫자·용량·개수 등을 제거한 식별용 코어(같은 제품·용량만 다른 근사 비교) */
 export function productIdentityCore(name: string): string {
   return String(name || '')
     .toLowerCase()

@@ -3,11 +3,11 @@
  * (브라우저 전용; App.tsx 등 클라이언트에서만 import)
  */
 
-/** 라벨·영양표 OCR에는 충분하면서 멀티모달 입력 토큰·업로드 시간을 줄이기 위해 1280보다 약간 작게 둔다. */
-const MAX_EDGE_PX = 1024;
+/** 라벨·영양표 OCR에는 충분하면서 멀티모달 토큰·업로드 시간을 줄인다(너무 크면 분석 API가 느려짐). */
+const MAX_EDGE_PX = 896;
 /** 비교는 이미지 4장을 한 번에 보내므로 한 장당 해상도를 더 낮춰 응답 지연을 줄인다. */
 const MAX_EDGE_COMPARE_PX = 768;
-const JPEG_QUALITY = 0.78;
+const JPEG_QUALITY = 0.72;
 const JPEG_QUALITY_COMPARE = 0.72;
 
 function normalizeMime(mime: string): string {

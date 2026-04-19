@@ -37,12 +37,11 @@ export const GEMINI_WATERFALL_ORDER: readonly string[] = [
   'gemini-2.5-flash-lite',
 ];
 
-/** 환경 변수 미설정 시 첫 호출 모델(워터폴 ①과 동일) */
+/** 환경 변수 미설정 시 첫 호출 모델(워터폴 ①과 동일). 세부는 `GEMINI_ANALYSIS_MODEL` 등으로 조정. */
 export const DEFAULT_GEMINI_PRIMARY_MODEL = GEMINI_WATERFALL_ORDER[0]!;
 
 /**
  * `/api/analyze`, `/api/quiz` 등 `GEMINI_MODEL`로 쓰는 기본 모델.
- * 기본값은 **gemini-3.1-flash-lite-preview**. 바꾸려면 `GEMINI_ANALYSIS_MODEL`로 지정.
  */
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',

@@ -7,9 +7,9 @@ export function formatGeminiHttpError(status: number, bodyText: string): string 
   if (!trimmed) {
     if (status === 429) {
       return (
-        '429는 키 오류가 아니라 요청 한도·속도 제한인 경우가 많아요. ' +
-        'Vercel 등에 배포했다면 대시보드의 GEMINI_API_KEY를 새 키로 바꾼 뒤 재배포했는지 확인해 주세요(로컬 .env만 바꾸면 서버에는 반영되지 않아요). ' +
-        '같은 Google 프로젝트에서 키만 새로 만들면 한도는 공유될 수 있고, 일일 한도가 남아도 분당(RPM) 제한에 걸릴 수 있어요. 잠시 뒤 다시 시도해 보세요.'
+        '잠시 요청이 많아 막혔을 수 있어요. 키가 잘못됐다기보다는 사용 한도나 속도 제한인 경우가 많아요. ' +
+        '배포한 사이트에 등록한 AI 키를 바꿨다면 다시 배포했는지 확인해 주세요. ' +
+        '같은 구글 계정 프로젝트면 키를 새로 만들어도 한도는 같을 수 있고, 하루 한도가 남아도 짧은 시간에 너무 많이 보내면 잠시 막힐 수 있어요. 잠시 뒤 다시 시도해 보세요.'
       );
     }
     return status === 503
@@ -27,15 +27,15 @@ export function formatGeminiHttpError(status: number, bodyText: string): string 
     }
     const msg = raw;
     if (/models\/[^\s]+.*(not found|is not supported|does not exist|was not found)/i.test(msg)) {
-      return '설정된 AI 모델을 사용할 수 없어요. 환경 변수 GEMINI_ANALYSIS_MODEL(예: gemini-3.1-flash-lite-preview, gemini-3-flash-preview, gemini-2.5-flash-lite)을 확인해 주세요.';
+      return '설정한 AI 모델 이름을 쓸 수 없어요. 서버 설정(모델 이름)을 확인해 주세요.';
     }
     if (/API key|API_KEY_INVALID|PERMISSION_DENIED|invalid.*api key/i.test(msg) || status === 403) {
-      return 'Gemini API 키를 확인해 주세요. (환경 변수 GEMINI_API_KEY)';
+      return 'AI 키(서버에 등록한 비밀번호)를 확인해 주세요.';
     }
     if (/quota|Quota exceeded|RESOURCE_EXHAUSTED|rate limit/i.test(msg) || status === 429) {
       return (
-        '요청 한도(쿼터) 또는 속도 제한이에요. 배포 서버의 GEMINI_API_KEY·재배포 여부를 확인하고, ' +
-        '같은 프로젝트면 키를 바꿔도 한도가 공유될 수 있어요. 일일 한도가 남아도 분당 제한에 걸릴 수 있습니다. 잠시 뒤 다시 시도해 주세요.'
+        '요청 한도나 속도 제한에 걸렸을 수 있어요. 배포한 사이트에 등록한 AI 키와 다시 배포 여부를 확인해 주세요. ' +
+        '같은 구글 프로젝트면 키를 바꿔도 한도는 같을 수 있고, 하루 한도가 남아도 짧은 시간에 연속으로 보내면 잠시 막힐 수 있어요. 잠시 뒤 다시 시도해 주세요.'
       );
     }
     if (/too large|payload|request size|exceeds|bytes/i.test(msg)) {
@@ -50,6 +50,51 @@ export function formatGeminiHttpError(status: number, bodyText: string): string 
 /**
  * Google Generative Language API 오류 JSON의 `error.status` · `error.code` 를 표시용 한 줄로 합친다.
  */
+/**
+ * `/api/quiz` 등 Gemini `generateContent` 실패 시 — 월 한도·429·기타 구분.
+ * (모델을 여러 개 돌려도 같은 Google 프로젝트 한도면 동일하게 실패함)
+ */
+export function quizApiErrorFromGeminiUpstream(status: number, bodyText: string): {
+  httpStatus: number;
+  message: string;
+  errorCode: string;
+} {
+  const t = (bodyText || '').trim();
+  const lower = t.toLowerCase();
+  if (
+    status === 429 &&
+    (lower.includes('spending cap') ||
+      lower.includes('monthly spending cap') ||
+      lower.includes('exceeded its monthly'))
+  ) {
+    return {
+      httpStatus: 503,
+      message:
+        'Google AI 월 사용 한도에 도달했어요. AI Studio(https://ai.studio/spend)에서 한도를 늘리거나 다음 달까지 기다려 주세요. 다른 모델로 바꿔도 같은 계정 한도는 같아요.',
+      errorCode: 'GEMINI_SPEND_CAP',
+    };
+  }
+  if (status === 429) {
+    return {
+      httpStatus: 503,
+      message: formatGeminiHttpError(status, bodyText),
+      errorCode: 'GEMINI_QUOTA',
+    };
+  }
+  if (status === 503 || status === 502) {
+    return {
+      httpStatus: 503,
+      message: formatGeminiHttpError(status, bodyText),
+      errorCode: 'GEMINI_UNAVAILABLE',
+    };
+  }
+  return {
+    httpStatus: 502,
+    message: '문제를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    errorCode: 'QUIZ_GENERATION_FAILED',
+  };
+}
+
 export function geminiErrorCodeFromBody(bodyText: string): string | undefined {
   const trimmed = (bodyText || '').trim();
   if (!trimmed) return undefined;
