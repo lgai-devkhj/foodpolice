@@ -2798,6 +2798,48 @@ export default function App() {
     resultEntrySource,
   ]);
 
+  /** 노란 배너 대신 상단 알약 토스트 한 줄로 씀(XP 대기 중이면 초 카운트 우선) */
+  const stickyToastLine = useMemo(() => {
+    if (xpGrantCelebrate) return null;
+    if (showCompareResult && xpGrantToss) {
+      return {
+        text:
+          xpGrantToss.remaining > 0
+            ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
+            : '곧 XP가 적립돼요',
+        progress: xpGrantToss.progress,
+      };
+    }
+    if (showResult && xpGrantToss) {
+      return {
+        text:
+          xpGrantToss.remaining > 0
+            ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
+            : '곧 XP가 적립돼요',
+        progress: xpGrantToss.progress,
+      };
+    }
+    if (showResult && altQuestBannerLine) {
+      return {
+        text: altQuestBannerLine,
+        progress: Math.min(1, altQuestScrollSecAccum / ALT_QUEST_REQUIRED_SEC),
+      };
+    }
+    return null;
+  }, [
+    xpGrantCelebrate,
+    showCompareResult,
+    showResult,
+    xpGrantToss,
+    altQuestBannerLine,
+    altQuestScrollSecAccum,
+  ]);
+
+  const showStickyToast =
+    xpGrantCelebrate ||
+    (showCompareResult && (xpGrantToss || xpGrantCelebrate)) ||
+    (showResult && (xpGrantToss || xpGrantCelebrate || altQuestBannerLine));
+
   const startCamera = useCallback(() => {
     if (!navigator.mediaDevices?.getUserMedia) return false;
     navigator.mediaDevices
@@ -4036,7 +4078,7 @@ export default function App() {
         </div>
       )}
 
-      {((xpGrantToss && (showResult || showCompareResult)) || xpGrantCelebrate) && (
+      {showStickyToast && (showResult || showCompareResult || xpGrantCelebrate) && (
         <div className="xp-grant-toast-anchor">
           <div
             className={`xp-grant-toast${xpGrantCelebrate ? ' xp-grant-toast--granted' : ''}`}
@@ -4059,12 +4101,8 @@ export default function App() {
                   <span className="xp-grant-toast-xp-label"> XP</span>
                   <span className="xp-grant-toast-granted-suffix"> 적립</span>
                 </p>
-              ) : xpGrantToss ? (
-                <p className="xp-grant-toast-msg">
-                  {xpGrantToss.remaining > 0
-                    ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
-                    : '곧 XP가 적립돼요'}
-                </p>
+              ) : stickyToastLine ? (
+                <p className="xp-grant-toast-msg">{stickyToastLine.text}</p>
               ) : null}
             </div>
             <div className="xp-grant-toast-meter" aria-hidden>
@@ -4073,8 +4111,8 @@ export default function App() {
                 style={{
                   width: xpGrantCelebrate
                     ? '100%'
-                    : xpGrantToss
-                      ? `${Math.round(xpGrantToss.progress * 100)}%`
+                    : stickyToastLine
+                      ? `${Math.round(stickyToastLine.progress * 100)}%`
                       : '0%',
                 }}
               />
@@ -4435,7 +4473,7 @@ export default function App() {
         <div
           id="resultView"
           className={`${showResult ? 'visible' : ''}${
-            showResult && (xpGrantToss || xpGrantCelebrate) ? ' result-view--xp-toss' : ''
+            showResult && showStickyToast ? ' result-view--xp-toss' : ''
           }`}
           style={{ display: showResult ? 'flex' : 'none' }}
         >
@@ -4455,11 +4493,6 @@ export default function App() {
               ×
             </button>
           </div>
-          {altQuestBannerLine ? (
-            <div className="result-alt-quest-banner" role="status">
-              {altQuestBannerLine}
-            </div>
-          ) : null}
           <div ref={resultScrollRef} className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
             {resultAnalysisSeconds != null && (
               <div className="result-analysis-time result-analysis-time--sticky" role="status">
@@ -4535,7 +4568,7 @@ export default function App() {
       {showCompareResult && compareApiResult && (
         <div
           className={`compare-result-overlay${
-            xpGrantToss || xpGrantCelebrate ? ' compare-result-overlay--xp-toss' : ''
+            showStickyToast ? ' compare-result-overlay--xp-toss' : ''
           }`}
           role="dialog"
           aria-modal="true"
