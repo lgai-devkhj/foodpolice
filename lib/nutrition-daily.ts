@@ -298,7 +298,7 @@ function liquidPortionIntakeLine(n: number, mlPerPortion: number, kind: IntakeSl
 }
 
 function conservativeWeightFallbackIntakeLine(_kind: IntakeSlotKind): string {
-  return '맞춤 참고: 라벨의 1회 제공량이나 총 g를 보고 양을 잡아 주세요.';
+  return '맞춤 참고: 라벨의 1회 제공량이나 총 g를 보고 양을 잡아요.';
 }
 
 /**
@@ -344,7 +344,7 @@ function lowKcalSolidLine(kind: IntakeSlotKind): string {
     return '맞춤 참고: 열량은 낮아 보여요. 간식은 조금만.';
   }
   if (kind === 'meal') {
-    return '맞춤 참고: 열량은 낮아 보여요. 한 번에만 많이 먹지 말아 주세요.';
+    return '맞춤 참고: 열량은 낮아 보여요. 한 번에 많이 먹지 않는 편이 좋아요.';
   }
   return '맞춤 참고: 열량은 낮아 보여요. 다른 끼니와 나눠 드세요.';
 }
@@ -482,7 +482,7 @@ export function buildPersonalizedIntakeNote(
       : firstMl;
 
   if (caloriesKcal == null || !Number.isFinite(caloriesKcal)) {
-    return '맞춤 참고: 열량을 못 읽어 숫자 안내는 생략했어요. 아래 영양 막대를 봐 주세요.';
+    return '맞춤 참고: 열량을 못 읽어 숫자 안내는 생략했어요. 아래 영양 막대를 봐요.';
   }
 
   const looksLikeSeasoningOrSauce =

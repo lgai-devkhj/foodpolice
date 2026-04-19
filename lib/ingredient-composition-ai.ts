@@ -90,10 +90,10 @@ export interface PriorsAiInput {
   category: string;
 }
 
-const PRIORS_SYSTEM = `당신은 식품 라벨·제조 관행에 익숙한 조언자입니다.
-출력은 반드시 요청 JSON 스키마만 따르세요. 각 원재료의 함량 퍼센트(%)를 **직접 확정하지 마세요**.
-역할(role), 참고용 범위(expectedRange), 참고 typical(0~100, 합이 100일 필요 없음)과 짧은 reasoning만 제시합니다.
-단정적·법적 표현은 금지하고, 불확실하면 범위를 넓게 잡습니다.`;
+const PRIORS_SYSTEM = `당신은 식품 라벨·제조 관행에 익숙한 조언자예요.
+출력은 반드시 요청 JSON 스키마만 따라요. 각 원재료의 함량 퍼센트(%)는 **직접 확정하지 않아요**.
+역할(role), 참고용 범위(expectedRange), 참고 typical(0~100, 합이 100일 필요 없음)과 짧은 reasoning만 제시해요.
+단정적·법적 표현은 쓰지 않고, 불확실하면 범위를 넓게 잡아요.`;
 
 function buildPriorsUserPrompt(inp: PriorsAiInput): string {
   return (
@@ -103,11 +103,11 @@ function buildPriorsUserPrompt(inp: PriorsAiInput): string {
     `ingredients (라벨 순서): ${JSON.stringify(inp.ingredients)}\n` +
     `nutritionPer100g: ${JSON.stringify(inp.nutritionPer100g)}\n\n` +
     `[규칙]\n` +
-    `- 실제 제조 관행·식품군 특성을 반영해 역할을 나눕니다.\n` +
-    `- 영양성분과 모순되는 전제(예: 물만으로 고지방)는 피합니다.\n` +
-    `- expectedRange.min/max는 해당 원재료가 전체 배합에서 차지할 **가능한 비중 범위(참고)**입니다.\n` +
-    `- typical은 범위 안의 대표치(참고)이며, 최종 비율은 계산기가 정합니다.\n` +
-    `- items 배열 길이는 ingredients와 같고, name은 입력과 동일한 문자열이어야 합니다.\n\n` +
+    `- 실제 제조 관행·식품군 특성을 반영해 역할을 나눠요.\n` +
+    `- 영양성분과 모순되는 전제(예: 물만으로 고지방)는 피해요.\n` +
+    `- expectedRange.min/max는 해당 원재료가 전체 배합에서 차지할 **가능한 비중 범위(참고)**예요.\n` +
+    `- typical은 범위 안의 대표치(참고)이고, 최종 비율은 계산기가 정해요.\n` +
+    `- items 배열 길이는 ingredients와 같고, name은 입력과 동일한 문자열이어야 해요.\n\n` +
     `[출력 JSON]\n` +
     `{"priorsConfidence":0.0-1.0,"items":[{"name":"","role":"fat_source|carb_source|protein_source|water_base|additive","expectedRange":{"min":0,"max":100},"typical":0,"reasoning":""}]}`
   );
@@ -198,9 +198,9 @@ export async function generateIngredientPriorsWithAI(
   }
 }
 
-const VALIDATE_SYSTEM = `당신은 식품 라벨 추정 결과를 검토합니다.
-최종 함량 퍼센트는 이미 계산되었습니다. 당신은 비현실성 플래그·설명·신뢰도 보정 계수만 제시합니다.
-JSON만 출력합니다.`;
+const VALIDATE_SYSTEM = `당신은 식품 라벨 추정 결과를 검토해요.
+최종 함량 퍼센트는 이미 계산됐어요. 비현실성 플래그·설명·신뢰도 보정 계수만 제시해요.
+JSON만 출력해요. adjustmentNotes·userSummary는 사용자에게 보이면 앱인토스 UX 라이팅(-해요체, 되어요→돼요, 능동·긍정 우선)을 따라요.`;
 
 function buildValidatePrompt(
   ingredients: string[],
@@ -216,9 +216,9 @@ function buildValidatePrompt(
     `[출력 JSON]\n` +
     '{"unrealisticFlags":[],"adjustmentNotes":[],"confidenceMultipliers":[1.0],"userSummary":""}\n' +
     '- unrealisticFlags: 문자열 배열, 예: "정제수 비중이 지나치게 낮음"\n' +
-    '- adjustmentNotes: 사용자에게 보여줄 짧은 메모\n' +
+    '- adjustmentNotes: 사용자에게 보일 짧은 메모(-해요체)\n' +
     '- confidenceMultipliers: 원재료 순서와 같은 길이, 0.7~1.0 권장(낮을수록 불확실)\n' +
-    '- userSummary: 한두 문장 요약\n'
+    '- userSummary: 한두 문장 요약(앱인토스 UX 라이팅)\n'
   );
 }
 

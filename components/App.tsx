@@ -249,27 +249,27 @@ function tutorialCoachMessage(
     case 'fab':
       if (tutorialAwaitHomeCompare && homeProductMode === 'analyze') {
         return desk
-          ? '먼저 홈 화면에서 「상품 비교하기」를 눌러 주세요. 자동으로 바뀌지 않아요. 그다음 아래 촬영으로 이어져요.'
-          : '홈에서 「상품 비교하기」를 먼저 눌러 주세요. 그다음 아래 촬영 버튼으로 네 장 찍어요.';
+          ? '먼저 홈 화면에서 「상품 비교하기」를 눌러요. 자동으로 바뀌지 않아요. 그다음 아래 촬영으로 이어져요.'
+          : '홈에서 「상품 비교하기」를 먼저 눌러요. 그다음 아래 촬영 버튼으로 네 장 찍어요.';
       }
       if (homeProductMode === 'compare') {
         return desk
-          ? '비교는 제품 두 개예요. 아래에서 A 원재료 → A 영양표 → B 원재료 → B 영양표 순으로 네 장을 준비해 주세요.'
-          : '비교는 제품 두 개예요. 촬영으로 A 원재료부터 네 장 차례로 찍어 주세요.';
+          ? '비교는 제품 두 개예요. 아래에서 A 원재료 → A 영양표 → B 원재료 → B 영양표 순으로 네 장을 준비해요.'
+          : '비교는 제품 두 개예요. 촬영으로 A 원재료부터 네 장 차례로 찍어요.';
       }
       return desk
-        ? '아래에서 사진 두 장만 올려주세요. 원재료 → 영양표 순이에요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.'
-        : '아래 촬영 눌러서, 원재료 → 영양표만 찍어주세요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.';
+        ? '아래에서 사진 두 장만 올려요. 원재료 → 영양표 순이에요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.'
+        : '아래 촬영 눌러서, 원재료 → 영양표만 찍어요. 오늘 퀘스트 2개, 다 끝내면 스트릭이 올라가요.';
     case 'preview_ingredient': {
       if (homeProductMode === 'compare') {
         const who = compareSlot === 'A' ? '제품 A' : '제품 B';
         return desk
           ? `${who} 원재료예요. 다음 누르면 ${who} 영양표 단계로 넘어가요.`
-          : `괜찮으면 다음 눌러 주세요. 이어서 ${who} 영양표 찍을게요.`;
+          : `괜찮으면 다음 눌러요. 이어서 ${who} 영양표 찍을게요.`;
       }
       return desk
         ? '이 사진으로 갈까요? 다음 누르면 영양표 고르는 단계로 넘어가요.'
-        : '괜찮으면 다음 눌러주세요. 이어서 영양표 찍을게요.';
+        : '괜찮으면 다음 눌러요. 이어서 영양표 찍을게요.';
     }
     case 'preview_analyze': {
       if (homeProductMode === 'compare') {
@@ -277,7 +277,7 @@ function tutorialCoachMessage(
         if (compareSlot === 'A' && captureStep === 2) {
           return desk
             ? `${who} 영양표예요. 다음 누르면 제품 B 원재료 단계로 넘어가요.`
-            : '다음은 제품 B 원재료를 찍어 주세요.';
+            : '다음은 제품 B 원재료를 찍어요.';
         }
         return desk
           ? '마지막이에요. 비교하기 누르면 두 제품 NOVA를 비교해 드려요. 첫 번째 퀘스트 끝이에요!'
@@ -729,7 +729,7 @@ function buildAlternativeFoodHtml(
             (fromWebSearch
               ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
               : engineFallback
-                ? '웹 검색으로 실제 판매 제품을 찾지 못해, 앱이 비슷한 맥락의 방향만 잡아 드렸어요. 링크는 검색용이에요. 사기 전에 라벨을 확인해 주세요.'
+                ? '웹 검색으로 실제 판매 제품을 찾지 못해, 앱이 비슷한 맥락의 방향만 잡아 드렸어요. 링크는 검색용이에요. 사기 전에 라벨을 확인해요.'
                 : '어떻게 먹는지·라벨 분석을 바탕으로 한 참고용 제안이에요. 특정 브랜드 제품 하나를 집어 말하는 게 아니라, 마트에서 비슷한 줄로 찾아볼 만한 방향이에요. 링크는 검색용이에요.') +
             '</p>';
           return '<div class="alt-block">' + topMeta.join('') + `<div class="alt-grid">${grid}</div>` + disclaimer + '</div>';
@@ -858,8 +858,8 @@ function buildAlternativeFoodHtml(
     (fromWebSearch
       ? '검색 결과를 바탕으로 모아둔 제안이에요. 시점·매장마다 품목이 달라질 수 있어요. 사기 전에 라벨만 한번 볼까요?'
       : engineFallback
-        ? '웹 검색이 비어 있어 앱 안 추천 엔진으로 방향만 잡았어요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.'
-        : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해 주세요.') +
+        ? '웹 검색이 비어 있어 앱 안 추천 엔진으로 방향만 잡았어요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해요.'
+        : 'AI가 참고용으로 골라둔 제안이에요. 실제 매장이랑 다를 수 있어요. 사기 전에 라벨을 확인해요.') +
     '</p>';
 
   return (
@@ -883,7 +883,7 @@ function messageForAlternativeUnavailable(
     case 'NO_SEARCH_KEY':
       return '서버에 웹 검색 API가 연결되어 있지 않아 대체 식품을 불러올 수 없어요.';
     case 'FETCH_FAILED':
-      return '검색 서버와 통신하지 못했어요. 잠시 후 다시 시도해 주세요.';
+      return '검색 서버와 통신하지 못했어요. 잠시 후 다시 시도해요.';
     case 'NO_MATCH':
       return '웹 검색으로 조건에 맞는 실제 제품을 찾지 못했어요. 다른 제품으로 다시 시도해 볼 수 있어요.';
     default:
@@ -2050,7 +2050,7 @@ export default function App() {
           );
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
+        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러요.');
       } finally {
         geminiRequestInFlightRef.current = false;
         setLoading(false);
@@ -2140,7 +2140,7 @@ export default function App() {
           );
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러 주세요.');
+        setError(err instanceof Error ? err.message : '잠깐 문제가 생겼어요. 다시 한번 눌러요.');
       } finally {
         geminiRequestInFlightRef.current = false;
         setLoading(false);
@@ -2785,7 +2785,7 @@ export default function App() {
       if (!recentlyScrolling) return '스크롤해야 줄어요';
       return `약 ${secLeft}초 남았어요`;
     }
-    if (altLoading) return '대체 식품을 찾는 중… 잠시만 기다려 주세요';
+    if (altLoading) return '대체 식품을 찾는 중… 잠시만 기다려요';
     if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
     return null;
   }, [
@@ -2816,11 +2816,11 @@ export default function App() {
 
   const triggerUpload = useCallback(() => {
     if (showTutorial && tutorialPhase === 'tutorial_mode_pick') {
-      setError('먼저 분석할지 비교할지 골라 주세요.');
+      setError('먼저 분석할지 비교할지 골라요.');
       return;
     }
     if (showTutorial && tutorialAwaitHomeCompare && homeProductMode === 'analyze') {
-      setError('먼저 홈에서 「상품 비교하기」를 눌러 주세요.');
+      setError('먼저 홈에서 「상품 비교하기」를 눌러요.');
       return;
     }
     if (showTutorial && tutorialPhase === 'fab') {
@@ -3105,7 +3105,7 @@ export default function App() {
         return;
       }
       if (!rawImageBase64) {
-        setError('먼저 원재료 사진을 골라 주세요');
+        setError('먼저 원재료 사진을 골라요');
         return;
       }
       if (compareSlot === 'A') {
@@ -3129,7 +3129,7 @@ export default function App() {
       }
       const pa = comparePairARef.current;
       if (!pa) {
-        setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
+        setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해요.');
         return;
       }
       runCompareProducts(pa, {
@@ -3155,7 +3155,7 @@ export default function App() {
       return;
     }
     if (!rawImageBase64) {
-      setError('먼저 원재료 사진을 골라 주세요');
+      setError('먼저 원재료 사진을 골라요');
       return;
     }
     if (showTutorial) {
@@ -3189,7 +3189,7 @@ export default function App() {
 
   const analyzeWithoutNutrition = useCallback(() => {
     if (!rawImageBase64Ref.current) {
-      setError('먼저 원재료 사진을 골라 주세요');
+      setError('먼저 원재료 사진을 골라요');
       return;
     }
     stopCamera();
@@ -3231,7 +3231,7 @@ export default function App() {
             return;
           }
           if (!rawImageBase64Ref.current) {
-            setError('먼저 원재료 사진을 골라 주세요');
+            setError('먼저 원재료 사진을 골라요');
             return;
           }
           if (compareSlotRef.current === 'A') {
@@ -3262,7 +3262,7 @@ export default function App() {
           }
           const pa = comparePairARef.current;
           if (!pa) {
-            setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해 주세요.');
+            setError('제품 A 정보가 없어요. 비교를 처음부터 다시 해요.');
             return;
           }
           runCompareProducts(pa, {
@@ -3301,7 +3301,7 @@ export default function App() {
           }
         } else {
           if (!rawImageBase64Ref.current) {
-            setError('먼저 원재료 사진을 골라 주세요');
+            setError('먼저 원재료 사진을 골라요');
             return;
           }
           stopCamera();
@@ -3493,7 +3493,7 @@ export default function App() {
                 2제품 · 4장
               </span>
               <p className="home-compare-callout-title">
-                <strong>제품 A</strong> 원재료 → 영양표, 이어서 <strong>제품 B</strong>도 같은 순서로 찍어 주세요.
+                <strong>제품 A</strong> 원재료 → 영양표, 이어서 <strong>제품 B</strong>도 같은 순서로 찍어요.
               </p>
               <p className="home-compare-callout-sub">
                 한 제품당 사진 2장(원재료·영양표), 두 제품이면 <strong>총 4장</strong>이 필요해요. 순서를 지키면 비교가
@@ -3547,14 +3547,14 @@ export default function App() {
                 {homeProductMode === 'compare'
                   ? compareSlot === 'A'
                     ? captureStep === 1
-                      ? '제품 A · 원재료명이 보이게 찍어 주세요'
-                      : '제품 A · 영양정보 표가 보이게 찍어 주세요'
+                      ? '제품 A · 원재료명이 보이게 찍어요'
+                      : '제품 A · 영양정보 표가 보이게 찍어요'
                     : captureStep === 1
-                      ? '제품 B · 원재료명이 보이게 찍어 주세요'
-                      : '제품 B · 영양정보 표가 보이게 찍어 주세요'
+                      ? '제품 B · 원재료명이 보이게 찍어요'
+                      : '제품 B · 영양정보 표가 보이게 찍어요'
                   : captureStep === 1
-                    ? '원재료명이 보이게 찍어 주세요'
-                    : '영양정보 표가 보이게 찍어 주세요'}
+                    ? '원재료명이 보이게 찍어요'
+                    : '영양정보 표가 보이게 찍어요'}
               </span>
             </div>
             <div
@@ -3652,7 +3652,7 @@ export default function App() {
                 </div>
                 <p className="capture-step-overlay-caption">촬영 예시 · 원재료</p>
                 <p className="capture-step-overlay-body">
-                  뒷면 원재료명이 한 화면에 들어오게 찍어 주세요. 글자 안 흐리게 초점만 맞춰 주세요.
+                  뒷면 원재료명이 한 화면에 들어오게 찍어요. 글자 안 흐리게 초점만 맞춰요.
                 </p>
               </>
             ) : (
@@ -3675,7 +3675,7 @@ export default function App() {
                 </div>
                 <p className="capture-step-overlay-caption">촬영 예시 · 영양정보 표</p>
                 <p className="capture-step-overlay-body">
-                  원재료는 저장됐어요. 이제 영양정보 표가 한 화면에 들어오게 찍어 주세요.
+                  원재료는 저장됐어요. 이제 영양정보 표가 한 화면에 들어오게 찍어요.
                 </p>
               </>
             )}
@@ -3805,7 +3805,7 @@ export default function App() {
                     onClick={() => {
                       const cy = new Date().getFullYear();
                       if (!Number.isFinite(obBirthYear) || obBirthYear < 1900 || obBirthYear > cy) {
-                        alert('출생연도를 먼저 골라 주세요');
+                        alert('출생연도를 먼저 골라요');
                         return;
                       }
                       const nextProfile = {
@@ -3873,7 +3873,7 @@ export default function App() {
                       const h = parseFloat(obHeight);
                       const w = parseFloat(obWeight);
                       if (!isFinite(h) || !isFinite(w) || h <= 0 || w <= 0) {
-                        alert('키랑 몸무게를 입력해 주세요');
+                        alert('키랑 몸무게를 입력해요');
                         return;
                       }
                       setObSummaryBirth(
@@ -4095,7 +4095,7 @@ export default function App() {
               무엇을 연습할까요?
             </h2>
             <p className="tutorial-mode-pick-lead">
-              한 제품만 분석할지, 두 제품을 비교할지 먼저 골라 주세요. 아래에서 선택하면 촬영 안내로 이어져요.
+              한 제품만 분석할지, 두 제품을 비교할지 먼저 골라요. 아래에서 선택하면 촬영 안내로 이어져요.
             </p>
             <p className="tutorial-mode-pick-hint">
               사용 방법 연습은 나중에 언제든지 홈 상단의 「사용 가이드」에서 다시 할 수 있어요.
@@ -4127,7 +4127,7 @@ export default function App() {
               두 제품 비교하기
             </button>
             <p className="tutorial-mode-pick-subhint" role="note">
-              비교 연습을 고르면 홈에 돌아가서 직접 「상품 비교하기」를 눌러 주세요. 여기서 모드를 대신 바꿔 주지 않아요.
+              비교 연습을 고르면 홈에 돌아가서 직접 「상품 비교하기」를 눌러요. 여기서 모드를 대신 바꾸지 않아요.
             </p>
             <button type="button" className="btn-tutorial-text tutorial-mode-pick-skip" onClick={finishTutorial}>
               건너뛰기
@@ -4311,7 +4311,7 @@ export default function App() {
                     <span id="loadingText">{loadingText}</span>
                   </div>
                   <p className="loading-close-hint" role="status">
-                    분석이 끝날 때까지 이 화면에 머물러 주세요.
+                    분석이 끝날 때까지 이 화면에 머물러요.
                   </p>
                 </div>
               </div>
@@ -4960,7 +4960,7 @@ export default function App() {
                     {dailyQuizLastPick === dailyQuizOx.correctAnswer ? ' · 맞혔어요' : ''}
                   </p>
                 ) : (
-                  <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러 주세요.</p>
+                  <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러요.</p>
                 )}
                 <p className="daily-quiz-question">{dailyQuizOx.question}</p>
                 {!dailyQuizReviewMode && dailyQuizFeedback === 'correct' ? (

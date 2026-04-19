@@ -141,11 +141,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      apiErrorBody('문제를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.', 'QUIZ_GENERATION_FAILED'),
+      apiErrorBody('문제를 만들지 못했어요. 잠시 뒤 다시 시도해요.', 'QUIZ_GENERATION_FAILED'),
       { status: 502 },
     );
   } catch (e) {
-    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
+    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해요.';
     if (process.env.NODE_ENV === 'development') {
       console.error('[api/quiz] SERVER', e);
     }

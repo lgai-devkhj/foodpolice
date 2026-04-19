@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       body = (await request.json()) as AnalyzeBody;
     } catch {
       return NextResponse.json(
-        apiErrorBody('요청 본문을 읽을 수 없어요. 사진을 줄이거나 다시 시도해 주세요.', 'BODY_JSON'),
+        apiErrorBody('요청 본문을 읽을 수 없어요. 사진을 줄이거나 다시 시도해요.', 'BODY_JSON'),
         { status: 400 }
       );
     }
@@ -92,13 +92,13 @@ export async function POST(request: NextRequest) {
     );
     const hasTwoImages = !!rawImageBase64 && !!nutritionImageBase64;
     if (!imageBase64 && !hasTwoImages) {
-      return NextResponse.json(apiErrorBody('사진을 먼저 올려 주세요.', 'NO_IMAGE'), { status: 400 });
+      return NextResponse.json(apiErrorBody('사진을 먼저 올려요.', 'NO_IMAGE'), { status: 400 });
     }
 
     const key = process.env.GEMINI_API_KEY;
     if (!key || key.length === 0) {
       return NextResponse.json(
-        apiErrorBody('AI 키가 서버에 설정돼 있지 않아요. 관리자에게 문의해 주세요.', 'NO_API_KEY'),
+        apiErrorBody('AI 키가 서버에 설정돼 있지 않아요. 관리자에게 문의해요.', 'NO_API_KEY'),
         { status: 500 }
       );
     }
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
         console.error('[api/analyze] envelope JSON.parse failed', text.slice(0, 800));
       }
       return NextResponse.json(
-        apiErrorBody('AI 응답을 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.', 'ENVELOPE_JSON'),
+        apiErrorBody('AI 응답을 읽지 못했어요. 잠시 뒤 다시 시도해요.', 'ENVELOPE_JSON'),
         { status: 502 }
       );
     }
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     if (blockReason) {
       return NextResponse.json(
         apiErrorBody(
-          '이 요청은 안전 정책으로 처리할 수 없어요. 다른 사진이나 표시만 있는 화면으로 시도해 주세요.',
+          '이 요청은 안전 정책으로 처리할 수 없어요. 다른 사진이나 표시만 있는 화면으로 시도해요.',
           `PROMPT_BLOCKED:${blockReason}`
         ),
         { status: 400 }
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         console.error('[api/analyze] empty candidates', JSON.stringify(data).slice(0, 2000));
       }
       return NextResponse.json(
-        apiErrorBody('AI가 응답을 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.', 'NO_CANDIDATES'),
+        apiErrorBody('AI가 응답을 만들지 못했어요. 잠시 뒤 다시 시도해요.', 'NO_CANDIDATES'),
         { status: 502 }
       );
     }
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       if (finishReason === 'SAFETY' || finishReason === 'RECITATION') {
         return NextResponse.json(
           apiErrorBody(
-            '이 이미지는 분석할 수 없어요. 다른 사진으로 시도해 주세요.',
+            '이 이미지는 분석할 수 없어요. 다른 사진으로 시도해요.',
             finishReason || 'BLOCKED'
           ),
           { status: 500 }
@@ -197,13 +197,13 @@ export async function POST(request: NextRequest) {
       }
       if (finishReason === 'MAX_TOKENS') {
         return NextResponse.json(
-          apiErrorBody('분석 응답이 잘렸어요. 다시 시도해 주세요.', 'MAX_TOKENS'),
+          apiErrorBody('분석 응답이 잘렸어요. 다시 시도해요.', 'MAX_TOKENS'),
           { status: 500 }
         );
       }
       return NextResponse.json(
         apiErrorBody(
-          '분석 결과를 받지 못했어요. 잠시 뒤에 다시 눌러 주세요.',
+          '분석 결과를 받지 못했어요. 잠시 뒤에 다시 눌러요.',
           finishReason ? String(finishReason) : 'NO_MODEL_TEXT'
         ),
         { status: 500 }
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
         console.error('[api/analyze] RESULT_JSON raw head:', raw.slice(0, 2500));
       }
       return NextResponse.json(
-        apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러 주세요.', 'RESULT_JSON'),
+        apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러요.', 'RESULT_JSON'),
         { status: 500 }
       );
     }
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest) {
         console.error('[api/analyze] buildAnalysisResultFromGeminiObject', buildErr);
       }
       return NextResponse.json(
-        apiErrorBody('결과를 가공하는 데 실패했어요. 다시 시도해 주세요.', 'BUILD_RESULT'),
+        apiErrorBody('결과를 가공하는 데 실패했어요. 다시 시도해요.', 'BUILD_RESULT'),
         { status: 500 }
       );
     }
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (e) {
-    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해 주세요.';
+    const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해요.';
     if (process.env.NODE_ENV === 'development') {
       console.error('[api/analyze] SERVER', e);
     }
