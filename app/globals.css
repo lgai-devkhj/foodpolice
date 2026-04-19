@@ -294,11 +294,27 @@
         0 10px 32px rgba(0, 0, 0, 0.45),
         0 0 0 1px rgba(255, 255, 255, 0.06) inset;
     }
+    .xp-grant-toast--with-subline {
+      border-radius: 22px;
+      padding-bottom: 12px;
+    }
     .xp-grant-toast-body {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
+    }
+    .xp-grant-toast-msg--subline {
+      margin: 2px 0 0;
+      padding: 0 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text2);
+      text-align: center;
+    }
+    [data-theme='dark'] .xp-grant-toast-msg--subline {
+      color: rgba(255, 255, 255, 0.78);
     }
     .xp-grant-toast-icon {
       flex-shrink: 0;
@@ -1469,11 +1485,6 @@
       font-size: 0.92rem;
       font-weight: 700;
       color: var(--primary);
-    }
-    .daily-quiz-scope-hint {
-      font-weight: 600;
-      color: var(--text3);
-      font-size: 0.88rem;
     }
     .daily-quiz-question {
       margin: 0 0 14px;

@@ -53,9 +53,10 @@ type OxQuizGenResult =
 /** Gemini HTTP 실패 시 상태·본문을 넘겨 사용자 메시지 구분에 사용 */
 async function geminiOxQuizGenerate(
   questionType: 1 | 2 | 3,
+  requireAnswerX: boolean,
   apiKey: string,
 ): Promise<OxQuizGenResult> {
-  const prompt = getDailyOxQuizPrompt(questionType);
+  const prompt = getDailyOxQuizPrompt(questionType, { requireAnswerX });
   const requestBody = {
     contents: [{ parts: [textPart(prompt)] }],
     generationConfig: generationConfigJsonMode({
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
     const ymd = toLocalYmd(new Date());
     const h = Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquiz`));
     const questionType = ((h % 3) + 1) as 1 | 2 | 3;
+    /** 날짜·기기별로 정답 O / X 요청을 번갈아 O 편향 완화 */
+    const requireAnswerX =
+      (Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquizx`)) % 2) === 1;
 
     const key = process.env.GEMINI_API_KEY;
     if (!key || key.length === 0) {
@@ -131,7 +135,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const gen = await geminiOxQuizGenerate(questionType, key);
+    let gen = await geminiOxQuizGenerate(questionType, requireAnswerX, key);
+    if (
+      gen.kind === 'ok' &&
+      ((requireAnswerX && gen.quiz.correctAnswer !== 'X') ||
+        (!requireAnswerX && gen.quiz.correctAnswer !== 'O'))
+    ) {
+      gen = await geminiOxQuizGenerate(questionType, requireAnswerX, key);
+    }
     if (gen.kind === 'ok') {
       return NextResponse.json(gen.quiz);
     }

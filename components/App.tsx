@@ -2817,9 +2817,8 @@ export default function App() {
     resultEntrySource,
   ]);
 
-  /** 노란 배너 대신 상단 알약 토스트 한 줄로 씀(XP 대기 중이면 초 카운트 우선) */
+  /** 노란 배너 대신 상단 알약 토스트 한 줄로 씀(XP 대기 중이면 초 카운트 우선). XP 적립 순간에도 대체 식품 퀘스트 안내는 유지 */
   const stickyToastLine = useMemo(() => {
-    if (xpGrantCelebrate) return null;
     if (showCompareResult && xpGrantToss) {
       return {
         text:
@@ -2845,14 +2844,11 @@ export default function App() {
       };
     }
     return null;
-  }, [
-    xpGrantCelebrate,
-    showCompareResult,
-    showResult,
-    xpGrantToss,
-    altQuestBannerLine,
-    altQuestScrollSecAccum,
-  ]);
+  }, [showCompareResult, showResult, xpGrantToss, altQuestBannerLine, altQuestScrollSecAccum]);
+
+  /** XP 적립 연출 중에도 대체 식품 퀘스트 안내(동일 문자열)를 두 번째 줄로 유지 */
+  const stickyToastSublineWhileCelebrate =
+    xpGrantCelebrate && showResult && altQuestBannerLine ? altQuestBannerLine : null;
 
   const showStickyToast =
     xpGrantCelebrate ||
@@ -4100,7 +4096,9 @@ export default function App() {
       {showStickyToast && (showResult || showCompareResult || xpGrantCelebrate) && (
         <div className="xp-grant-toast-anchor">
           <div
-            className={`xp-grant-toast${xpGrantCelebrate ? ' xp-grant-toast--granted' : ''}`}
+            className={`xp-grant-toast${xpGrantCelebrate ? ' xp-grant-toast--granted' : ''}${
+              stickyToastSublineWhileCelebrate ? ' xp-grant-toast--with-subline' : ''
+            }`}
             role="status"
             aria-live="polite"
             key={xpGrantCelebrate ? `g-${xpGrantCelebrate.id}` : 'progress'}
@@ -4124,6 +4122,9 @@ export default function App() {
                 <p className="xp-grant-toast-msg">{stickyToastLine.text}</p>
               ) : null}
             </div>
+            {stickyToastSublineWhileCelebrate ? (
+              <p className="xp-grant-toast-msg xp-grant-toast-msg--subline">{stickyToastSublineWhileCelebrate}</p>
+            ) : null}
             <div className="xp-grant-toast-meter" aria-hidden>
               <div
                 className="xp-grant-toast-meter-fill"
@@ -5003,7 +5004,6 @@ export default function App() {
                     : dailyQuizOx.questionType === 2
                       ? '유형 2 · 성분 구분'
                       : '유형 3 · 개념'}
-                  <span className="daily-quiz-scope-hint"> · 특정 식품·미션과 무관</span>
                 </p>
                 {dailyQuizReviewMode ? (
                   <p className="daily-quiz-review-meta" role="status">

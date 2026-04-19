@@ -315,8 +315,9 @@ function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string
     '- concernIngredients는 최대 3개예요.',
     '- 분류 기준에 직접 쓰인 핵심 성분, 분해 성분, 핵심 첨가물, 주의할 만한 첨가물을 우선 후보로 봐요.',
     '- 일반적인 기저 원료는 보통 제외하지만, 제품 특성을 좌우하는 성분이면 포함할 수 있어요.',
-    '- 각 항목에 minPercent, maxPercent를 넣어요. 모르면 null이에요.',
-    '- 라벨에 명시된 %가 있으면 그에 맞추고, 없으면 보수적으로 잡아요.',
+    '- 각 항목에 **반드시 숫자** minPercent, maxPercent(0~100)를 넣어요. 라벨에 해당 성분 함량 %가 있으면 그 값으로 맞추고, 없으면 원재료 순서·제품 유형·유사 식품 상식으로 **추정 범위**를 넣어요.',
+    '- 정말로 전혀 추정할 수 없을 때만 null이에요. 가능하면 항상 두 숫자를 채워요.',
+    '- 라벨에 명시된 %가 있으면 labelExplicitPercentages에도 넣고, concernIngredients의 같은 성분 min/max와 일치시켜요.',
     '- 항목별 독립 추정이며 합이 100%일 필요는 없어요.',
     '- analysisConfidence는 high, medium, low 중 하나를 선택해요.',
     '- high: 원재료·영양표가 또렷하고 명시 함량 또는 좁은 범위 추정이 가능할 때예요.',
@@ -354,10 +355,10 @@ function getSingleProductSchemaObject(includeDailyQuest?: boolean) {
     judgmentReason: '',
     concernIngredients: [
       {
-        name: '',
-        explanation: '',
-        minPercent: null,
-        maxPercent: null,
+        name: '예시 주의 성분명',
+        explanation: '한 줄 설명',
+        minPercent: 3,
+        maxPercent: 12,
       },
     ],
     estimatedIngredients: [],
@@ -681,13 +682,52 @@ export function normalizeGeminiJson(response: string): string {
   }
 }
 
-export function getDailyOxQuizPrompt(questionType: 1 | 2 | 3): string {
+export type DailyOxQuizPromptOptions = {
+  /**
+   * true면 이번 문항은 **거짓 진술**로만 내고 correctAnswer는 반드시 "X".
+   * false면 **참 진술**만 내고 correctAnswer는 반드시 "O".
+   * (서버에서 날짜·기기별로 번갈아 넣어 O/X 편향을 줄임)
+   */
+  requireAnswerX: boolean;
+};
+
+export function getDailyOxQuizPrompt(
+  questionType: 1 | 2 | 3,
+  options: DailyOxQuizPromptOptions,
+): string {
   const typeBlock =
     questionType === 1
       ? '- 유형 1: 가상의 원재료 나열을 주고, 이 식품이 어느 그룹에 가까운지 판단하게 하는 OX 진술을 만들어요.\n'
       : questionType === 2
         ? '- 유형 2: 제시한 성분이 분해 성분인지 첨가물인지 구분하게 하는 OX 진술을 만들어요.\n'
         : '- 유형 3: FoodPolice 최종 분류 기준의 정의와 판정 순서를 묻는 OX 진술을 만들어요.\n';
+
+  const requireX = options.requireAnswerX === true;
+
+  const answerModeBlock = requireX
+    ? joinLines(
+        '[이번 문항 정답 — 반드시 X]',
+        '- 이번 문항만큼은 진술이 **반드시 거짓**이어야 해요. correctAnswer는 **"X"**만 출력해요.',
+        '- 참처럼 들리지만 기준과 어긋난 말, 흔한 오해, 규칙을 한두 단계만 틀리게 말하기 같은 방식으로 거짓 진술을 만드세요.',
+        '- explanation은 **왜 그 말이 틀렸는지** 한 줄로 짚어요. (정답이 X일 때는 "맞아요" 식 설명 금지)',
+        '- 유형 1 거짓 예: 원재료 개수·NOVA 단계를 지나치게 단순하게 단정하는 문장.',
+        '- 유형 2 거짓 예: 분해 성분/첨가물 정의를 바꿔 말한 문장.',
+        '- 유형 3 거짓 예: 판정 순서나 Group 정의를 반대로 말한 문장.',
+      )
+    : joinLines(
+        '[이번 문항 정답 — 반드시 O]',
+        '- 이번 문항만큼은 진술이 **반드시 참**이어야 해요. correctAnswer는 **"O"**만 출력해요.',
+        '- FoodPolice 기준에 맞는 확실한 참 진술로 만드세요.',
+        '- explanation은 **왜 맞는 말인지** 한 줄로 짚어요.',
+      );
+
+  const exampleAnswer = requireX ? 'X' : 'O';
+  const exampleQuestion = requireX
+    ? '원재료가 두 가지면 항상 NOVA 3이에요.'
+    : 'NOVA는 가공 정도를 단계로 나눈 분류예요.';
+  const exampleExplanation = requireX
+    ? '원재료 개수만으로 단계가 정해지지 않아요.'
+    : '한국형 NOVA는 식품을 가공도에 따라 1~4단계로 나눠요.';
 
   return joinBlocks(
     joinLines(
@@ -697,7 +737,8 @@ export function getDailyOxQuizPrompt(questionType: 1 | 2 | 3): string {
       '[퀴즈 목적]',
       '- 원재료 이해 능력 향상',
       '- 분해 성분과 첨가물 구분 능력 강화',
-      '- FoodPolice 최종 분류 기준 학습'
+      '- FoodPolice 최종 분류 기준 학습',
+      '- O만 골라도 맞는 문제에 치우치지 않도록, **거짓 진술·정답 X** 문항도 충분히 다루는 것이 중요해요.'
     ),
     joinLines(
       '[중요]',
@@ -707,12 +748,13 @@ export function getDailyOxQuizPrompt(questionType: 1 | 2 | 3): string {
       `[이번 유형 번호: ${questionType}]`,
       typeBlock.trim()
     ),
+    answerModeBlock,
     joinLines(
       '[출제 규칙]',
       '- 문제는 반드시 O 또는 X 하나로만 답할 수 있는 짧은 진술이에요.',
-      '- 진술이 참이면 correctAnswer는 "O"예요.',
-      '- 진술이 거짓이면 correctAnswer는 "X"예요.',
-      '- explanation은 정답 이유를 한 줄로 쉬운 말로 설명해요.',
+      '- 진술이 참이면 correctAnswer는 "O", 거짓이면 "X"예요.',
+      '- **이번 요청의 correctAnswer는 위 [이번 문항 정답]과 반드시 일치**해야 해요.',
+      '- explanation은 정답 이유를 한 줄로 쉬운 말로 써요. 정답이 X면 틀린 이유를, O면 맞는 이유를 써요.',
       '- FoodPolice 최종 기준과 어긋나지 않게 출제해요.',
       '- 과장, 공포, 의료 조언은 금지해요.'
     ),
@@ -720,9 +762,9 @@ export function getDailyOxQuizPrompt(questionType: 1 | 2 | 3): string {
       '[JSON 출력]',
       JSON.stringify({
         questionType,
-        question: '진술 문자열',
-        correctAnswer: 'O',
-        explanation: '한 줄 설명',
+        question: exampleQuestion,
+        correctAnswer: exampleAnswer,
+        explanation: exampleExplanation,
         foodKeyword: '',
       })
     )

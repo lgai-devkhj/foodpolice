@@ -158,15 +158,22 @@ function clampPercent(n: number): number {
   return Math.max(0, Math.min(100, n));
 }
 
+function parseNumericPercentFragment(v: unknown): number {
+  if (typeof v === 'number') return v;
+  const s = String(v ?? '')
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .trim();
+  return parseFloat(s);
+}
+
 function parsePercentPair(
   minRaw: unknown,
   maxRaw: unknown,
 ): { minPercent: number | null; maxPercent: number | null } {
   if (minRaw == null && maxRaw == null) return { minPercent: null, maxPercent: null };
-  let min =
-    typeof minRaw === 'number' ? minRaw : parseFloat(String(minRaw ?? '').replace(/,/g, ''));
-  let max =
-    typeof maxRaw === 'number' ? maxRaw : parseFloat(String(maxRaw ?? '').replace(/,/g, ''));
+  let min = typeof minRaw === 'number' ? minRaw : parseNumericPercentFragment(minRaw);
+  let max = typeof maxRaw === 'number' ? maxRaw : parseNumericPercentFragment(maxRaw);
   if (!Number.isFinite(min)) min = Number.NaN;
   if (!Number.isFinite(max)) max = Number.NaN;
   if (!Number.isFinite(min) && !Number.isFinite(max)) return { minPercent: null, maxPercent: null };
@@ -223,12 +230,71 @@ function parseLabelExplicitPercentages(raw: unknown): LabelExplicitPercentage[] 
     if (!item || typeof item !== 'object') continue;
     const o = item as Record<string, unknown>;
     const name = o.name != null ? String(o.name).trim() : '';
-    const p = typeof o.percent === 'number' ? o.percent : parseFloat(String(o.percent ?? ''));
+    const p =
+      typeof o.percent === 'number' ? o.percent : parseNumericPercentFragment(o.percent ?? '');
     if (!name || !Number.isFinite(p)) continue;
     out.push({ name, percent: clampPercent(p) });
     if (out.length >= 15) break;
   }
   return out.length > 0 ? out : null;
+}
+
+/** Gemini가 camelCase 대신 snake_case 등으로 줄 때 */
+function concernMinMaxRawFromItem(item: {
+  minPercent?: unknown;
+  maxPercent?: unknown;
+}): { minRaw: unknown; maxRaw: unknown } {
+  const rec = item as Record<string, unknown>;
+  return {
+    minRaw:
+      rec.minPercent ??
+      rec.min_percent ??
+      rec.estimatedMinPercent ??
+      rec.estimated_min_percent,
+    maxRaw:
+      rec.maxPercent ??
+      rec.max_percent ??
+      rec.estimatedMaxPercent ??
+      rec.estimated_max_percent,
+  };
+}
+
+/** 라벨에 직접 적힌 %가 있으면 주의 성분 함량 표시에 병합 */
+function mergeExplicitPercentIntoConcerns(
+  concerns: Array<{
+    name: string;
+    explanation: string;
+    minPercent: number | null;
+    maxPercent: number | null;
+  }>,
+  labels: LabelExplicitPercentage[] | null,
+): Array<{
+  name: string;
+  explanation: string;
+  minPercent: number | null;
+  maxPercent: number | null;
+}> {
+  if (!labels || labels.length === 0) return concerns;
+  return concerns.map((c) => {
+    if (c.minPercent != null && c.maxPercent != null) return c;
+    const p = matchLabelPercentForConcernName(c.name, labels);
+    if (p == null) return c;
+    return { ...c, minPercent: p, maxPercent: p };
+  });
+}
+
+function matchLabelPercentForConcernName(
+  concernName: string,
+  labels: LabelExplicitPercentage[],
+): number | null {
+  const n = concernName.trim().toLowerCase().replace(/\s+/g, '');
+  if (n.length < 2) return null;
+  for (const lp of labels) {
+    const ln = lp.name.trim().toLowerCase().replace(/\s+/g, '');
+    if (ln.length < 2) continue;
+    if (n.includes(ln) || ln.includes(n)) return lp.percent;
+  }
+  return null;
 }
 
 function isNutritionLabelLike(name: string): boolean {
@@ -250,7 +316,9 @@ export function buildAnalysisResultFromGeminiObject(
     rawMaterials: (parsed.rawMaterials != null ? String(parsed.rawMaterials).trim() : '') as string,
   };
   const novaGroup = Math.min(4, Math.max(1, parseInt(String(parsed.novaGroup), 10) || 4));
-  const concernIngredients = Array.isArray(parsed.concernIngredients)
+  const labelExplicitPercentages = parseLabelExplicitPercentages(parsed.labelExplicitPercentages);
+
+  const concernIngredientsRaw = Array.isArray(parsed.concernIngredients)
     ? (
         parsed.concernIngredients as Array<{
           name?: string;
@@ -260,7 +328,8 @@ export function buildAnalysisResultFromGeminiObject(
         }>
       )
         .map((c) => {
-          const { minPercent, maxPercent } = parsePercentPair(c.minPercent, c.maxPercent);
+          const { minRaw, maxRaw } = concernMinMaxRawFromItem(c);
+          const { minPercent, maxPercent } = parsePercentPair(minRaw, maxRaw);
           return {
             name: (c.name || '').trim(),
             explanation: (c.explanation || '').trim(),
@@ -272,10 +341,14 @@ export function buildAnalysisResultFromGeminiObject(
         .slice(0, 3)
     : [];
 
+  const concernIngredients = mergeExplicitPercentIntoConcerns(
+    concernIngredientsRaw,
+    labelExplicitPercentages,
+  );
+
   const estimatedIngredients = parseEstimatedIngredients(parsed.estimatedIngredients);
   const keyInsights = parseKeyInsights(parsed.keyInsights);
   const analysisConfidence = parseAnalysisConfidence(parsed.analysisConfidence);
-  const labelExplicitPercentages = parseLabelExplicitPercentages(parsed.labelExplicitPercentages);
 
   const nutritionParsed = parseNutrition(parsed.nutrition);
   const nutritionDailyPercent: NutritionDailyPercent | null = nutritionParsed
