@@ -33,6 +33,7 @@ import {
   XP_DAILY_QUIZ,
 } from './xp-rewards';
 import { analysisProductIdentityKey, comparePairIdentityKey } from './product-identity';
+import type { DailyOxQuizSolvedStored } from './daily-quiz';
 
 /** 결과 화면을 이 시간(초) 이상 본 뒤에만 분석·비교 퀘스트 XP 지급 */
 export const MIN_VIEW_SECONDS_FOR_XP = 5;
@@ -445,8 +446,21 @@ export function addXp(clientId: string, delta: number): number {
   return next;
 }
 
-/** 일일 첫 퀘스트(키워드 퀴즈) 정답 시 — 오늘 이미 한 경우 무시 */
-export function markDailyAnalyzeQuizDone(clientId: string): {
+/** 오늘 저장된 OX 퀴즈 다시 보기(날짜·형식 맞을 때만) */
+export function getDailyOxQuizSolvedForToday(clientId: string): DailyOxQuizSolvedStored | null {
+  const qs = normalizeQuestsSlice(loadState(clientId).quests);
+  const s = qs.dailyOxQuizSolved;
+  if (!s) return null;
+  const today = questDayYmd(new Date());
+  if (s.dateYmd !== today) return null;
+  return s;
+}
+
+/** 일일 첫 퀘스트(키워드 퀴즈) 정답 시 — 오늘 이미 한 경우 무시. `solved`는 다시 보기용 로컬 저장 */
+export function markDailyAnalyzeQuizDone(
+  clientId: string,
+  solved?: DailyOxQuizSolvedStored | null,
+): {
   displayCurrent: number;
   didIncrease: boolean;
   totalXp: number;
@@ -457,7 +471,12 @@ export function markDailyAnalyzeQuizDone(clientId: string): {
   if (daily.analyzeDone) {
     return { ...getStreakToastSnapshot(clientId), totalXp: getTotalXp(clientId) };
   }
-  state.quests = questAfterDailyQuizPassed(prev, new Date());
+  const todayYmd = questDayYmd(new Date());
+  let next = questAfterDailyQuizPassed(prev, new Date());
+  if (solved && solved.dateYmd === todayYmd) {
+    next = { ...next, dailyOxQuizSolved: solved };
+  }
+  state.quests = next;
   saveState(clientId, state);
   addXp(clientId, XP_DAILY_QUIZ);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);

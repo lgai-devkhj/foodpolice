@@ -11,7 +11,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { getClientId } from '@/lib/clientId';
-import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
+import type { DailyOxQuizPayload, DailyOxQuizSolvedStored } from '@/lib/daily-quiz';
 import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import { encodeImageForAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
@@ -45,6 +45,7 @@ import {
   addBodyMeasurement,
   removeBodyMeasurement,
   markDailyAnalyzeQuizDone,
+  getDailyOxQuizSolvedForToday,
   getTotalXp,
   getXpWeekChartData,
   compareBodyMeasurementsAsc,
@@ -1275,6 +1276,10 @@ export default function App() {
   const [dailyQuizLocked, setDailyQuizLocked] = useState(false);
   /** 오답 시 마지막으로 누른 선택 (해당 버튼만 흔들림) */
   const [dailyQuizLastPick, setDailyQuizLastPick] = useState<'O' | 'X' | null>(null);
+  /** 오늘 이미 완료 후 다시 열었을 때(API 없이 기록만 표시) */
+  const [dailyQuizReviewMode, setDailyQuizReviewMode] = useState(false);
+  /** 구 데이터 등으로 완료만 있고 스냅샷이 없을 때 */
+  const [dailyQuizAlreadyDoneNoSnapshot, setDailyQuizAlreadyDoneNoSnapshot] = useState(false);
   /** 웹 로드 시 백그라운드로 받아 둔 오늘자 OX(열 때 즉시 표시) */
   const dailyQuizPrefetchRef = useRef<{ ymd: string; payload: DailyOxQuizPayload } | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
@@ -1424,11 +1429,17 @@ export default function App() {
   const cameraGuideRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
   const resultContentRef = useRef<HTMLDivElement>(null);
+  /** 비교 결과 패널 스크롤 — XP 누적·스크롤 리스너용 */
+  const compareResultPanelRef = useRef<HTMLDivElement>(null);
+  /** XP(분석·비교): 스크롤 이벤트 사이에서만 경과 초 누적 */
+  const xpScrollChunkRef = useRef<number | null>(null);
   const altQuestDetailsOpenRef = useRef(false);
   /** 스크롤 활동 중에만 누적되는 초 (실시간) */
   const altQuestAccumSecRef = useRef(0);
   const altQuestLastScrollRef = useRef(0);
-  const altQuestRafRef = useRef(0);
+  /** 대체 퀘스트: 스크롤 구간마다 마지막 누적 시각(첫 스크롤은 기준만 잡음) */
+  const altQuestScrollChunkRef = useRef<number | null>(null);
+  const altQuestPollRef = useRef(0);
   /** 대체 퀘스트 스크롤 누적 초기화 기준(같은 결과 화면에서 대체 식품만 로드되면 유지) */
   const altQuestSessionKeyRef = useRef<string | null>(null);
   const [altQuestScrollSecAccum, setAltQuestScrollSecAccum] = useState(0);
@@ -1639,11 +1650,55 @@ export default function App() {
   }, [clientId]);
 
   const resultViewSecondsRef = useRef(0);
-  const lastViewTickRef = useRef<number | null>(null);
+
+  /** 분석·비교 결과: 스크롤할 때만 XP용 경과 시간 누적 */
+  const bumpXpFromScroll = useCallback(() => {
+    const analysisFlow = showResult && currentHistoryId && !showCompareResult;
+    const compareFlow = showCompareResult && compareHistoryId;
+    if (!analysisFlow && !compareFlow) return;
+
+    const now = performance.now();
+    if (xpScrollChunkRef.current == null) {
+      xpScrollChunkRef.current = now;
+      return;
+    }
+    let delta = (now - xpScrollChunkRef.current) / 1000;
+    xpScrollChunkRef.current = now;
+    if (delta > 0.22) delta = 0.22;
+    resultViewSecondsRef.current += delta;
+  }, [showResult, showCompareResult, currentHistoryId, compareHistoryId]);
+
+  useEffect(() => {
+    if (!showResult && !showCompareResult) return;
+    let detached: (() => void) | undefined;
+    const tryAttach = () => {
+      const el = showCompareResult ? compareResultPanelRef.current : resultScrollRef.current;
+      if (!el) return false;
+      const bump = () => bumpXpFromScroll();
+      el.addEventListener('scroll', bump, { passive: true });
+      el.addEventListener('wheel', bump, { passive: true });
+      detached = () => {
+        el.removeEventListener('scroll', bump);
+        el.removeEventListener('wheel', bump);
+      };
+      return true;
+    };
+    const id0 = requestAnimationFrame(() => {
+      if (!tryAttach()) {
+        requestAnimationFrame(() => {
+          tryAttach();
+        });
+      }
+    });
+    return () => {
+      cancelAnimationFrame(id0);
+      detached?.();
+    };
+  }, [showResult, showCompareResult, bumpXpFromScroll]);
 
   useEffect(() => {
     resultViewSecondsRef.current = 0;
-    lastViewTickRef.current = null;
+    xpScrollChunkRef.current = null;
   }, [currentHistoryId, compareHistoryId]);
 
   useEffect(() => {
@@ -1653,21 +1708,15 @@ export default function App() {
   useEffect(() => {
     if (!clientId) return;
     const id = window.setInterval(() => {
-      const now = performance.now();
-      if (lastViewTickRef.current == null) lastViewTickRef.current = now;
-      const dt = Math.min(0.45, (now - lastViewTickRef.current) / 1000);
-      lastViewTickRef.current = now;
       if (document.hidden) return;
 
       const analysisFlow = showResult && currentHistoryId && !showCompareResult;
       const compareFlow = showCompareResult && compareHistoryId;
       if (!analysisFlow && !compareFlow) {
         resultViewSecondsRef.current = 0;
-        lastViewTickRef.current = null;
         return;
       }
 
-      resultViewSecondsRef.current += dt;
       const elapsed = resultViewSecondsRef.current;
 
       let toss: { remaining: number; progress: number } | null = null;
@@ -1736,16 +1785,54 @@ export default function App() {
     }, 2400);
   }, []);
 
+  const closeDailyQuizModal = useCallback(() => {
+    setShowDailyQuizModal(false);
+    setDailyQuizOx(null);
+    setDailyQuizError(null);
+    setDailyQuizFeedback('idle');
+    setDailyQuizLocked(false);
+    setDailyQuizLastPick(null);
+    setDailyQuizReviewMode(false);
+    setDailyQuizAlreadyDoneNoSnapshot(false);
+    setDailyQuizWrongHint(false);
+  }, []);
+
   const openDailyQuizModal = useCallback(async () => {
     if (!clientId) return;
     setDailyQuizWrongHint(false);
     setDailyQuizFeedback('idle');
     setDailyQuizLocked(false);
     setDailyQuizLastPick(null);
+    setDailyQuizReviewMode(false);
+    setDailyQuizAlreadyDoneNoSnapshot(false);
     setDailyQuizError(null);
     setShowDailyQuizModal(true);
 
     const ymd = toLocalYmd(new Date());
+    const analyzeDone = getQuestBoard(clientId).dailyRows.some((r) => r.id === 'analyze' && r.done);
+    if (analyzeDone) {
+      const solved = getDailyOxQuizSolvedForToday(clientId);
+      if (solved) {
+        const payload: DailyOxQuizPayload = {
+          questionType: solved.questionType,
+          question: solved.question,
+          correctAnswer: solved.correctAnswer,
+          explanation: solved.explanation,
+          foodKeyword: solved.foodKeyword,
+        };
+        setDailyQuizOx(payload);
+        setDailyQuizReviewMode(true);
+        setDailyQuizLocked(true);
+        setDailyQuizLastPick(solved.userPick);
+        setDailyQuizLoading(false);
+        return;
+      }
+      setDailyQuizOx(null);
+      setDailyQuizAlreadyDoneNoSnapshot(true);
+      setDailyQuizLoading(false);
+      return;
+    }
+
     const pref = dailyQuizPrefetchRef.current;
     if (pref && pref.ymd === ymd && pref.payload) {
       setDailyQuizOx(pref.payload);
@@ -1782,22 +1869,23 @@ export default function App() {
 
   const submitDailyQuizOx = useCallback(
     (picked: 'O' | 'X') => {
-      if (!clientId || !dailyQuizOx || dailyQuizLocked) return;
+      if (!clientId || !dailyQuizOx || dailyQuizLocked || dailyQuizReviewMode) return;
       if (picked === dailyQuizOx.correctAnswer) {
         setDailyQuizLocked(true);
         setDailyQuizFeedback('correct');
         window.setTimeout(() => {
           const prevXp = getTotalXp(clientId);
-          const s = markDailyAnalyzeQuizDone(clientId);
+          const solved: DailyOxQuizSolvedStored = {
+            ...dailyQuizOx,
+            dateYmd: toLocalYmd(new Date()),
+            userPick: picked,
+          };
+          const s = markDailyAnalyzeQuizDone(clientId, solved);
           setQuestBoard(getQuestBoard(clientId));
           setTotalXp(getTotalXp(clientId));
           flashXpGain(prevXp);
           notifyStreakFromQuest(s);
-          setShowDailyQuizModal(false);
-          setDailyQuizWrongHint(false);
-          setDailyQuizOx(null);
-          setDailyQuizFeedback('idle');
-          setDailyQuizLocked(false);
+          closeDailyQuizModal();
         }, 900);
       } else {
         setDailyQuizLastPick(picked);
@@ -1806,7 +1894,15 @@ export default function App() {
         window.setTimeout(() => setDailyQuizFeedback('idle'), 520);
       }
     },
-    [clientId, dailyQuizOx, dailyQuizLocked, notifyStreakFromQuest, flashXpGain],
+    [
+      clientId,
+      dailyQuizOx,
+      dailyQuizLocked,
+      dailyQuizReviewMode,
+      notifyStreakFromQuest,
+      flashXpGain,
+      closeDailyQuizModal,
+    ],
   );
 
   const tryCompleteAltQuest = useCallback(() => {
@@ -2566,12 +2662,11 @@ export default function App() {
       altQuestSessionKeyRef.current = sessionKey;
       altQuestAccumSecRef.current = 0;
       altQuestLastScrollRef.current = 0;
+      altQuestScrollChunkRef.current = null;
       setAltQuestScrollSecAccum(0);
       altQuestDetailsOpenRef.current = false;
       setAltQuestDetailsOpen(false);
     }
-
-    let lastFrameTs = performance.now();
 
     const syncDetailsOpenFromDom = () => {
       const rc = resultContentRef.current;
@@ -2586,22 +2681,23 @@ export default function App() {
     };
 
     const onScroll = () => {
-      altQuestLastScrollRef.current = performance.now();
+      const now = performance.now();
+      altQuestLastScrollRef.current = now;
       syncDetailsOpenFromDom();
-    };
 
-    const tick = (now: number) => {
-      const dt = Math.min(0.08, (now - lastFrameTs) / 1000);
-      lastFrameTs = now;
-      if (now - altQuestLastScrollRef.current < ALT_SCROLL_ACTIVITY_MS) {
-        const next = Math.min(ALT_QUEST_REQUIRED_SEC, altQuestAccumSecRef.current + dt);
-        if (Math.abs(next - altQuestAccumSecRef.current) > 0.0005) {
-          altQuestAccumSecRef.current = next;
-          setAltQuestScrollSecAccum(next);
-        }
+      if (altQuestScrollChunkRef.current == null) {
+        altQuestScrollChunkRef.current = now;
+        return;
+      }
+      let dt = (now - altQuestScrollChunkRef.current) / 1000;
+      altQuestScrollChunkRef.current = now;
+      if (dt > 0.2) dt = 0.2;
+      const next = Math.min(ALT_QUEST_REQUIRED_SEC, altQuestAccumSecRef.current + dt);
+      if (Math.abs(next - altQuestAccumSecRef.current) > 0.0005) {
+        altQuestAccumSecRef.current = next;
+        setAltQuestScrollSecAccum(next);
       }
       tryCompleteAltQuest();
-      altQuestRafRef.current = requestAnimationFrame(tick);
     };
 
     const onToggle = (e: Event) => {
@@ -2616,6 +2712,7 @@ export default function App() {
     };
 
     scrollEl.addEventListener('scroll', onScroll, { passive: true });
+    scrollEl.addEventListener('wheel', onScroll, { passive: true });
     scrollEl.addEventListener('toggle', onToggle, true);
 
     const ro = new ResizeObserver(() => {
@@ -2626,12 +2723,14 @@ export default function App() {
     const rc = resultContentRef.current;
     if (rc) ro.observe(rc);
 
-    lastFrameTs = performance.now();
-    altQuestRafRef.current = requestAnimationFrame(tick);
+    altQuestPollRef.current = window.setInterval(() => {
+      tryCompleteAltQuest();
+    }, 400);
 
     return () => {
-      cancelAnimationFrame(altQuestRafRef.current);
+      window.clearInterval(altQuestPollRef.current);
       scrollEl.removeEventListener('scroll', onScroll);
+      scrollEl.removeEventListener('wheel', onScroll);
       scrollEl.removeEventListener('toggle', onToggle, true);
       ro.disconnect();
     };
@@ -3985,7 +4084,7 @@ export default function App() {
               </span>
               <p className="xp-grant-toast-msg">
                 {xpGrantToss.remaining > 0
-                  ? `XP까지 약 ${xpGrantToss.remaining}초 남았어요`
+                  ? `스크롤하며 확인 · 약 ${xpGrantToss.remaining}초 남았어요`
                   : '곧 XP가 적립돼요'}
               </p>
             </div>
@@ -4486,7 +4585,11 @@ export default function App() {
             }
           }}
         >
-          <div className="compare-result-panel" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={compareResultPanelRef}
+            className="compare-result-panel"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               className="compare-result-close"
@@ -4812,52 +4915,50 @@ export default function App() {
         </div>
       )}
 
-      {showDailyQuizModal && (
+      {showDailyQuizModal && (() => {
+        const dailyQuizModalCanClose =
+          !dailyQuizLoading &&
+          (!dailyQuizLocked || dailyQuizReviewMode || dailyQuizAlreadyDoneNoSnapshot);
+        return (
         <div
           className="modal info-sheet visible"
           role="dialog"
-          aria-label="오늘의 퀴즈"
+          aria-label={dailyQuizReviewMode ? '오늘의 퀴즈 다시 보기' : '오늘의 퀴즈'}
           onClick={(e) => {
-            if (e.target !== e.currentTarget || dailyQuizLoading || dailyQuizLocked) return;
-            setShowDailyQuizModal(false);
-            setDailyQuizOx(null);
-            setDailyQuizError(null);
-            setDailyQuizFeedback('idle');
-            setDailyQuizLocked(false);
-            setDailyQuizLastPick(null);
+            if (e.target !== e.currentTarget || !dailyQuizModalCanClose) return;
+            closeDailyQuizModal();
           }}
         >
           <div
             className={`modal-panel daily-quiz-panel${
-              dailyQuizFeedback === 'correct'
-                ? ' daily-quiz-panel--feedback-correct'
-                : dailyQuizFeedback === 'wrong'
-                  ? ' daily-quiz-panel--feedback-wrong'
-                  : ''
+              dailyQuizReviewMode
+                ? ' daily-quiz-panel--review'
+                : dailyQuizFeedback === 'correct'
+                  ? ' daily-quiz-panel--feedback-correct'
+                  : dailyQuizFeedback === 'wrong'
+                    ? ' daily-quiz-panel--feedback-wrong'
+                    : ''
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            {dailyQuizFeedback === 'correct' ? (
+            {!dailyQuizReviewMode && dailyQuizFeedback === 'correct' ? (
               <div className="daily-quiz-success-burst" aria-hidden>
                 <span className="daily-quiz-success-ring" />
                 <span className="daily-quiz-success-ring daily-quiz-success-ring--2" />
               </div>
             ) : null}
             <div className="sheet-header">
-              <h2 className="sheet-title">오늘의 퀴즈 (OX)</h2>
+              <h2 className="sheet-title">
+                {dailyQuizReviewMode ? '오늘의 퀴즈 · 다시 보기' : '오늘의 퀴즈 (OX)'}
+              </h2>
               <button
                 type="button"
                 className="sheet-close-x"
                 aria-label="닫기"
-                disabled={dailyQuizLoading || dailyQuizLocked}
+                disabled={!dailyQuizModalCanClose}
                 onClick={() => {
-                  if (dailyQuizLocked) return;
-                  setShowDailyQuizModal(false);
-                  setDailyQuizOx(null);
-                  setDailyQuizError(null);
-                  setDailyQuizFeedback('idle');
-                  setDailyQuizLocked(false);
-                  setDailyQuizLastPick(null);
+                  if (!dailyQuizModalCanClose) return;
+                  closeDailyQuizModal();
                 }}
               >
                 ×
@@ -4874,6 +4975,10 @@ export default function App() {
                   다시 시도
                 </button>
               </>
+            ) : dailyQuizAlreadyDoneNoSnapshot ? (
+              <p className="daily-quiz-loading" role="status">
+                오늘 퀴즈는 이미 풀었어요. 이 기기에 오늘 문항이 저장되어 있지 않아 다시 보기를 표시할 수 없어요.
+              </p>
             ) : dailyQuizOx ? (
               <>
                 <p className="daily-quiz-keyword">
@@ -4884,9 +4989,17 @@ export default function App() {
                       : '유형 3 · 개념'}
                   <span className="daily-quiz-scope-hint"> · 특정 식품·미션과 무관</span>
                 </p>
-                <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러 주세요.</p>
+                {dailyQuizReviewMode ? (
+                  <p className="daily-quiz-review-meta" role="status">
+                    정답은 <strong>{dailyQuizOx.correctAnswer}</strong>, 내가 고른 답은{' '}
+                    <strong>{dailyQuizLastPick ?? '—'}</strong>
+                    {dailyQuizLastPick === dailyQuizOx.correctAnswer ? ' · 맞혔어요' : ''}
+                  </p>
+                ) : (
+                  <p className="daily-quiz-ox-hint">이 진술이 맞으면 O, 틀리면 X를 눌러 주세요.</p>
+                )}
                 <p className="daily-quiz-question">{dailyQuizOx.question}</p>
-                {dailyQuizFeedback === 'correct' ? (
+                {!dailyQuizReviewMode && dailyQuizFeedback === 'correct' ? (
                   <div className="daily-quiz-result-banner daily-quiz-result-banner--ok" role="status">
                     <span className="daily-quiz-result-check" aria-hidden>
                       ✓
@@ -4894,14 +5007,23 @@ export default function App() {
                     정답이에요!
                   </div>
                 ) : null}
+                {dailyQuizReviewMode ? (
+                  <div className="daily-quiz-result-banner daily-quiz-result-banner--review" role="status">
+                    오늘 푼 문항이에요
+                  </div>
+                ) : null}
                 <div className="daily-quiz-ox-row">
                   <button
                     type="button"
                     className={`daily-quiz-ox-btn daily-quiz-ox-btn--o${
-                      dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'O'
-                        ? ' daily-quiz-ox-btn--wrong-pick'
-                        : ''
-                    }`}
+                      dailyQuizReviewMode
+                        ? dailyQuizOx.correctAnswer === 'O'
+                          ? ' daily-quiz-ox-btn--reveal-correct'
+                          : ''
+                        : dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'O'
+                          ? ' daily-quiz-ox-btn--wrong-pick'
+                          : ''
+                    }${dailyQuizReviewMode && dailyQuizLastPick === 'O' ? ' daily-quiz-ox-btn--reveal-user' : ''}`}
                     onClick={() => submitDailyQuizOx('O')}
                     disabled={dailyQuizLocked}
                   >
@@ -4910,17 +5032,26 @@ export default function App() {
                   <button
                     type="button"
                     className={`daily-quiz-ox-btn daily-quiz-ox-btn--x${
-                      dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'X'
-                        ? ' daily-quiz-ox-btn--wrong-pick'
-                        : ''
-                    }`}
+                      dailyQuizReviewMode
+                        ? dailyQuizOx.correctAnswer === 'X'
+                          ? ' daily-quiz-ox-btn--reveal-correct'
+                          : ''
+                        : dailyQuizFeedback === 'wrong' && dailyQuizLastPick === 'X'
+                          ? ' daily-quiz-ox-btn--wrong-pick'
+                          : ''
+                    }${dailyQuizReviewMode && dailyQuizLastPick === 'X' ? ' daily-quiz-ox-btn--reveal-user' : ''}`}
                     onClick={() => submitDailyQuizOx('X')}
                     disabled={dailyQuizLocked}
                   >
                     X
                   </button>
                 </div>
-                {dailyQuizWrongHint ? (
+                {dailyQuizReviewMode && dailyQuizOx.explanation ? (
+                  <p className="daily-quiz-review-explain" role="note">
+                    해설: {dailyQuizOx.explanation}
+                  </p>
+                ) : null}
+                {!dailyQuizReviewMode && dailyQuizWrongHint ? (
                   <p className="daily-quiz-wrong" role="status">
                     <span className="daily-quiz-wrong-label">틀렸어요. </span>
                     {dailyQuizOx.explanation
@@ -4934,7 +5065,8 @@ export default function App() {
             )}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showStreakWeekSheet && weekStreakSheet && (
         <div

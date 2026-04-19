@@ -3,6 +3,7 @@
  */
 
 import { normalizeAnalysisStreak, type AnalysisStreak } from './analysis-streak';
+import { parseDailyOxQuizSolvedStored, type DailyOxQuizSolvedStored } from './daily-quiz';
 
 export type QuestId =
   | 'analyze'
@@ -37,6 +38,8 @@ export interface QuestsSlice {
   totalXp?: number;
   /** 로컬 날짜(YYYY-MM-DD)별 획득 XP 합계(주간 차트용). 오래된 키는 주기적으로 잘라 냄 */
   xpEarnedByDay?: Record<string, number>;
+  /** 오늘 OX 퀴즈 정답 처리 시 저장(다시 보기). 날짜가 바뀌면 무시 */
+  dailyOxQuizSolved?: DailyOxQuizSolvedStored;
 }
 
 export function toLocalYmd(d: Date): string {
@@ -112,7 +115,21 @@ export function normalizeQuestsSlice(raw: unknown): QuestsSlice {
     }
     xpEarnedByDay = trimXpEarnedByDayMap(o, 24);
   }
-  return { firstUseAt, lifetime, daily, dailyPairCompleteYmds, totalXp, xpEarnedByDay };
+  const todayYmd = toLocalYmd(new Date());
+  let dailyOxQuizSolved: DailyOxQuizSolvedStored | undefined;
+  const parsedSolved = parseDailyOxQuizSolvedStored(q.dailyOxQuizSolved);
+  if (parsedSolved && parsedSolved.dateYmd === todayYmd) {
+    dailyOxQuizSolved = parsedSolved;
+  }
+  return {
+    firstUseAt,
+    lifetime,
+    daily,
+    dailyPairCompleteYmds,
+    totalXp,
+    xpEarnedByDay,
+    dailyOxQuizSolved,
+  };
 }
 
 /** 오늘 기준 최근 `keepDays`일만 유지(저장 크기·정렬 부담 완화) */

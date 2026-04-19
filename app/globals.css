@@ -1432,6 +1432,9 @@
       box-shadow: 0 0 0 3px rgba(179, 56, 46, 0.35);
       animation: daily-quiz-panel-shake 0.45s ease;
     }
+    .daily-quiz-panel--review {
+      box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.22);
+    }
     @keyframes daily-quiz-success-pop {
       0% {
         transform: scale(0.98);
@@ -1496,7 +1499,9 @@
     .daily-quiz-panel > p,
     .daily-quiz-panel .daily-quiz-result-banner,
     .daily-quiz-panel .daily-quiz-ox-row,
-    .daily-quiz-panel .daily-quiz-wrong {
+    .daily-quiz-panel .daily-quiz-wrong,
+    .daily-quiz-panel .daily-quiz-review-meta,
+    .daily-quiz-panel .daily-quiz-review-explain {
       position: relative;
       z-index: 1;
     }
@@ -1515,6 +1520,25 @@
       color: var(--primary);
       border: 1px solid rgba(46, 125, 50, 0.32);
       animation: daily-quiz-banner-in 0.38s ease;
+    }
+    .daily-quiz-result-banner--review {
+      background: rgba(46, 125, 50, 0.08);
+      color: var(--text2);
+      border: 1px dashed rgba(46, 125, 50, 0.35);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .daily-quiz-review-meta {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.45;
+    }
+    .daily-quiz-review-explain {
+      margin: 12px 0 0;
+      font-size: 0.92rem;
+      color: var(--text2);
+      line-height: 1.5;
     }
     @keyframes daily-quiz-banner-in {
       from {
@@ -1656,6 +1680,13 @@
       border-color: rgba(179, 56, 46, 0.4);
       background: rgba(179, 56, 46, 0.08);
       color: var(--risk);
+    }
+    .daily-quiz-ox-btn--reveal-correct {
+      box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.5);
+      border-color: var(--primary);
+    }
+    .daily-quiz-ox-btn--reveal-user:not(.daily-quiz-ox-btn--reveal-correct) {
+      box-shadow: 0 0 0 3px rgba(179, 56, 46, 0.42);
     }
     .daily-quiz-retry-btn {
       display: block;
