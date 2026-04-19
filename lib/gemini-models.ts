@@ -28,30 +28,26 @@ function modelFromEnv(envName: string, fallback: string): string {
 }
 
 /**
+ * `fetchGeminiGenerateContentWithFlashFallback` 워터폴 순서(중복 제거 후 primary 뒤에 이어 붙음).
+ * ① 3.1 flash lite preview → ② 3 flash preview → ③ 2.5 flash lite
+ */
+export const GEMINI_WATERFALL_ORDER: readonly string[] = [
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash-lite',
+];
+
+/** 환경 변수 미설정 시 첫 호출 모델(워터폴 ①과 동일) */
+export const DEFAULT_GEMINI_PRIMARY_MODEL = GEMINI_WATERFALL_ORDER[0]!;
+
+/**
  * `/api/analyze`, `/api/quiz` 등 `GEMINI_MODEL`로 쓰는 기본 모델.
- * 지연을 줄이기 위해 기본값은 **gemini-2.5-flash**. 더 무거운 3.x 라이트를 쓰려면
- * `GEMINI_ANALYSIS_MODEL=gemini-3.1-flash-lite-preview` 등으로 지정.
+ * 기본값은 **gemini-3.1-flash-lite-preview**. 바꾸려면 `GEMINI_ANALYSIS_MODEL`로 지정.
  */
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',
-  'gemini-2.5-flash',
+  DEFAULT_GEMINI_PRIMARY_MODEL,
 );
-
-/**
- * 기본 모델이 503·429 등으로 실패할 때 `generateContent` 재시도용 모델.
- * (환경 변수로 덮어쓰지 않음 — 안정성 우선 고정값)
- */
-export const GEMINI_FALLBACK_FLASH_MODEL = 'gemini-2.5-flash';
-
-/**
- * primary가 이미 `GEMINI_FALLBACK_FLASH_MODEL`과 같을 때(예: 기본 분석 모델이 2.5-flash) 재시도용 대안.
- */
-export const GEMINI_ALTERNATE_FALLBACK_MODEL = 'gemini-3.1-flash-lite-preview';
-
-/**
- * 503 연쇄 시 마지막으로 시도할 추가 모델(다른 큐·부하 분산).
- */
-export const GEMINI_TERTIARY_FALLBACK_MODEL = 'gemini-2.0-flash';
 
 /**
  * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.
@@ -73,13 +69,12 @@ export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_M
 export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 3072);
 
 /**
- * `/api/compare` 전용 모델. 미설정 시 `gemini-2.5-flash`(멀티 이미지에서 대체로 빠른 응답).
- * 분석과 동일한 모델을 쓰려면 `GEMINI_COMPARE_MODEL=gemini-3.1-flash-lite-preview` 등으로 지정.
+ * `/api/compare` 전용 모델. 미설정 시 분석과 동일하게 `DEFAULT_GEMINI_PRIMARY_MODEL`.
  */
 export const COMPARE_GEMINI_MODEL = (() => {
   const raw = process.env.GEMINI_COMPARE_MODEL;
   if (raw != null && String(raw).trim() !== '') {
     return normalizeGeminiModelId(String(raw).trim());
   }
-  return normalizeGeminiModelId(GEMINI_FALLBACK_FLASH_MODEL);
+  return normalizeGeminiModelId(DEFAULT_GEMINI_PRIMARY_MODEL);
 })();

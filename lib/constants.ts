@@ -43,4 +43,14 @@ export const CAPTURE_GUIDE_NUTRIENT_EXAMPLES = [
   '/images/nutrient2.jpg',
 ] as const;
 
+/** HTML `<link rel="preload" as="image">`·클라이언트 워밍용 — 촬영 예시·NOVA·QR 등 */
+export const PUBLIC_IMAGE_PRELOAD_HREFS: readonly string[] = Array.from(
+  new Set<string>([
+    ...Object.values(NOVA_IMG),
+    ...CAPTURE_GUIDE_INGREDIENT_EXAMPLES,
+    ...CAPTURE_GUIDE_NUTRIENT_EXAMPLES,
+    '/images/qrcode.png',
+  ]),
+);
+
 export const STORE_PREFIX = 'fp_state_v1_';

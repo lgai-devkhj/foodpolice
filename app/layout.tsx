@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { PUBLIC_IMAGE_PRELOAD_HREFS } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: 'FoodPolice',
@@ -22,6 +23,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
+      <head>
+        {PUBLIC_IMAGE_PRELOAD_HREFS.map((href) => (
+          <link key={href} rel="preload" href={href} as="image" />
+        ))}
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );

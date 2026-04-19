@@ -1,7 +1,5 @@
 import {
-  GEMINI_ALTERNATE_FALLBACK_MODEL,
-  GEMINI_FALLBACK_FLASH_MODEL,
-  GEMINI_TERTIARY_FALLBACK_MODEL,
+  GEMINI_WATERFALL_ORDER,
   isGemini3FamilyModelId,
   normalizeGeminiModelId,
 } from '@/lib/gemini-models';
@@ -68,17 +66,20 @@ function shouldRetryRoundAfterOverload(last: GeminiFetchWithFallbackResult): boo
   return last.status === 503 || last.status === 429;
 }
 
+/** primary 먼저 시도 후, `GEMINI_WATERFALL_ORDER` 순으로 나머지(중복 제거) */
 function buildOverloadModelChain(primaryModel: string): string[] {
   const primary = normalizeGeminiModelId(primaryModel);
-  const flash = normalizeGeminiModelId(GEMINI_FALLBACK_FLASH_MODEL);
-  const alt = normalizeGeminiModelId(GEMINI_ALTERNATE_FALLBACK_MODEL);
-  const tertiary = normalizeGeminiModelId(GEMINI_TERTIARY_FALLBACK_MODEL);
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const m of [primary, flash, alt, tertiary]) {
-    if (!seen.has(m)) {
-      seen.add(m);
-      out.push(m);
+  if (!seen.has(primary)) {
+    seen.add(primary);
+    out.push(primary);
+  }
+  for (const m of GEMINI_WATERFALL_ORDER) {
+    const id = normalizeGeminiModelId(m);
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(id);
     }
   }
   return out;
@@ -87,7 +88,7 @@ function buildOverloadModelChain(primaryModel: string): string[] {
 const MAX_OVERLOAD_ROUNDS = 3;
 
 /**
- * 동일 요청으로 **모델 워터폴**(primary → 2.5-flash → 3.1-lite → 2.0-flash, 중복 제거) 후,
+ * 동일 요청으로 **모델 워터폴**(primary → `GEMINI_WATERFALL_ORDER`, 중복 제거) 후,
  * 끝까지 503/429면 백오프하며 최대 3라운드 반복.
  */
 export async function fetchGeminiGenerateContentWithFlashFallback(

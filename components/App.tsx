@@ -63,6 +63,7 @@ import {
   NOVA_SUBGROUP_HINTS,
   CAPTURE_GUIDE_INGREDIENT_EXAMPLES,
   CAPTURE_GUIDE_NUTRIENT_EXAMPLES,
+  PUBLIC_IMAGE_PRELOAD_HREFS,
 } from '@/lib/constants';
 import {
   ALTERNATIVE_NOT_FOUND_MESSAGE,
@@ -1532,6 +1533,29 @@ export default function App() {
       cancelled = true;
     };
   }, [clientId]);
+
+  /** 촬영 예시·NOVA 등 public 이미지: `<link rel="preload">`에 더해 idle 시 디코드 캐시 워밍 */
+  useEffect(() => {
+    const urls = PUBLIC_IMAGE_PRELOAD_HREFS;
+    const warm = () => {
+      for (const href of urls) {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = href;
+      }
+    };
+    let cancelWarm: (() => void) | undefined;
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(warm, { timeout: 2800 });
+      cancelWarm = () => window.cancelIdleCallback(id);
+    } else {
+      const id = window.setTimeout(warm, 300);
+      cancelWarm = () => window.clearTimeout(id);
+    }
+    return () => {
+      cancelWarm?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (showPrivacyConsentGate) setPrivacyGateConsentError(false);
@@ -3431,6 +3455,8 @@ export default function App() {
             <img
               src="/images/qrcode.png"
               alt="이 페이지를 스마트폰에서 열기 위한 QR 코드"
+              loading="eager"
+              decoding="async"
               style={{
                 width: '100%',
                 maxWidth: 260,
@@ -3651,6 +3677,7 @@ export default function App() {
                       className="capture-step-overlay-example"
                       src={src}
                       alt={`원재료 촬영 예시 ${i + 1}`}
+                      loading="eager"
                       decoding="async"
                       onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
                     />
@@ -3673,6 +3700,7 @@ export default function App() {
                       className="capture-step-overlay-example"
                       src={src}
                       alt={`영양정보 표 촬영 예시 ${i + 1}`}
+                      loading="eager"
                       decoding="async"
                       onLoad={() => showTutorial && setTutorialLayoutTick((n) => n + 1)}
                     />
@@ -5320,7 +5348,8 @@ export default function App() {
                     className="photo-guide-example-img"
                     src={src}
                     alt={`원재료 촬영 예시 ${idx + 1}`}
-                    loading="lazy"
+                    loading="eager"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                   />
                 ))}
@@ -5333,7 +5362,8 @@ export default function App() {
                     className="photo-guide-example-img"
                     src={src}
                     alt={`영양정보 표 촬영 예시 ${idx + 1}`}
-                    loading="lazy"
+                    loading="eager"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                   />
                 ))}
