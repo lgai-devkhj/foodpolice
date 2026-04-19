@@ -344,8 +344,8 @@ function getFoodPoliceCorePrompt(
   );
 }
 
-function getSingleProductSchemaObject() {
-  return {
+function getSingleProductSchemaObject(includeDailyQuest?: boolean) {
+  const base = {
     productName: '',
     companyName: '',
     rawMaterials: '',
@@ -388,6 +388,10 @@ function getSingleProductSchemaObject() {
       ],
     },
   };
+  if (includeDailyQuest) {
+    return { ...base, dailyQuestProductMatch: false };
+  }
+  return base;
 }
 
 export function getSingleProductJsonSchemaExample(): string {
@@ -451,8 +455,18 @@ export function getKoreanNovaCriteria(
 
 export function getTwoImagePackagePrompt(
   profile?: PersonalizationInput | null,
-  mode: PromptMode = 'standard'
+  mode: PromptMode = 'standard',
+  dailyQuestTarget?: string | null,
 ): string {
+  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
+  const questBlocks =
+    q.length > 0
+      ? joinBlocks(
+          getDailyQuestProductMatchBlock(q),
+          joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
+        )
+      : '';
+
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
     joinLines(
@@ -472,19 +486,30 @@ export function getTwoImagePackagePrompt(
       '- koreanReclassificationNote는 기본적으로 ""예요.',
       '- JSON 하나만 출력해요.'
     ),
+    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
     joinLines(
       '[JSON 출력]',
-      getSingleProductJsonSchemaExample()
-    )
+      JSON.stringify(getSingleProductSchemaObject(q.length > 0)),
+    ),
   );
 }
 
 export function getPackageImagePrompt(
   profile?: PersonalizationInput | null,
-  mode: PromptMode = 'standard'
+  mode: PromptMode = 'standard',
+  dailyQuestTarget?: string | null,
 ): string {
+  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
+  const questBlocks =
+    q.length > 0
+      ? joinBlocks(
+          getDailyQuestProductMatchBlock(q),
+          joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
+        )
+      : '';
+
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
     joinLines(
@@ -499,12 +524,13 @@ export function getPackageImagePrompt(
       '- koreanReclassificationNote는 기본적으로 ""예요.',
       '- 중간 과정은 출력하지 말고 JSON 하나만 출력해요.'
     ),
+    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
     joinLines(
       '[JSON 출력]',
-      getSingleProductJsonSchemaExample()
-    )
+      JSON.stringify(getSingleProductSchemaObject(q.length > 0)),
+    ),
   );
 }
 

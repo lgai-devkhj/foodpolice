@@ -61,21 +61,6 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
 
 export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
 
-/** 빠른 분석 — Gemini 2차(분석·correctedOcrText) */
-export const FAST_ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('FAST_ANALYSIS_MAX_OUTPUT_TOKENS', 1536);
-
-/** 빠른 분석 — Gemini 1차(이미지→extractedText JSON) */
-export const FAST_OCR_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('FAST_OCR_MAX_OUTPUT_TOKENS', 2048);
-
-/**
- * 시연용 단일 Gemini 호출 — 워터폴 없이 이 모델만 사용.
- * 미설정 시 `gemini-2.5-flash-lite`(가벼운 응답에 유리).
- */
-export const FAST_ANALYSIS_GEMINI_MODEL = modelFromEnv(
-  'FAST_ANALYSIS_GEMINI_MODEL',
-  'gemini-2.5-flash-lite',
-);
-
 /**
  * `/api/compare` 전용 출력 상한. 두 제품·요약이 길어 잘리면 JSON이 깨질 수 있어 기본 3072.
  * `GEMINI_COMPARE_MAX_OUTPUT_TOKENS`로 조정 가능.
