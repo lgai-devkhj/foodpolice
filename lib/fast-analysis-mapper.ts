@@ -1,5 +1,6 @@
 import type { AnalysisResult } from '@/lib/store';
 import type { FastAnalysisGeminiPayload } from '@/lib/fast-analysis-types';
+import { preprocessDisplayLabelText } from '@/lib/fast-analysis-preprocess';
 
 const PLACEHOLDER_EXPL = '시연 빠른 분석에서는 설명을 생략했어요.';
 
@@ -31,17 +32,21 @@ export function mapFastPayloadToAnalysisResult(
     explanation: PLACEHOLDER_EXPL,
   }));
   const corrected = payload.correctedOcrText != null && String(payload.correctedOcrText).trim()
-    ? String(payload.correctedOcrText).trim().slice(0, 12000)
+    ? preprocessDisplayLabelText(String(payload.correctedOcrText))
     : '';
   const fallbackRaw =
     opts?.rawMaterialsFromOcr != null && String(opts.rawMaterialsFromOcr).trim()
-      ? String(opts.rawMaterialsFromOcr).trim().slice(0, 12000)
+      ? preprocessDisplayLabelText(String(opts.rawMaterialsFromOcr))
       : '';
   const raw = corrected || fallbackRaw;
+  const displayName =
+    payload.productName != null && String(payload.productName).trim()
+      ? String(payload.productName).trim().slice(0, 120)
+      : '제품명 미확인';
 
   return {
     product: {
-      productName: '빠른 분석 (시연)',
+      productName: displayName,
       companyName: '',
       rawMaterials: raw,
     },

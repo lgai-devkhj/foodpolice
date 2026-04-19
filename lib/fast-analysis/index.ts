@@ -5,6 +5,7 @@ export type { FastAnalysisGeminiPayload, FastProcessingLevel } from '@/lib/fast-
 export { buildFastGeminiOcrPrompt, buildFastAnalysisUserPromptFromOcrText } from '@/lib/fast-analysis-prompt';
 export { parseAndValidateFastAnalysisJson, parseGeminiOcrExtractedText } from '@/lib/fast-analysis-json';
 export { mapFastPayloadToAnalysisResult } from '@/lib/fast-analysis-mapper';
+export { preprocessGeminiOcrText, preprocessDisplayLabelText } from '@/lib/fast-analysis-preprocess';
 export { runFastAnalysisPipeline } from '@/lib/fast-analysis-pipeline';
 export type {
   FastAnalyzePipelineError,

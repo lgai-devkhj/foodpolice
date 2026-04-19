@@ -52,6 +52,15 @@ function normalizeCorrectedOcr(v: unknown): string | undefined {
   return s.slice(0, 12000);
 }
 
+function normalizeProductName(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 120);
+  return s.length > 0 ? s : undefined;
+}
+
 /**
  * Gemini 후보 텍스트 → 검증된 페이로드. 실패 시 null.
  */
@@ -63,9 +72,12 @@ export function parseAndValidateFastAnalysisJson(raw: string): FastAnalysisGemin
   const fi = obj.flaggedIngredients ?? rec['flagged_ingredients'];
   const corrected =
     normalizeCorrectedOcr(rec['correctedOcrText'] ?? rec['corrected_ocr_text']) ?? undefined;
+  const pn =
+    normalizeProductName(rec['productName'] ?? rec['product_name']) ?? undefined;
   return {
     processingLevel: normalizeLevel(pl),
     flaggedIngredients: normalizeFlagged(fi),
+    ...(pn != null ? { productName: pn } : {}),
     ...(corrected != null ? { correctedOcrText: corrected } : {}),
   };
 }

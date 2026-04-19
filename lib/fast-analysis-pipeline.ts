@@ -1,7 +1,7 @@
 /**
  * 시연용 빠른 분석 — Gemini **2회** (Tesseract 없음):
  * 1) 멀티모달: 낮은 화질 이미지 → OCR JSON (`extractedText`)
- * 2) 텍스트만: `processingLevel` + `flaggedIngredients` + 선택 `correctedOcrText`
+ * 2) 텍스트만: `productName` + `processingLevel` + `flaggedIngredients` + 선택 `correctedOcrText`
  */
 import { parseAndValidateFastAnalysisJson, parseGeminiOcrExtractedText } from '@/lib/fast-analysis-json';
 import { buildFastAnalysisUserPromptFromOcrText, buildFastGeminiOcrPrompt } from '@/lib/fast-analysis-prompt';
@@ -20,6 +20,7 @@ import {
   FAST_OCR_MAX_OUTPUT_TOKENS,
   isGemini3FamilyModelId,
 } from '@/lib/gemini-models';
+import { preprocessGeminiOcrText } from '@/lib/fast-analysis-preprocess';
 import type { AnalysisResult } from '@/lib/store';
 
 export type FastAnalyzePipelineError = {
@@ -187,7 +188,8 @@ export async function runFastAnalysisPipeline(
   const ocrPt = partTextFromUpstream(ocrUpstream);
   if ('error' in ocrPt) return ocrPt;
 
-  const ocrText = parseGeminiOcrExtractedText(ocrPt.partText);
+  const ocrRaw = parseGeminiOcrExtractedText(ocrPt.partText);
+  const ocrText = ocrRaw != null ? preprocessGeminiOcrText(ocrRaw) : '';
   if (!ocrText || ocrText.length < MIN_OCR_CHARS) {
     return {
       error: {
