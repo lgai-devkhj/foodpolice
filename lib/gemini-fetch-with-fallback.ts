@@ -146,7 +146,7 @@ export async function fetchGeminiGenerateContentWithFlashFallback(
   if (result.ok) return result;
 
   for (let round = 1; round < MAX_OVERLOAD_ROUNDS && shouldRetryRoundAfterOverload(result); round++) {
-    await sleepMs(350 + round * 450 + Math.floor(Math.random() * 400));
+    await sleepMs(200 + round * 280 + Math.floor(Math.random() * 250));
     if (process.env.NODE_ENV === 'development') {
       console.warn(`[${logContext}] 과부하 지속 → 워터폴 ${round + 1}/${MAX_OVERLOAD_ROUNDS} 라운드`);
     }
@@ -155,4 +155,30 @@ export async function fetchGeminiGenerateContentWithFlashFallback(
   }
 
   return result;
+}
+
+/**
+ * 단일 모델 1회 호출만 수행(워터폴·과부하 재라운드 없음). 시연용 빠른 분석에서 사용.
+ */
+export async function fetchGeminiGenerateContentOnce(
+  modelId: string,
+  apiKey: string,
+  requestBody: unknown,
+  logContext: string,
+): Promise<GeminiFetchWithFallbackResult> {
+  const id = normalizeGeminiModelId(modelId);
+  const url = geminiGenerateUrl(id, apiKey);
+  const body = isGemini3FamilyModelId(id)
+    ? JSON.stringify(requestBody)
+    : JSON.stringify(cloneRequestBodyWithoutThinkingConfig(requestBody));
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    logGeminiHttpError(`${logContext} (${id})`, res.status, text);
+  }
+  return { ok: res.ok, status: res.status, text, usedModel: id };
 }

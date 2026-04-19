@@ -1,0 +1,193 @@
+/**
+ * 시연용 빠른 분석:
+ * 1) Tesseract.js — 이미지에서 OCR 텍스트
+ * 2) Gemini 1회 — 텍스트만으로 `processingLevel` + `flaggedIngredients`
+ */
+import { parseAndValidateFastAnalysisJson } from '@/lib/fast-analysis-json';
+import { buildFastAnalysisUserPromptFromOcrText } from '@/lib/fast-analysis-prompt';
+import { mapFastPayloadToAnalysisResult } from '@/lib/fast-analysis-mapper';
+import { formatGeminiHttpError, geminiErrorCodeFromBody } from '@/lib/gemini-http-error';
+import { fetchGeminiGenerateContentOnce, type GeminiFetchWithFallbackResult } from '@/lib/gemini-fetch-with-fallback';
+import {
+  getGeminiCandidateText,
+  getGeminiPromptBlockReason,
+  hasGeminiCandidates,
+} from '@/lib/gemini-response-envelope';
+import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
+import {
+  FAST_ANALYSIS_GEMINI_MODEL,
+  FAST_ANALYSIS_MAX_OUTPUT_TOKENS,
+  isGemini3FamilyModelId,
+} from '@/lib/gemini-models';
+import { tesseractExtractFromBase64Images } from '@/lib/tesseract-ocr';
+import type { AnalysisResult } from '@/lib/store';
+
+export type FastAnalyzePipelineError = {
+  message: string;
+  code: string;
+  status: number;
+};
+
+/** 분석 요청 이미지(클라이언트에서 축소·JPEG된 base64) */
+export type FastAnalysisImageInput = {
+  mimeType: string;
+  base64: string;
+};
+
+const MIN_OCR_CHARS = 4;
+
+function buildThinkingGemini3() {
+  return isGemini3FamilyModelId(FAST_ANALYSIS_GEMINI_MODEL)
+    ? { thinkingLevel: 'minimal' as const }
+    : {};
+}
+
+function buildAnalysisGenerationConfig() {
+  return generationConfigJsonMode({
+    maxOutputTokens: FAST_ANALYSIS_MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    ...buildThinkingGemini3(),
+  });
+}
+
+function buildGenerationBodyTextOnly(ocrText: string, hasTwoImages: boolean) {
+  const prompt = buildFastAnalysisUserPromptFromOcrText(ocrText, hasTwoImages);
+  return {
+    contents: [{ parts: [textPart(prompt)] }],
+    generationConfig: buildAnalysisGenerationConfig(),
+  };
+}
+
+function partTextFromUpstream(
+  upstream: GeminiFetchWithFallbackResult,
+): { partText: string } | { error: FastAnalyzePipelineError } {
+  if (!upstream.ok) {
+    const code = geminiErrorCodeFromBody(upstream.text) ?? 'GEMINI_HTTP';
+    return {
+      error: {
+        message: formatGeminiHttpError(upstream.status, upstream.text),
+        code,
+        status: upstream.status >= 400 && upstream.status < 600 ? upstream.status : 502,
+      },
+    };
+  }
+
+  let envelope: Record<string, unknown>;
+  try {
+    envelope = JSON.parse(upstream.text) as Record<string, unknown>;
+  } catch {
+    return {
+      error: {
+        message: 'AI 응답 포맷을 읽지 못했어요.',
+        code: 'ENVELOPE_JSON',
+        status: 502,
+      },
+    };
+  }
+
+  const blockReason = getGeminiPromptBlockReason(envelope);
+  if (blockReason) {
+    return {
+      error: {
+        message:
+          '이 요청은 안전 정책으로 처리할 수 없어요. 다른 사진이나 표시만 있는 화면으로 시도해요.',
+        code: `PROMPT_BLOCKED:${blockReason}`,
+        status: 400,
+      },
+    };
+  }
+
+  if (!hasGeminiCandidates(envelope)) {
+    return {
+      error: {
+        message: 'AI가 응답을 만들지 못했어요. 잠시 뒤 다시 시도해요.',
+        code: 'NO_CANDIDATES',
+        status: 502,
+      },
+    };
+  }
+
+  const partText = getGeminiCandidateText(envelope);
+  if (!partText || typeof partText !== 'string') {
+    return {
+      error: {
+        message: '분석 텍스트를 받지 못했어요. 잠시 뒤 다시 눌러요.',
+        code: 'NO_MODEL_TEXT',
+        status: 500,
+      },
+    };
+  }
+
+  return { partText };
+}
+
+async function runGeminiAndMap(
+  geminiKey: string,
+  generationBody: object,
+  mapOpts: { rawMaterialsFromOcr?: string },
+): Promise<{ result: AnalysisResult } | { error: FastAnalyzePipelineError }> {
+  const upstream = await fetchGeminiGenerateContentOnce(
+    FAST_ANALYSIS_GEMINI_MODEL,
+    geminiKey,
+    generationBody,
+    'api/analyze:fast:analyze',
+  );
+
+  const pt = partTextFromUpstream(upstream);
+  if ('error' in pt) return pt;
+
+  const payload = parseAndValidateFastAnalysisJson(pt.partText);
+  if (!payload) {
+    return {
+      error: {
+        message: '결과 JSON을 읽는 데 실패했어요. 다시 한번 눌러요.',
+        code: 'FAST_RESULT_JSON',
+        status: 500,
+      },
+    };
+  }
+
+  return { result: mapFastPayloadToAnalysisResult(payload, mapOpts) };
+}
+
+/**
+ * @param images — 단일: [라벨], 이중: [원재료, 영양]
+ */
+export async function runFastAnalysisPipeline(
+  geminiKey: string,
+  hasTwoImages: boolean,
+  images: FastAnalysisImageInput[],
+): Promise<{ result: AnalysisResult } | { error: FastAnalyzePipelineError }> {
+  const items =
+    images.length >= 2
+      ? [
+          { label: '[원재료/성분]', base64: images[0]!.base64 },
+          { label: '[영양표]', base64: images[1]!.base64 },
+        ]
+      : [{ label: '[라벨]', base64: images[0]!.base64 }];
+
+  const ocr = await tesseractExtractFromBase64Images(items);
+  if ('error' in ocr) {
+    return {
+      error: {
+        message: '글자 인식(Tesseract)에 실패했어요. 잠시 뒤 다시 시도해요.',
+        code: ocr.error.code,
+        status: 502,
+      },
+    };
+  }
+
+  const ocrText = ocr.text.trim();
+  if (!ocrText || ocrText.length < MIN_OCR_CHARS) {
+    return {
+      error: {
+        message: '라벨 글자를 충분히 읽지 못했어요. 더 밝게·가깝게 찍어 다시 시도해요.',
+        code: 'OCR_EMPTY',
+        status: 422,
+      },
+    };
+  }
+
+  const analysisBody = buildGenerationBodyTextOnly(ocrText, hasTwoImages);
+  return runGeminiAndMap(geminiKey, analysisBody, { rawMaterialsFromOcr: ocrText });
+}

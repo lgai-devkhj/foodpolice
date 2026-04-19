@@ -13,7 +13,8 @@ import { getTossUserFacingToneBlock, type BmiTier } from '@/lib/gemini-prompts';
 
 export const PERPLEXITY_MODEL = 'sonar';
 
-const PER_ATTEMPT_TIMEOUT_MS = 18_000;
+/** Perplexity 응답이 늦는 경우가 많아 18s는 잦은 타임아웃·FETCH_FAILED로 이어짐(2회 시도 시 60s 한도 고려) */
+const PER_ATTEMPT_TIMEOUT_MS = 25_000;
 const MAX_PRODUCT_NAME_LEN = 120;
 const MAX_REASON_LEN = 120;
 const MAX_PROCESSING_STAGE_LEN = 80;

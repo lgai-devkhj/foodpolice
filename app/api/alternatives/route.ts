@@ -43,24 +43,47 @@ function isBmiTier(v: unknown): v is BmiTier {
   );
 }
 
+function bodyToInput(body: AlternativesBody): RecommendationEngineInput {
+  const novaGroup = Math.min(4, Math.max(1, parseInt(String(body.novaGroup), 10) || 4));
+  return {
+    productName: (body.productName || '').trim(),
+    companyName: body.companyName?.trim() ?? null,
+    foodCategory: body.foodCategory ?? null,
+    novaGroup,
+    novaSubgroup: body.novaSubgroup ? String(body.novaSubgroup).trim().toUpperCase() : null,
+    briefDescription: body.briefDescription ? String(body.briefDescription).trim() : null,
+    rawMaterials: (body.rawMaterials || '').trim(),
+    nutrition: body.nutrition ?? null,
+    concernIngredients: body.concernIngredients ?? null,
+    bmiTier: isBmiTier(body.bmiTier) ? body.bmiTier : null,
+  };
+}
+
+function engineFallbackResponse(input: RecommendationEngineInput) {
+  const inferredFoodType = inferFoodType(input);
+  const recs = runRecommendationPipeline(input);
+  if (recs.length === 0) return null;
+  const root = engineRecommendationsToAlternativeJson(input, recs);
+  return NextResponse.json({
+    alternativeFoodText: JSON.stringify(root),
+    alternativeFoodFromWebSearch: false,
+    alternativeFoodEngineFallback: true,
+    inferredFoodType,
+    alternativeUnavailableReason: null,
+  });
+}
+
 export async function POST(request: NextRequest) {
+  let body: AlternativesBody;
   try {
-    const body: AlternativesBody = await request.json();
-    const novaGroup = Math.min(4, Math.max(1, parseInt(String(body.novaGroup), 10) || 4));
+    body = (await request.json()) as AlternativesBody;
+  } catch {
+    return NextResponse.json({ error: '요청 본문을 읽을 수 없어요.' }, { status: 400 });
+  }
 
-    const input: RecommendationEngineInput = {
-      productName: (body.productName || '').trim(),
-      companyName: body.companyName?.trim() ?? null,
-      foodCategory: body.foodCategory ?? null,
-      novaGroup,
-      novaSubgroup: body.novaSubgroup ? String(body.novaSubgroup).trim().toUpperCase() : null,
-      briefDescription: body.briefDescription ? String(body.briefDescription).trim() : null,
-      rawMaterials: (body.rawMaterials || '').trim(),
-      nutrition: body.nutrition ?? null,
-      concernIngredients: body.concernIngredients ?? null,
-      bmiTier: isBmiTier(body.bmiTier) ? body.bmiTier : null,
-    };
+  const input = bodyToInput(body);
 
+  try {
     const inferredFoodType = inferFoodType(input);
     const perplexityKey = process.env.PERPLEXITY_API_KEY?.trim() ?? '';
 
@@ -122,6 +145,8 @@ export async function POST(request: NextRequest) {
       alternativeUnavailableReason: unavailable,
     });
   } catch (e) {
+    const fallback = engineFallbackResponse(input);
+    if (fallback) return fallback;
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해요.';
     return NextResponse.json({ error: message }, { status: 500 });
   }

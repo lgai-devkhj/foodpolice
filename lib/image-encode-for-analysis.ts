@@ -3,12 +3,55 @@
  * (브라우저 전용; App.tsx 등 클라이언트에서만 import)
  */
 
+/** 시연 빠른 분석: 512~1024 권장 — 긴 변 기준(토큰·지연 최소화). */
+const MAX_EDGE_FAST_PX = 896;
+/** 시연 모드 JPEG 상한(바이트) — 초과 시 품질·해상도 순으로 낮춤 */
+const FAST_TARGET_MAX_BYTES = 300 * 1024;
+
+function approxBytesFromBase64(b64: string): number {
+  return Math.floor((b64.length * 3) / 4);
+}
+
 /** 라벨·영양표 OCR에는 충분하면서 멀티모달 토큰·업로드 시간을 줄인다(너무 크면 분석 API가 느려짐). */
-const MAX_EDGE_PX = 896;
+const MAX_EDGE_PX = 800;
 /** 비교는 이미지 4장을 한 번에 보내므로 한 장당 해상도를 더 낮춰 응답 지연을 줄인다. */
-const MAX_EDGE_COMPARE_PX = 768;
-const JPEG_QUALITY = 0.72;
-const JPEG_QUALITY_COMPARE = 0.72;
+const MAX_EDGE_COMPARE_PX = 704;
+const JPEG_QUALITY = 0.68;
+const JPEG_QUALITY_COMPARE = 0.68;
+
+function dataUrlBase64Part(dataUrl: string): string {
+  const i = dataUrl.indexOf(',');
+  return i >= 0 ? dataUrl.slice(i + 1) : '';
+}
+
+/** canvas → JPEG base64. `toDataURL`이 동기라 FileReader 대비 한 틱 빠르고, 실패 시에만 toBlob 폴백 */
+function canvasToJpegBase64(canvas: HTMLCanvasElement, quality: number): Promise<string> {
+  try {
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    const b64 = dataUrlBase64Part(dataUrl);
+    if (b64) return Promise.resolve(b64);
+  } catch {
+    /* CORS 등으로 tainted canvas */
+  }
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('toBlob'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(dataUrlBase64Part(String(reader.result || '')));
+        };
+        reader.onerror = () => reject(new Error('read'));
+        reader.readAsDataURL(blob);
+      },
+      'image/jpeg',
+      quality
+    );
+  });
+}
 
 function normalizeMime(mime: string): string {
   const m = (mime || 'image/jpeg').toLowerCase();
@@ -53,24 +96,82 @@ export async function encodeImageForAnalysis(
         return;
       }
       ctx.drawImage(img, 0, 0, tw, th);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve({ base64, mimeType: mime });
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => {
-            const r = reader.result as string;
-            const part = r.includes(',') ? r.split(',')[1] : '';
-            resolve({ base64: part || base64, mimeType: 'image/jpeg' });
-          };
-          reader.onerror = () => resolve({ base64, mimeType: mime });
-          reader.readAsDataURL(blob);
-        },
-        'image/jpeg',
-        JPEG_QUALITY
-      );
+      void canvasToJpegBase64(canvas, JPEG_QUALITY)
+        .then((part) => resolve({ base64: part || base64, mimeType: 'image/jpeg' }))
+        .catch(() => resolve({ base64, mimeType: mime }));
+    };
+    img.onerror = () => resolve({ base64, mimeType: mime });
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * `/api/analyze` 시연 빠른 분석 전용: 긴 변 896px 이하 + 약 300KB 이하가 되도록 JPEG 품질 조정.
+ */
+export async function encodeImageForFastAnalysis(
+  base64: string,
+  mimeType: string
+): Promise<{ base64: string; mimeType: string }> {
+  const mime = normalizeMime(mimeType);
+  const dataUrl = `data:${mime};base64,${base64}`;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) {
+        resolve({ base64, mimeType: mime });
+        return;
+      }
+      const maxSide = Math.max(w, h);
+      const scale = maxSide > MAX_EDGE_FAST_PX ? MAX_EDGE_FAST_PX / maxSide : 1;
+      const tw = Math.max(1, Math.round(w * scale));
+      const th = Math.max(1, Math.round(h * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve({ base64, mimeType: mime });
+        return;
+      }
+      ctx.drawImage(img, 0, 0, tw, th);
+
+      const tryEncode = (quality: number, edgePx: number) => {
+        const q = Math.max(0.35, Math.min(0.92, quality));
+        void canvasToJpegBase64(canvas, q)
+          .then((part) => {
+            const b64 = part || '';
+            if (b64 && approxBytesFromBase64(b64) <= FAST_TARGET_MAX_BYTES) {
+              resolve({ base64: b64, mimeType: 'image/jpeg' });
+              return;
+            }
+            if (q > 0.42) {
+              tryEncode(q - 0.09, edgePx);
+              return;
+            }
+            if (edgePx > 512) {
+              const nextEdge = Math.max(512, Math.floor(edgePx * 0.85));
+              const sc = nextEdge / Math.max(w, h);
+              canvas.width = Math.max(1, Math.round(w * sc));
+              canvas.height = Math.max(1, Math.round(h * sc));
+              const c2 = canvas.getContext('2d');
+              if (c2) {
+                c2.drawImage(img, 0, 0, canvas.width, canvas.height);
+                tryEncode(0.72, nextEdge);
+              } else {
+                resolve({ base64: b64 || base64, mimeType: 'image/jpeg' });
+              }
+              return;
+            }
+            resolve({ base64: b64 || base64, mimeType: 'image/jpeg' });
+          })
+          .catch(() => resolve({ base64, mimeType: mime }));
+      };
+
+      tryEncode(0.74, MAX_EDGE_FAST_PX);
     };
     img.onerror = () => resolve({ base64, mimeType: mime });
     img.src = dataUrl;
@@ -115,24 +216,9 @@ export async function encodeImageForCompare(
         return;
       }
       ctx.drawImage(img, 0, 0, tw, th);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve({ base64, mimeType: mime });
-            return;
-          }
-          const reader = new FileReader();
-          reader.onload = () => {
-            const r = reader.result as string;
-            const part = r.includes(',') ? r.split(',')[1] : '';
-            resolve({ base64: part || base64, mimeType: 'image/jpeg' });
-          };
-          reader.onerror = () => resolve({ base64, mimeType: mime });
-          reader.readAsDataURL(blob);
-        },
-        'image/jpeg',
-        JPEG_QUALITY_COMPARE
-      );
+      void canvasToJpegBase64(canvas, JPEG_QUALITY_COMPARE)
+        .then((part) => resolve({ base64: part || base64, mimeType: 'image/jpeg' }))
+        .catch(() => resolve({ base64, mimeType: mime }));
     };
     img.onerror = () => resolve({ base64, mimeType: mime });
     img.src = dataUrl;

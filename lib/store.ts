@@ -257,6 +257,8 @@ export interface AnalysisResult {
   alternativeFoodUserRequested?: boolean;
   /** 일일 첫 퀘스트: AI가 오늘 미션 식품 종류와 실제 촬영 제품이 맞는다고 판단한 경우 */
   dailyQuestProductMatch?: boolean;
+  /** 시연용 빠른 분석 파이프라인 — `/api/alternatives` 등 2차 호출 생략 */
+  fastAnalysisDemo?: boolean;
 }
 
 export interface AppState {

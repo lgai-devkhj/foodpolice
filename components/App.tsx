@@ -14,7 +14,7 @@ import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload, DailyOxQuizSolvedStored } from '@/lib/daily-quiz';
 import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
-import { encodeImageForAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
+import { encodeImageForFastAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
 import {
   readApiJson,
   tryParseJsonObject,
@@ -174,6 +174,22 @@ function formatConcernIngredientPercentRange(min: number, max: number): string {
 function stripMarkdownBold(s: string): string {
   if (!s) return '';
   return s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '');
+}
+
+/** 분석·비교 API 업링크 — 모델·프롬프트와 무관, Chromium 등에서 `priority`로 전송 우선 */
+function fetchJsonHighPriority(url: string, body: string): Promise<Response> {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    priority: 'high',
+  } as RequestInit);
+}
+
+/** 결과 배너 문구용 — 소수 첫째 자리(toFixed) 대신 정수 초로 표시해 체감과 맞춤 */
+function formatElapsedSecondsBanner(sec: number): string {
+  if (!Number.isFinite(sec) || sec <= 0) return '0';
+  return String(Math.max(1, Math.round(sec)));
 }
 
 type CoachRect = { top: number; left: number; width: number; height: number };
@@ -881,11 +897,11 @@ function messageForAlternativeUnavailable(
 ): string {
   switch (reason) {
     case 'NO_SEARCH_KEY':
-      return '서버에 웹 검색 API가 연결되어 있지 않아 대체 식품을 불러올 수 없어요.';
+      return '웹 검색 연결이 설정되어 있지 않아 대체 식품 링크는 못 불러왔어요.';
     case 'FETCH_FAILED':
-      return '검색 서버와 통신하지 못했어요. 잠시 후 다시 시도해요.';
+      return '웹 검색이 잠깐 끊겼거나 시간이 부족했어요. 잠시 뒤 결과를 다시 열어보면 다시 시도돼요.';
     case 'NO_MATCH':
-      return '웹 검색으로 조건에 맞는 실제 제품을 찾지 못했어요. 다른 제품으로 다시 시도해 볼 수 있어요.';
+      return '조건에 맞는 실제 제품을 이번에 찾지 못했어요. 다른 제품으로 다시 분석해 볼 수 있어요.';
     default:
       return ALTERNATIVE_NOT_FOUND_MESSAGE;
   }
@@ -900,6 +916,9 @@ const NOVA_CLASSIFICATION_INTRO =
   '한국형 NOVA는 가공 정도를 1~4단계로 나눈 거예요. 첨가물 개수만 보지 않고, 원재료가 얼마나 변했는지를 봐요. 숫자가 클수록 산업적으로 더 가공된 편에 가깝다고 보면 돼요.';
 
 function withAlternativesClientState(raw: AnalysisResult): AnalysisResult {
+  if (raw.fastAnalysisDemo) {
+    return { ...raw };
+  }
   const g = raw.novaGroup;
   if (g === 1 || g === 2) {
     return {
@@ -1211,7 +1230,7 @@ function BirthYearSelect({
 
 /**
  * 라벨·영양표 촬영에는 720p 전후면 충분. 1080p 이상을 강하게 요구하면 AF가 늦게 잡히는 기기가 많다.
- * (촬영 후 `encodeImageForAnalysis`에서 긴 변 1024px로 축소)
+ * (촬영 후 `encodeImageForFastAnalysis`에서 긴 변 ~896px·~300KB로 축소)
  */
 const CAMERA_PREVIEW_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
@@ -1999,19 +2018,15 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
-        const encoded = await encodeImageForAnalysis(base64, mimeType);
+        const startedAt = performance.now();
+        const encoded = await encodeImageForFastAnalysis(base64, mimeType);
         const body = JSON.stringify({
           clientId,
           imageBase64: encoded.base64,
           mimeType: encoded.mimeType,
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
-        const startedAt = performance.now();
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-        });
+        const res = await fetchJsonHighPriority('/api/analyze', body);
         const data = await readApiJson<AnalysisResult & Partial<ApiErrorBody>>(res);
         if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
         const rawResult = data as AnalysisResult;
@@ -2036,7 +2051,10 @@ export default function App() {
         setRawImageBase64(null);
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
-        if (result.novaGroup === 3 || result.novaGroup === 4) {
+        if (
+          !result.fastAnalysisDemo &&
+          (result.novaGroup === 3 || result.novaGroup === 4)
+        ) {
           requestAlternativesFromApi(
             clientId,
             id,
@@ -2084,9 +2102,10 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const startedAt = performance.now();
         const [rawEnc, nutEnc] = await Promise.all([
-          encodeImageForAnalysis(rawBase64, rawMimeType),
-          encodeImageForAnalysis(nutritionBase64, nutritionMimeType),
+          encodeImageForFastAnalysis(rawBase64, rawMimeType),
+          encodeImageForFastAnalysis(nutritionBase64, nutritionMimeType),
         ]);
         const body = JSON.stringify({
           clientId,
@@ -2096,12 +2115,7 @@ export default function App() {
           nutritionMimeType: nutEnc.mimeType,
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
-        const startedAt = performance.now();
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-        });
+        const res = await fetchJsonHighPriority('/api/analyze', body);
         const data = await readApiJson<AnalysisResult & Partial<ApiErrorBody>>(res);
         if (!res.ok) throw new Error(formatApiErrorForDisplay(res, data));
         const rawResult = data as AnalysisResult;
@@ -2126,7 +2140,10 @@ export default function App() {
         setRawImageBase64(null);
         setNutritionImageBase64(null);
         setCapturedPreviewDataUrl(null);
-        if (result.novaGroup === 3 || result.novaGroup === 4) {
+        if (
+          !result.fastAnalysisDemo &&
+          (result.novaGroup === 3 || result.novaGroup === 4)
+        ) {
           requestAlternativesFromApi(
             clientId,
             id,
@@ -2172,29 +2189,26 @@ export default function App() {
                 ...(p.gender ? { gender: p.gender } : {}),
               }
             : undefined;
+        const compareStartedAt = performance.now();
         const [aRaw, aNut, bRaw, bNut] = await Promise.all([
           encodeImageForCompare(pairA.raw, pairA.rawMime),
           encodeImageForCompare(pairA.nut, pairA.nutMime),
           encodeImageForCompare(pairB.raw, pairB.rawMime),
           encodeImageForCompare(pairB.nut, pairB.nutMime),
         ]);
-        const compareStartedAt = performance.now();
-        const res = await fetch('/api/compare', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId,
-            aRawImageBase64: aRaw.base64,
-            aRawMimeType: aRaw.mimeType,
-            aNutritionImageBase64: aNut.base64,
-            aNutritionMimeType: aNut.mimeType,
-            bRawImageBase64: bRaw.base64,
-            bRawMimeType: bRaw.mimeType,
-            bNutritionImageBase64: bNut.base64,
-            bNutritionMimeType: bNut.mimeType,
-            ...(profilePayload ? { profile: profilePayload } : {}),
-          }),
+        const compareBody = JSON.stringify({
+          clientId,
+          aRawImageBase64: aRaw.base64,
+          aRawMimeType: aRaw.mimeType,
+          aNutritionImageBase64: aNut.base64,
+          aNutritionMimeType: aNut.mimeType,
+          bRawImageBase64: bRaw.base64,
+          bRawMimeType: bRaw.mimeType,
+          bNutritionImageBase64: bNut.base64,
+          bNutritionMimeType: bNut.mimeType,
+          ...(profilePayload ? { profile: profilePayload } : {}),
         });
+        const res = await fetchJsonHighPriority('/api/compare', compareBody);
         const data = await readApiJson<{
           dailyQuestProductMatch?: boolean;
           productA?: AnalysisResult;
@@ -2295,7 +2309,9 @@ export default function App() {
       const showTimeFromOpts =
         opts?.analysisSeconds != null &&
         opts?.historyId != null &&
-        (opts.historyId === currentHistoryId || (historyItem?.id && opts.historyId === historyItem.id));
+        (opts.historyId === currentHistoryId ||
+          (historyItem?.id && opts.historyId === historyItem.id) ||
+          (historyItem == null && opts.historyId === lastAnalysisForId));
       let displaySec: number | null = null;
       if (showTimeFromOpts && opts) {
         displaySec = opts.analysisSeconds;
@@ -2547,6 +2563,7 @@ export default function App() {
   const handleAltForceFetch = useCallback(() => {
     if (!clientId || !currentHistoryId || !currentResult) return;
     const r = currentResult;
+    if (r.fastAnalysisDemo) return;
     if (r.novaGroup !== 1 && r.novaGroup !== 2) return;
     if (r.alternativeFoodLoaded === false) return;
     if (r.alternativeFoodUserRequested) return;
@@ -4496,7 +4513,7 @@ export default function App() {
           <div ref={resultScrollRef} className={`result-scroll ${editingName !== null ? 'editing-name' : ''}`} id="resultScroll">
             {resultAnalysisSeconds != null && (
               <div className="result-analysis-time result-analysis-time--sticky" role="status">
-                {resultAnalysisSeconds.toFixed(1)}초 만에 분석되었어요
+                {formatElapsedSecondsBanner(resultAnalysisSeconds)}초 만에 분석되었어요
               </div>
             )}
             {editingName !== null && (
@@ -4605,7 +4622,7 @@ export default function App() {
             </h2>
             {compareResultSeconds != null && (
               <div className="result-analysis-time" role="status">
-                {compareResultSeconds.toFixed(1)}초 만에 비교되었어요
+                {formatElapsedSecondsBanner(compareResultSeconds)}초 만에 비교되었어요
               </div>
             )}
             <div className="compare-result-grid compare-result-grid--nova">
