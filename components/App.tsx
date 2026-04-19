@@ -2806,11 +2806,13 @@ export default function App() {
     }
     if (altLoading) return '대체 식품을 찾는 중… 잠시만 기다려요';
     if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
-    return null;
+    /* 펼침·로딩 완료 뒤에도 퀘스트 완료 직전까지 안내 유지 — 아니면 XP 적립 직후 상단 캡슐이 비어 보임 */
+    return '「대체 식품」을 확인하며 퀘스트를 마무리해요';
   }, [
     showResult,
     currentResult,
     clientId,
+    questBoard,
     altQuestScrollSecAccum,
     altQuestDetailsOpen,
     altQuestBannerClock,
