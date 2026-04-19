@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getCompareFourImagesPrompt,
-  GEMINI_MODEL,
   type BmiTier,
   type PersonalizationInput,
 } from '@/lib/gemini-prompts';
@@ -19,7 +18,11 @@ import {
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, inlineDataPart, textPart } from '@/lib/gemini-rest-body';
 import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
-import { ANALYSIS_MAX_OUTPUT_TOKENS, isGemini3FamilyModelId } from '@/lib/gemini-models';
+import {
+  COMPARE_GEMINI_MODEL,
+  COMPARE_MAX_OUTPUT_TOKENS,
+  isGemini3FamilyModelId,
+} from '@/lib/gemini-models';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -131,14 +134,14 @@ export async function POST(request: NextRequest) {
         },
       ],
       generationConfig: generationConfigJsonMode({
-        maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: COMPARE_MAX_OUTPUT_TOKENS,
         temperature: 0,
-        ...(isGemini3FamilyModelId(GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
+        ...(isGemini3FamilyModelId(COMPARE_GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
       }),
     };
 
     const upstream = await fetchGeminiGenerateContentWithFlashFallback(
-      GEMINI_MODEL,
+      COMPARE_GEMINI_MODEL,
       key,
       generationBody,
       'api/compare',

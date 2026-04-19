@@ -55,3 +55,21 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
 }
 
 export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
+
+/**
+ * `/api/compare` 전용 출력 상한. 비교 JSON은 단일 분석보다 짧은 편이라 기본 2048로 두어 지연을 줄인다.
+ * `GEMINI_COMPARE_MAX_OUTPUT_TOKENS`로 조정 가능.
+ */
+export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 2048);
+
+/**
+ * `/api/compare` 전용 모델. 미설정 시 `gemini-2.5-flash`(멀티 이미지에서 대체로 빠른 응답).
+ * 분석과 동일한 모델을 쓰려면 `GEMINI_COMPARE_MODEL=gemini-3.1-flash-lite-preview` 등으로 지정.
+ */
+export const COMPARE_GEMINI_MODEL = (() => {
+  const raw = process.env.GEMINI_COMPARE_MODEL;
+  if (raw != null && String(raw).trim() !== '') {
+    return normalizeGeminiModelId(String(raw).trim());
+  }
+  return normalizeGeminiModelId(GEMINI_FALLBACK_FLASH_MODEL);
+})();

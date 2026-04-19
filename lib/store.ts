@@ -21,6 +21,7 @@ import {
   ensureDailyForToday,
   isDailyQuestPairComplete,
   toLocalYmd as questDayYmd,
+  trimXpEarnedByDayMap,
   type QuestsSlice,
   type WeekDayCell,
 } from './daily-quests';
@@ -430,8 +431,16 @@ export function addXp(clientId: string, delta: number): number {
   if (delta <= 0 || !Number.isFinite(delta)) return getTotalXp(clientId);
   const state = loadState(clientId);
   const qs = normalizeQuestsSlice(state.quests);
-  const next = clampXp((qs.totalXp ?? 0) + Math.floor(delta));
-  state.quests = { ...qs, totalXp: next };
+  const d = Math.floor(delta);
+  const next = clampXp((qs.totalXp ?? 0) + d);
+  const ymd = questDayYmd(new Date());
+  const prevDay = qs.xpEarnedByDay?.[ymd] ?? 0;
+  const merged = { ...qs.xpEarnedByDay, [ymd]: prevDay + d };
+  state.quests = {
+    ...qs,
+    totalXp: next,
+    xpEarnedByDay: trimXpEarnedByDayMap(merged, 24),
+  };
   saveState(clientId, state);
   return next;
 }
@@ -501,6 +510,49 @@ export function getWeekStreakSheetData(clientId: string): {
   const displayStreak = getEffectiveAnalysisStreak(st).displayCurrent;
   const week = buildWeekStreakView(slice.dailyPairCompleteYmds, new Date(), state.analysisStreak);
   return { displayStreak, longest: st.longest, week };
+}
+
+/** 이번 주(로컬·월~일 아님: 오늘 포함 과거 7일) 일별 XP — 주간 막대 그래프용 */
+export function getXpWeekChartData(clientId: string): {
+  cells: Array<{
+    ymd: string;
+    weekdayLabel: string;
+    dayNum: number;
+    xp: number;
+    isToday: boolean;
+  }>;
+  weekTotal: number;
+  maxInWeek: number;
+} {
+  const qs = normalizeQuestsSlice(loadState(clientId).quests);
+  const byDay = qs.xpEarnedByDay || {};
+  const now = new Date();
+  const labels = ['일', '월', '화', '수', '목', '금', '토'];
+  const cells: Array<{
+    ymd: string;
+    weekdayLabel: string;
+    dayNum: number;
+    xp: number;
+    isToday: boolean;
+  }> = [];
+  let weekTotal = 0;
+  let maxInWeek = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const ymd = questDayYmd(d);
+    const xp = Math.min(byDay[ymd] ?? 0, 99_999_999);
+    weekTotal += xp;
+    if (xp > maxInWeek) maxInWeek = xp;
+    cells.push({
+      ymd,
+      weekdayLabel: labels[d.getDay()] ?? '',
+      dayNum: d.getDate(),
+      xp,
+      isToday: i === 0,
+    });
+  }
+  if (maxInWeek < 1) maxInWeek = 1;
+  return { cells, weekTotal, maxInWeek };
 }
 
 export function markQuestAlternativeReceived(clientId: string): {

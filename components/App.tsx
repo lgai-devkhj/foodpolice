@@ -14,7 +14,7 @@ import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload } from '@/lib/daily-quiz';
 import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
 import type { BmiTier } from '@/lib/gemini-prompts';
-import { encodeImageForAnalysis } from '@/lib/image-encode-for-analysis';
+import { encodeImageForAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
 import {
   readApiJson,
   tryParseJsonObject,
@@ -46,6 +46,7 @@ import {
   removeBodyMeasurement,
   markDailyAnalyzeQuizDone,
   getTotalXp,
+  getXpWeekChartData,
   compareBodyMeasurementsAsc,
   compareBodyMeasurementsDesc,
   type Profile,
@@ -1252,6 +1253,10 @@ export default function App() {
   const [weekStreakSheet, setWeekStreakSheet] = useState<ReturnType<typeof getWeekStreakSheetData> | null>(
     null,
   );
+  const [showXpWeekSheet, setShowXpWeekSheet] = useState(false);
+  const [xpWeekChart, setXpWeekChart] = useState<ReturnType<typeof getXpWeekChartData> | null>(null);
+  /** 분석·비교 결과에서 XP 지급 대기 시 상단 토스형 진행 표시 */
+  const [xpGrantToss, setXpGrantToss] = useState<{ remaining: number; progress: number } | null>(null);
   const [questBoard, setQuestBoard] = useState<ReturnType<typeof getQuestBoard>>({
     lead: '',
     dailyRows: [],
@@ -1642,6 +1647,10 @@ export default function App() {
   }, [currentHistoryId, compareHistoryId]);
 
   useEffect(() => {
+    if (!showResult && !showCompareResult) setXpGrantToss(null);
+  }, [showResult, showCompareResult]);
+
+  useEffect(() => {
     if (!clientId) return;
     const id = window.setInterval(() => {
       const now = performance.now();
@@ -1659,7 +1668,35 @@ export default function App() {
       }
 
       resultViewSecondsRef.current += dt;
-      if (resultViewSecondsRef.current < MIN_VIEW_SECONDS_FOR_XP) return;
+      const elapsed = resultViewSecondsRef.current;
+
+      let toss: { remaining: number; progress: number } | null = null;
+      if (analysisFlow && currentHistoryId) {
+        const item = getHistory(clientId).find((h) => h.id === currentHistoryId);
+        if (
+          item &&
+          item.entryKind !== 'compare' &&
+          item.pendingAnalysisXp === true &&
+          item.analysisXpGranted !== true
+        ) {
+          const rem = Math.max(0, Math.ceil(MIN_VIEW_SECONDS_FOR_XP - elapsed));
+          toss = { remaining: rem, progress: Math.min(1, elapsed / MIN_VIEW_SECONDS_FOR_XP) };
+        }
+      } else if (compareFlow && compareHistoryId) {
+        const item = getHistory(clientId).find((h) => h.id === compareHistoryId);
+        if (
+          item &&
+          item.entryKind === 'compare' &&
+          item.pendingCompareXp === true &&
+          item.compareXpGranted !== true
+        ) {
+          const rem = Math.max(0, Math.ceil(MIN_VIEW_SECONDS_FOR_XP - elapsed));
+          toss = { remaining: rem, progress: Math.min(1, elapsed / MIN_VIEW_SECONDS_FOR_XP) };
+        }
+      }
+      setXpGrantToss(toss);
+
+      if (elapsed < MIN_VIEW_SECONDS_FOR_XP) return;
 
       if (analysisFlow && currentHistoryId) {
         const prevXp = getTotalXp(clientId);
@@ -1793,10 +1830,21 @@ export default function App() {
     setShowStreakWeekSheet(true);
   }, [clientId]);
 
+  const openXpWeekSheet = useCallback(() => {
+    if (!clientId) return;
+    setXpWeekChart(getXpWeekChartData(clientId));
+    setShowXpWeekSheet(true);
+  }, [clientId]);
+
   useEffect(() => {
     if (!showStreakWeekSheet || !clientId) return;
     setWeekStreakSheet(getWeekStreakSheetData(clientId));
   }, [showStreakWeekSheet, clientId, analysisStreak.displayCurrent]);
+
+  useEffect(() => {
+    if (!showXpWeekSheet || !clientId) return;
+    setXpWeekChart(getXpWeekChartData(clientId));
+  }, [showXpWeekSheet, clientId, totalXp]);
 
   useEffect(() => {
     if (!clientId || !showInfoCriteria) return;
@@ -2003,10 +2051,10 @@ export default function App() {
               }
             : undefined;
         const [aRaw, aNut, bRaw, bNut] = await Promise.all([
-          encodeImageForAnalysis(pairA.raw, pairA.rawMime),
-          encodeImageForAnalysis(pairA.nut, pairA.nutMime),
-          encodeImageForAnalysis(pairB.raw, pairB.rawMime),
-          encodeImageForAnalysis(pairB.nut, pairB.nutMime),
+          encodeImageForCompare(pairA.raw, pairA.rawMime),
+          encodeImageForCompare(pairA.nut, pairA.nutMime),
+          encodeImageForCompare(pairB.raw, pairB.rawMime),
+          encodeImageForCompare(pairB.nut, pairB.nutMime),
         ]);
         const compareStartedAt = performance.now();
         const res = await fetch('/api/compare', {
@@ -3927,6 +3975,22 @@ export default function App() {
         </div>
       )}
 
+      {xpGrantToss && (showResult || showCompareResult) && (
+        <div className="xp-grant-toss-strip" role="status" aria-live="polite">
+          <div className="xp-grant-toss-track" aria-hidden>
+            <div
+              className="xp-grant-toss-fill"
+              style={{ transform: `scaleX(${xpGrantToss.progress})` }}
+            />
+          </div>
+          <p className="xp-grant-toss-text">
+            {xpGrantToss.remaining > 0
+              ? `상품을 확인하는 중 · XP까지 약 ${xpGrantToss.remaining}초`
+              : '곧 XP가 적립돼요'}
+          </p>
+        </div>
+      )}
+
       {showTutorial && tutorialPhase === 'tutorial_mode_pick' && (
         <div
           className="tutorial-mode-pick-overlay"
@@ -4008,10 +4072,16 @@ export default function App() {
                         </span>
                         <span className="home-streak-num">{analysisStreak.displayCurrent}</span>
                       </button>
-                      <span className="home-xp-badge" title="누적 XP">
+                      <button
+                        type="button"
+                        className="home-xp-badge"
+                        title="이번 주 XP 그래프"
+                        aria-label={`누적 ${totalXp} XP, 이번 주 기록 보기`}
+                        onClick={openXpWeekSheet}
+                      >
                         <IconFlame size={16} aria-hidden />
                         {totalXp} XP
-                      </span>
+                      </button>
                     </div>
                   </div>
                   <div className="home-top-bar-right">
@@ -4295,7 +4365,11 @@ export default function App() {
           </div>
         </div>
 
-        <div id="resultView" className={showResult ? 'visible' : ''} style={{ display: showResult ? 'flex' : 'none' }}>
+        <div
+          id="resultView"
+          className={`${showResult ? 'visible' : ''}${xpGrantToss && showResult ? ' result-view--xp-toss' : ''}`}
+          style={{ display: showResult ? 'flex' : 'none' }}
+        >
           <div className="result-toolbar">
             <button
               type="button"
@@ -4391,7 +4465,7 @@ export default function App() {
 
       {showCompareResult && compareApiResult && (
         <div
-          className="compare-result-overlay"
+          className={`compare-result-overlay${xpGrantToss ? ' compare-result-overlay--xp-toss' : ''}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="compare-result-title"
@@ -4889,6 +4963,54 @@ export default function App() {
                   <span className="streak-week-daynum">{cell.dayNum}</span>
                   <span className="streak-week-flame" aria-hidden>
                     {cell.done ? '🔥' : '·'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showXpWeekSheet && xpWeekChart && (
+        <div
+          className="modal info-sheet visible"
+          role="dialog"
+          aria-label="지난 7일 XP 기록"
+          onClick={(e) => e.target === e.currentTarget && setShowXpWeekSheet(false)}
+        >
+          <div className="modal-panel xp-week-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-header">
+              <h2 className="sheet-title">이번 주 XP</h2>
+              <button
+                type="button"
+                className="sheet-close-x"
+                aria-label="닫기"
+                onClick={() => setShowXpWeekSheet(false)}
+              >
+                ×
+              </button>
+            </div>
+            <p className="xp-week-lead">
+              7일 동안 모은 XP <strong>{xpWeekChart.weekTotal}</strong>
+            </p>
+            <p className="xp-week-hint">퀴즈·분석·비교 등으로 얻은 XP가 날마다 쌓여요.</p>
+            <div className="xp-week-chart" role="group" aria-label="일별 XP 막대 그래프">
+              {xpWeekChart.cells.map((c) => (
+                <div
+                  key={c.ymd}
+                  className={`xp-week-col ${c.isToday ? 'xp-week-col--today' : ''}`}
+                >
+                  <div className="xp-week-bar-wrap">
+                    <div
+                      className="xp-week-bar"
+                      style={{
+                        height: `${Math.max(4, (c.xp / xpWeekChart.maxInWeek) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="xp-week-dow">{c.weekdayLabel}</span>
+                  <span className="xp-week-val" aria-label={`${c.ymd} ${c.xp} XP`}>
+                    {c.xp > 0 ? c.xp : '·'}
                   </span>
                 </div>
               ))}

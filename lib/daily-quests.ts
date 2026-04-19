@@ -35,6 +35,8 @@ export interface QuestsSlice {
   dailyPairCompleteYmds?: string[];
   /** 누적 경험치(XP) */
   totalXp?: number;
+  /** 로컬 날짜(YYYY-MM-DD)별 획득 XP 합계(주간 차트용). 오래된 키는 주기적으로 잘라 냄 */
+  xpEarnedByDay?: Record<string, number>;
 }
 
 export function toLocalYmd(d: Date): string {
@@ -100,7 +102,35 @@ export function normalizeQuestsSlice(raw: unknown): QuestsSlice {
   if (typeof q.totalXp === 'number' && Number.isFinite(q.totalXp) && q.totalXp >= 0) {
     totalXp = Math.min(Math.floor(q.totalXp), 99_999_999);
   }
-  return { firstUseAt, lifetime, daily, dailyPairCompleteYmds, totalXp };
+  let xpEarnedByDay: Record<string, number> | undefined;
+  if (q.xpEarnedByDay && typeof q.xpEarnedByDay === 'object' && !Array.isArray(q.xpEarnedByDay)) {
+    const o: Record<string, number> = {};
+    for (const [k, v] of Object.entries(q.xpEarnedByDay)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) continue;
+      o[k] = Math.min(Math.floor(v), 99_999_999);
+    }
+    xpEarnedByDay = trimXpEarnedByDayMap(o, 24);
+  }
+  return { firstUseAt, lifetime, daily, dailyPairCompleteYmds, totalXp, xpEarnedByDay };
+}
+
+/** 오늘 기준 최근 `keepDays`일만 유지(저장 크기·정렬 부담 완화) */
+export function trimXpEarnedByDayMap(
+  map: Record<string, number>,
+  keepDays: number,
+  now: Date = new Date(),
+): Record<string, number> {
+  const today = toLocalYmd(now);
+  let cutoff = today;
+  for (let i = 0; i < keepDays - 1; i++) {
+    cutoff = addDaysToYmd(cutoff, -1);
+  }
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(map)) {
+    if (k >= cutoff) out[k] = v;
+  }
+  return out;
 }
 
 /** 기록에만 있고 firstUseAt이 없을 때 마이그레이션 */
