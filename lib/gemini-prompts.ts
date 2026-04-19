@@ -369,6 +369,7 @@ export function getCompareFourImagesPrompt(
     '4) 제품 B 영양정보 표\n\n' +
 
     '[제품별 추출]\n' +
+    '- 최상위 JSON 키 이름은 반드시 정확히 "productA", "productB" 두 개만 사용한다(스네이크 케이스·다른 이름·배열 하나에 두 제품 넣기 금지).\n' +
     '- productA와 productB는 단일 제품 분석과 동일한 필드·규칙을 따른다.\n' +
     '- 각 제품의 nutrition은 표가 보이면 숫자 필드와 tableRows를 채우고, 없으면 null이다.\n' +
     '- OCR 보정은 의미 유지 범위에서만 허용한다.\n\n' +

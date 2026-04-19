@@ -49,6 +49,11 @@ export const GEMINI_FALLBACK_FLASH_MODEL = 'gemini-2.5-flash';
 export const GEMINI_ALTERNATE_FALLBACK_MODEL = 'gemini-3.1-flash-lite-preview';
 
 /**
+ * 503 연쇄 시 마지막으로 시도할 추가 모델(다른 큐·부하 분산).
+ */
+export const GEMINI_TERTIARY_FALLBACK_MODEL = 'gemini-2.0-flash';
+
+/**
  * 분석·비교 JSON 응답 상한. 8192는 출력이 길어질수록 지연이 커질 수 있어 4096로 제한.
  * 잘리면(MAX_TOKENS) 환경 변수 `GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS`로 올리면 됨.
  */
@@ -62,10 +67,10 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
 export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
 
 /**
- * `/api/compare` 전용 출력 상한. 비교 JSON은 단일 분석보다 짧은 편이라 기본 2048로 두어 지연을 줄인다.
+ * `/api/compare` 전용 출력 상한. 두 제품·요약이 길어 잘리면 JSON이 깨질 수 있어 기본 3072.
  * `GEMINI_COMPARE_MAX_OUTPUT_TOKENS`로 조정 가능.
  */
-export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 2048);
+export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 3072);
 
 /**
  * `/api/compare` 전용 모델. 미설정 시 `gemini-2.5-flash`(멀티 이미지에서 대체로 빠른 응답).

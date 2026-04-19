@@ -23,6 +23,7 @@ import {
   COMPARE_MAX_OUTPUT_TOKENS,
   isGemini3FamilyModelId,
 } from '@/lib/gemini-models';
+import { extractCompareProductPair } from '@/lib/compare-response-shape';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -231,22 +232,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rawA = parsed.productA;
-    const rawB = parsed.productB;
-    if (!rawA || typeof rawA !== 'object' || !rawB || typeof rawB !== 'object') {
+    const pair = extractCompareProductPair(parsed as Record<string, unknown>);
+    if (!pair) {
       return NextResponse.json(
-        apiErrorBody('비교 응답 형식이 올바르지 않아요.', 'COMPARE_SHAPE'),
-        { status: 500 }
+        apiErrorBody(
+          '비교 응답 형식이 올바르지 않아요. 잠시 뒤 다시 시도해 주세요.',
+          'COMPARE_SHAPE',
+        ),
+        { status: 502 },
       );
     }
+    const { productA: rawA, productB: rawB } = pair;
 
     let productA: AnalysisResult;
     let productB: AnalysisResult;
     try {
-      productA = buildAnalysisResultFromGeminiObject(rawA as Record<string, unknown>, {
+      productA = buildAnalysisResultFromGeminiObject(rawA, {
         dailyQuestProductMatch: false,
       });
-      productB = buildAnalysisResultFromGeminiObject(rawB as Record<string, unknown>, {
+      productB = buildAnalysisResultFromGeminiObject(rawB, {
         dailyQuestProductMatch: false,
       });
     } catch (buildErr) {
