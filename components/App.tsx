@@ -1167,6 +1167,15 @@ function formatHistoryListNovaCaption(item: HistoryItem): string {
   return formatNovaTierForHistoryList(r.novaGroup ?? item.maxRiskScore ?? 4, r.novaSubgroup);
 }
 
+function historyListNovaIconSrc(item: HistoryItem): string {
+  if (item.entryKind === 'compare') return NOVA_IMG[item.maxRiskScore] || '';
+  const r = item.result;
+  const group = r.novaGroup ?? item.maxRiskScore ?? 4;
+  const sub = normalizeNovaSubgroupLabel(r.novaSubgroup);
+  if (group === 4 && sub) return NOVA_SUBGROUP_IMG[sub];
+  return NOVA_IMG[item.maxRiskScore] || '';
+}
+
 function getBirthYearFromProfile(p: Profile): number | null {
   if (p.birthYear != null && Number.isFinite(p.birthYear)) {
     const y = Math.round(Number(p.birthYear));
@@ -4393,7 +4402,9 @@ export default function App() {
             {history.length > 0 && (
               <div id="historyList" className="history-list-wrap">
                 <h2 className="history-list-title">최근에 본 분석</h2>
-                {history.slice(0, 5).map((item) => (
+                {history.slice(0, 5).map((item) => {
+                  const novaIconSrc = historyListNovaIconSrc(item);
+                  return (
                     <div
                       key={item.id}
                       className="history-item"
@@ -4426,9 +4437,9 @@ export default function App() {
                       tabIndex={0}
                     >
                       <div className="history-nova-wrap" title={`NOVA ${formatHistoryListNovaCaption(item)}`}>
-                        {NOVA_IMG[item.maxRiskScore] ? (
+                        {novaIconSrc ? (
                           <img
-                            src={NOVA_IMG[item.maxRiskScore]}
+                            src={novaIconSrc}
                             alt=""
                             className="history-nova-icon"
                             referrerPolicy="no-referrer"
@@ -4449,7 +4460,8 @@ export default function App() {
                       </div>
                       <span className="meta">›</span>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
             )}
           </div>
