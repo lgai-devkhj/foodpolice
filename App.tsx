@@ -3480,6 +3480,12 @@ export default function App() {
     );
   }
 
+  const activeCompareHistoryId =
+    compareHistoryId ??
+    (showCompareResult && compareApiResult
+      ? (history.find((h) => h.entryKind === 'compare' && h.comparePayload === compareApiResult)?.id ?? null)
+      : null);
+
   return (
     <>
       <input
@@ -4681,13 +4687,13 @@ export default function App() {
             </div>
             <p className="compare-result-summary">{compareApiResult.comparisonSummary}</p>
             <p className="compare-result-rec">{compareApiResult.recommendationLine}</p>
-            {compareHistoryId && (
+            {activeCompareHistoryId && (
               <button
                 type="button"
                 className="btn btn-full btn-delete-record"
                 onClick={() => {
                   if (!confirm('이 비교 기록을 삭제할까요?')) return;
-                  deleteFromHistory(clientId, compareHistoryId);
+                  deleteFromHistory(clientId, activeCompareHistoryId);
                   setShowCompareResult(false);
                   setShowHome(true);
                   setCompareApiResult(null);
