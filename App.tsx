@@ -3480,11 +3480,29 @@ export default function App() {
     );
   }
 
-  const activeCompareHistoryId =
-    compareHistoryId ??
-    (showCompareResult && compareApiResult
-      ? (history.find((h) => h.entryKind === 'compare' && h.comparePayload === compareApiResult)?.id ?? null)
-      : null);
+  const activeCompareHistoryId = (() => {
+    if (compareHistoryId) return compareHistoryId;
+
+    if (currentHistoryId) {
+      const current = history.find((h) => h.id === currentHistoryId);
+      if (current?.entryKind === 'compare' && current.comparePayload) return current.id;
+    }
+
+    if (!showCompareResult || !compareApiResult) return null;
+
+    const matched = history.find((h) => {
+      if (h.entryKind !== 'compare' || !h.comparePayload) return false;
+      const hp = h.comparePayload;
+      return (
+        hp.betterChoice === compareApiResult.betterChoice &&
+        hp.comparisonSummary === compareApiResult.comparisonSummary &&
+        hp.recommendationLine === compareApiResult.recommendationLine &&
+        (hp.productA.product?.productName || '') === (compareApiResult.productA.product?.productName || '') &&
+        (hp.productB.product?.productName || '') === (compareApiResult.productB.product?.productName || '')
+      );
+    });
+    return matched?.id ?? null;
+  })();
 
   return (
     <>
