@@ -1,6 +1,3 @@
-/**
- * 원재료 함량 추정용 AI 보조 — priors·검증만 담당, 퍼센트 직접 산출 금지.
- */
 
 import { ANALYSIS_GEMINI_MODEL } from '@/lib/gemini-models';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
@@ -41,7 +38,6 @@ export interface ValidateEstimatesAiResult {
   unrealisticFlags: string[];
   adjustmentNotes: string[];
   confidenceMultipliers: number[];
-  /** 검증 요약(한두 문장) */
   userSummary: string;
   rawModelError?: string;
 }

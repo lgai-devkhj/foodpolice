@@ -6,7 +6,6 @@ import {
   normalizeAnalysisStreak,
 } from './analysis-streak';
 
-/** 저장 로직은 `tryAdvanceStreakIfAllQuestsDone`(일일 퀘스트 전부 완료 시)에서 이 함수를 사용함 */
 describe('analysis-streak', () => {
   it('첫 달성이면 1일', () => {
     const next = advanceStreakAfterAnalysis(emptyAnalysisStreak(), new Date('2026-04-03T12:00:00'));

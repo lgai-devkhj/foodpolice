@@ -99,14 +99,10 @@ import {
   IconEyeOff,
 } from '@/components/ui-icons';
 
-/** 대체 식품 퀘스트: 스크롤하는 동안만 경과 시간(초) 누적 */
 const ALT_QUEST_REQUIRED_SEC = 5;
-/** 마지막 스크롤 이후 이 시간 안이면 ‘읽는 중’으로 간주해 초를 누적 (너무 짧으면 짧은 스크롤 사이에 타이머가 끊겨 보임) */
 const ALT_SCROLL_ACTIVITY_MS = 1100;
-/** 누적 목표 달성 판정 시 동일 여유(초) */
 const ALT_QUEST_SEC_EPSILON = 0.05;
 
-/** localStorage: 상품 비교하기 촬영 순서 안내 팝업을 다시 보지 않음 */
 const COMPARE_FLOW_HINT_LS = 'fp_compareFlowHintDismissed';
 
 function readCompareFlowHintDismissed(): boolean {
@@ -118,7 +114,6 @@ function readCompareFlowHintDismissed(): boolean {
   }
 }
 
-/** bodyMeasurements 중 최신 기록(날짜 → 같은 날이면 마지막에 추가한 순). 없으면 profile 값 */
 function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; weightKg?: number | null } {
   const list = profile.bodyMeasurements || [];
   if (list.length === 0) return { heightCm: profile.heightCm, weightKg: profile.weightKg };
@@ -127,7 +122,6 @@ function getLatestHeightWeight(profile: Profile): { heightCm?: number | null; we
   return { heightCm: latest.heightCm, weightKg: latest.weightKg };
 }
 
-/** 표시·BMI용: 최신 기록 반영한 프로필 */
 function getProfileWithLatestMeasurement(profile: Profile): Profile {
   const { heightCm, weightKg } = getLatestHeightWeight(profile);
   return { ...profile, heightCm, weightKg };
@@ -141,7 +135,6 @@ function todayYmdLocal(): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 연령 무관: 저체중 <18.5, 정상 18.5~22.9, 과체중 23~24.9, 비만 25 이상 */
 function getBMICategory(p: Profile): { bmi: number; category: string } | null {
   const bmi = computeBmi(p.heightCm ?? 0, p.weightKg ?? 0);
   if (bmi == null) return null;
@@ -158,7 +151,6 @@ function escapeHtml(s: string): string {
   return div.innerHTML;
 }
 
-/** min≈max면 「추정 함량 약 n%」, 아니면 「약 a~b%」 */
 function formatConcernIngredientPercentRange(min: number, max: number): string {
   const a = Number(min);
   const b = Number(max);
@@ -171,13 +163,11 @@ function formatConcernIngredientPercentRange(min: number, max: number): string {
   return `추정 함량 약 ${fmt(a)}~${fmt(b)}%`;
 }
 
-/** API·생성 문구에 남은 ** 표기 제거 */
 function stripMarkdownBold(s: string): string {
   if (!s) return '';
   return s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '');
 }
 
-/** 분석·비교 API 업링크 — 모델·프롬프트와 무관, Chromium 등에서 `priority`로 전송 우선 */
 function fetchJsonHighPriority(url: string, body: string): Promise<Response> {
   return fetch(url, {
     method: 'POST',
@@ -187,7 +177,6 @@ function fetchJsonHighPriority(url: string, body: string): Promise<Response> {
   } as RequestInit);
 }
 
-/** 결과 배너 문구용 — 소수 첫째 자리(toFixed) 대신 정수 초로 표시해 체감과 맞춤 */
 function formatElapsedSecondsBanner(sec: number): string {
   if (!Number.isFinite(sec) || sec <= 0) return '0';
   return String(Math.max(1, Math.round(sec)));
@@ -195,7 +184,6 @@ function formatElapsedSecondsBanner(sec: number): string {
 
 type CoachRect = { top: number; left: number; width: number; height: number };
 
-/** 튜토리얼 진행 단계 (코치 말풍선은 fab·미리보기 두 구간만) */
 const TUTORIAL_PHASE_SEQUENCE = [
   'tutorial_mode_pick',
   'fab',
@@ -215,7 +203,6 @@ const TUTORIAL_COACH_PHASES = new Set<TutorialPhase>([
   'preview_analyze',
 ]);
 
-/** 미리보기 안내는 촬영 화면이 아닐 때·미리보기가 실제로 떴을 때만 (phase만으로 코치 켜지면 문구가 어긋남) */
 function shouldShowTutorialCoach(
   phase: TutorialPhase,
   opts: {
@@ -314,7 +301,6 @@ type TutorialFocusDecoration =
   | { kind: 'ring'; rect: CoachRect }
   | null;
 
-/** 비교 결과 패널: 단일 제품 NOVA + 4단계(초가공)일 때 4A·4B·4C 그래프(분석 결과와 동일) */
 function CompareProductNovaCard({ label, result }: { label: string; result: AnalysisResult }) {
   const nova = result.novaGroup || 4;
   const sub = (result.novaSubgroup || '').trim().toUpperCase();
@@ -364,7 +350,6 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
   );
 }
 
-/** 화살표·말풍선만 (스포트라이트 딤 없음) */
 function TutorialCoachOverlay({
   active,
   holeRect,
@@ -376,7 +361,6 @@ function TutorialCoachOverlay({
 }: {
   active: boolean;
   holeRect: CoachRect | null;
-  /** 셔터: 화살표 | null: 추가 강조 없음(확인 버튼 등) */
   focusDecoration: TutorialFocusDecoration;
   message: string;
   stepIndex: number;
@@ -509,7 +493,6 @@ function nutritionPctBarClass(pct: number): string {
   return 'nutrition-pct-fill';
 }
 
-/** 라벨 표 행 이름 → 일일 참고치 항목 키(겹침 판별용). 매칭 안 되면 null */
 function matchTableRowNameToDailyKey(name: string): keyof NutritionDailyPercent | null {
   const n = (name || '').trim().replace(/\s+/g, '');
   if (!n) return null;
@@ -535,7 +518,6 @@ function buildNutritionResultHtml(
   const hasTableRows = tableRows.length > 0;
   if (!hasDaily && !hasTableRows) return '';
 
-  /** 일일 참고치에 이미 숫자가 있으면 같은 성분 라벨 줄은 아래에서 빼고 나머지만 표시 */
   const labelRowsNonOverlapping = tableRows.filter((tr) => {
     if (!hasDaily || !daily) return true;
     const k = matchTableRowNameToDailyKey((tr.name || '').trim());
@@ -683,7 +665,6 @@ function buildNutritionResultHtml(
   return html;
 }
 
-/** Perplexity 등 검색 인용 표기 `[1]` `[12]` 제거 */
 function stripWebCitationMarkers(text: string): string {
   return text
     .replace(/\[\d+\]/g, '')
@@ -756,7 +737,6 @@ function buildAlternativeFoodHtml(
         }
       }
     } catch {
-      /* 텍스트 형식으로 이어감 */
     }
   }
 
@@ -892,7 +872,6 @@ function buildAlternativeFoodHtml(
   );
 }
 
-/** NOVA 3·4: /api/alternatives 요청 중(분석 완료 후 비동기) */
 const ALT_LOADING_MESSAGE =
   '대체 식품을 찾는 중이에요. 보통 10~30초 걸릴 수 있어요.';
 
@@ -911,11 +890,9 @@ function messageForAlternativeUnavailable(
   }
 }
 
-/** NOVA 1~2: 웹 대체 추천 없음 — 로딩 없이 바로 표시 */
 const ALT_NOVA_1_2_NOTICE =
   'NOVA 1~2단계예요. 이미 덜 가공된 편이라, 여기서는 대체 식품 추천은 안 드려요. 채소·과일·통곡물을 곁들여 보시면 좋아요.';
 
-/** 결과 카드 상단·기준 시트에서 공통으로 쓰는 NOVA(분류) 자체 설명 */
 const NOVA_CLASSIFICATION_INTRO =
   '한국형 NOVA는 가공 정도를 1~4단계로 나눈 거예요. 첨가물 개수만 보지 않고, 원재료가 얼마나 변했는지를 봐요. 숫자가 클수록 산업적으로 더 가공된 편에 가깝다고 보면 돼요.';
 
@@ -967,7 +944,6 @@ function applyAlternativesFetchResult(
     historyItem: HistoryItem | null,
     opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
   ) => void,
-  /** 서버가 Perplexity 등 실제 검색 근거 응답을 줬을 때만 true */
   fromWebSearch?: boolean,
   extras?: {
     engineFallback?: boolean;
@@ -1148,7 +1124,6 @@ function normalizeNovaSubgroupLabel(sub: string | null | undefined): '4A' | '4B'
   return null;
 }
 
-/** 홈 최근 기록 줄: 1~3 또는 4A·4B·4C(미분류면 4) */
 function formatNovaTierForHistoryList(group: number, sub: string | null | undefined): string {
   const g = Math.min(4, Math.max(1, Number.isFinite(group) ? group : 4));
   if (g !== 4) return String(g);
@@ -1193,7 +1168,6 @@ function getBirthYearFromProfile(p: Profile): number | null {
   return null;
 }
 
-/** 출생연도 + 한국 나이(현재연도 − 출생연도 + 1) */
 function birthYearDisplayFromProfile(p: Profile): string {
   const y = getBirthYearFromProfile(p);
   if (y == null) return '—';
@@ -1203,14 +1177,12 @@ function birthYearDisplayFromProfile(p: Profile): string {
   return `${y}년생 (한국나이 ${age}세)`;
 }
 
-/** 스트릭 축하 토스트(매번 `id` 증가 → 마운트 시 애니메이션 재생) */
 type StreakToastPayload = {
   message: string;
   days: number;
   id: number;
 };
 
-/** 3·7·14일 구간별 불·글로우 강도 (0: 기본 ~ 3: 최고) */
 function streakCelebrationTier(days: number): 0 | 1 | 2 | 3 {
   if (days >= 14) return 3;
   if (days >= 7) return 2;
@@ -1245,10 +1217,6 @@ function BirthYearSelect({
   );
 }
 
-/**
- * 라벨·영양표 촬영에는 720p 전후면 충분. 1080p 이상을 강하게 요구하면 AF가 늦게 잡히는 기기가 많다.
- * (촬영 후 `encodeImageForAnalysis`에서 긴 변 ~800px로 JPEG 압축해 업로드 시간·토큰을 줄임)
- */
 const CAMERA_PREVIEW_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
   video: {
@@ -1259,13 +1227,11 @@ const CAMERA_PREVIEW_CONSTRAINTS: MediaStreamConstraints = {
   },
 };
 
-/** 오디오 트랙이 붙는 경우 제거, 연속 초점 시도(미지원·거부 시 무시) */
 function tuneCameraStream(stream: MediaStream): void {
   for (const t of stream.getAudioTracks()) {
     try {
       t.stop();
     } catch {
-      /* ignore */
     }
   }
   const vt = stream.getVideoTracks()[0];
@@ -1283,7 +1249,6 @@ export default function App() {
   const [showDesktopRecommendModal, setShowDesktopRecommendModal] = useState(false);
   const [profile, setProfileState] = useState<Profile>({});
   const [history, setHistoryList] = useState<HistoryItem[]>([]);
-  /** 로컬 달력 기준 연속 분석 일수(듀오링고 스트릭) */
   const [analysisStreak, setAnalysisStreak] = useState({ displayCurrent: 0, longest: 0 });
   const [streakToast, setStreakToast] = useState<StreakToastPayload | null>(null);
   const streakToastAnimIdRef = useRef(0);
@@ -1293,7 +1258,6 @@ export default function App() {
   );
   const [showXpWeekSheet, setShowXpWeekSheet] = useState(false);
   const [xpWeekChart, setXpWeekChart] = useState<ReturnType<typeof getXpWeekChartData> | null>(null);
-  /** 분석·비교 결과에서 XP 지급 대기 시 상단 토스형 진행 표시 */
   const [xpGrantToss, setXpGrantToss] = useState<{ remaining: number; progress: number } | null>(null);
   const [questBoard, setQuestBoard] = useState<ReturnType<typeof getQuestBoard>>({
     lead: '',
@@ -1301,28 +1265,21 @@ export default function App() {
     dailyCompleted: 0,
     dailyTotal: 2,
   });
-  /** 누적 경험치 */
   const [totalXp, setTotalXp] = useState(0);
   const [showDailyQuizModal, setShowDailyQuizModal] = useState(false);
   const [dailyQuizOx, setDailyQuizOx] = useState<DailyOxQuizPayload | null>(null);
   const [dailyQuizLoading, setDailyQuizLoading] = useState(false);
   const [dailyQuizError, setDailyQuizError] = useState<string | null>(null);
   const [dailyQuizWrongHint, setDailyQuizWrongHint] = useState(false);
-  /** 퀴즈 정답/오답 순간 연출 */
   const [dailyQuizFeedback, setDailyQuizFeedback] = useState<'idle' | 'correct' | 'wrong'>('idle');
   const [dailyQuizLocked, setDailyQuizLocked] = useState(false);
-  /** 오답 시 마지막으로 누른 선택 (해당 버튼만 흔들림) */
   const [dailyQuizLastPick, setDailyQuizLastPick] = useState<'O' | 'X' | null>(null);
-  /** 오늘 이미 완료 후 다시 열었을 때(API 없이 기록만 표시) */
   const [dailyQuizReviewMode, setDailyQuizReviewMode] = useState(false);
-  /** 구 데이터 등으로 완료만 있고 스냅샷이 없을 때 */
   const [dailyQuizAlreadyDoneNoSnapshot, setDailyQuizAlreadyDoneNoSnapshot] = useState(false);
-  /** 웹 로드 시 백그라운드로 받아 둔 오늘자 OX(열 때 즉시 표시) */
   const dailyQuizPrefetchRef = useRef<{ ymd: string; payload: DailyOxQuizPayload } | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHome, setShowHome] = useState(true);
-  /** 홈: 단일 분석 vs 두 제품 비교 */
   const [homeProductMode, setHomeProductMode] = useState<'analyze' | 'compare'>('analyze');
   const [compareSlot, setCompareSlot] = useState<'A' | 'B'>('A');
   const [comparePairA, setComparePairA] = useState<{
@@ -1335,7 +1292,6 @@ export default function App() {
   const homeProductModeRef = useRef(homeProductMode);
   const compareSlotRef = useRef(compareSlot);
   const [showCompareResult, setShowCompareResult] = useState(false);
-  /** 비교 XP·뷰 타이머용 기록 id (addCompareToHistory 또는 기록에서 열었을 때) */
   const [compareHistoryId, setCompareHistoryId] = useState<string | null>(null);
   const [compareApiResult, setCompareApiResult] = useState<{
     productA: AnalysisResult;
@@ -1344,7 +1300,6 @@ export default function App() {
     comparisonSummary: string;
     recommendationLine: string;
   } | null>(null);
-  /** 비교 API 소요 시간(초). 신규 비교·기록에서 열 때 표시 */
   const [compareResultSeconds, setCompareResultSeconds] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1354,7 +1309,6 @@ export default function App() {
   const [showInfoCriteria, setShowInfoCriteria] = useState(false);
   const [showInfoPhoto, setShowInfoPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
-  /** 분석·비교 API가 이미 진행 중이면 중복 호출 방지(연속 탭 등). setLoading보다 먼저 막음 */
   const geminiRequestInFlightRef = useRef(false);
   const [loadingText, setLoadingText] = useState('라벨 읽고 있어요');
   const [error, setError] = useState('');
@@ -1362,16 +1316,13 @@ export default function App() {
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [lastAnalysisSeconds, setLastAnalysisSeconds] = useState<number | null>(null);
   const [lastAnalysisForId, setLastAnalysisForId] = useState<string | null>(null);
-  /** 결과 본문 위·스크롤 시 상단 고정용(초). 기록에도 저장해 재진입 시 유지 */
   const [resultAnalysisSeconds, setResultAnalysisSeconds] = useState<number | null>(null);
   const [resultContentHtml, setResultContentHtml] = useState('');
   const [showDeleteArea, setShowDeleteArea] = useState(false);
   const [profileGender, setProfileGender] = useState('male');
   const [profileHeight, setProfileHeight] = useState('');
   const [profileWeight, setProfileWeight] = useState('');
-  /** 설정·프로필에서 키·몸무게·BMI 숫자 표시(기본 숨김) */
   const [revealBodyMetrics, setRevealBodyMetrics] = useState(false);
-  /** 튜토리얼에서 비교 연습을 골랐을 때, 홈에서 「상품 비교하기」를 누르기 전 단계 */
   const [tutorialAwaitHomeCompare, setTutorialAwaitHomeCompare] = useState(false);
   const [obStep, setObStep] = useState(0);
   const [obBirthYear, setObBirthYear] = useState(() => Math.max(1900, new Date().getFullYear() - 15));
@@ -1466,26 +1417,18 @@ export default function App() {
   const cameraGuideRef = useRef<HTMLDivElement>(null);
   const resultScrollRef = useRef<HTMLDivElement>(null);
   const resultContentRef = useRef<HTMLDivElement>(null);
-  /** 비교 결과 패널 스크롤 — XP 누적·스크롤 리스너용 */
   const compareResultPanelRef = useRef<HTMLDivElement>(null);
-  /** XP(분석·비교): 스크롤 이벤트 사이에서만 경과 초 누적 */
   const xpScrollChunkRef = useRef<number | null>(null);
   const altQuestDetailsOpenRef = useRef(false);
-  /** 스크롤 활동 중에만 누적되는 초 (실시간) */
   const altQuestAccumSecRef = useRef(0);
   const altQuestLastScrollRef = useRef(0);
-  /** 대체 퀘스트: 스크롤 구간마다 마지막 누적 시각(첫 스크롤은 기준만 잡음) */
   const altQuestScrollChunkRef = useRef<number | null>(null);
   const altQuestPollRef = useRef(0);
-  /** 대체 퀘스트 스크롤 누적 초기화 기준(같은 결과 화면에서 대체 식품만 로드되면 유지) */
   const altQuestSessionKeyRef = useRef<string | null>(null);
   const [altQuestScrollSecAccum, setAltQuestScrollSecAccum] = useState(0);
-  /** 배너에서 '스크롤 안 함' 판별용 리렌더 */
   const [altQuestBannerClock, setAltQuestBannerClock] = useState(0);
   const [altQuestDetailsOpen, setAltQuestDetailsOpen] = useState(false);
-  /** 결과 화면: 방금 분석(scan) vs 기록에서 재오픈(history). 대체 식품 퀘스트 UI는 scan일 때만 */
   const [resultEntrySource, setResultEntrySource] = useState<'scan' | 'history' | null>(null);
-  /** 상품 비교하기 선택 시 촬영 순서 안내(홈 카드 대신 팝업) */
   const [showCompareFlowHintModal, setShowCompareFlowHintModal] = useState(false);
   const [compareFlowHintDontShowAgain, setCompareFlowHintDontShowAgain] = useState(false);
   const captureStepRef = useRef<1 | 2>(1);
@@ -1518,7 +1461,6 @@ export default function App() {
     try {
       if (sessionStorage.getItem('fp_desktopRecommendDismissed') === '1') return;
     } catch {
-      /* 비공개 창 등 */
     }
     setShowDesktopRecommendModal(true);
   }, [isLikelyDesktop, clientId]);
@@ -1539,7 +1481,6 @@ export default function App() {
     setPrivacyGateChecked(false);
   }, [clientId]);
 
-  /** OX 퀴즈: 웹 로드 직후 미리 받아 두어 모달을 열 때 대기 최소화 */
   useEffect(() => {
     if (!clientId) return;
     const ymd = toLocalYmd(new Date());
@@ -1562,7 +1503,6 @@ export default function App() {
         };
         dailyQuizPrefetchRef.current = { ymd, payload };
       } catch {
-        /* 백그라운드 프리패치 실패는 무시 */
       }
     })();
     return () => {
@@ -1570,7 +1510,6 @@ export default function App() {
     };
   }, [clientId]);
 
-  /** 촬영 예시·NOVA 등 public 이미지: `<link rel="preload">`에 더해 idle 시 디코드 캐시 워밍 */
   useEffect(() => {
     const urls = PUBLIC_IMAGE_PRELOAD_HREFS;
     const warm = () => {
@@ -1692,13 +1631,11 @@ export default function App() {
     [],
   );
 
-  /** XP 적립 순간 — `xp-grant-toast` 캡슐에만 표시(전체 화면 연출과 통합) */
   const [xpGrantCelebrate, setXpGrantCelebrate] = useState<{ id: number; amount: number } | null>(null);
   const [questRewardFx, setQuestRewardFx] = useState<{ id: number; title: string } | null>(null);
   const xpGrantCelebrateIdRef = useRef(0);
   const questRewardFxIdRef = useRef(0);
 
-  /** 저장 직후 `getTotalXp` 기준으로 이번에 오른 XP만큼 상단 캡슐 연출 */
   const flashXpGain = useCallback((prevXp: number) => {
     if (!clientId) return;
     const delta = getTotalXp(clientId) - prevXp;
@@ -1712,7 +1649,6 @@ export default function App() {
 
   const resultViewSecondsRef = useRef(0);
 
-  /** 분석·비교 결과: 스크롤할 때만 XP용 경과 시간 누적 */
   const bumpXpFromScroll = useCallback(() => {
     const analysisFlow = showResult && currentHistoryId && !showCompareResult;
     const compareFlow = showCompareResult && compareHistoryId;
@@ -2060,7 +1996,6 @@ export default function App() {
         refreshHistory();
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
-        /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
         setShowResult(true);
         setResultEntrySource('scan');
@@ -2150,7 +2085,6 @@ export default function App() {
         refreshHistory();
         notifyStreakFromQuest(streak);
         renderResult(result, item, { analysisSeconds: sec, historyId: id });
-        /* Gemini(`/api/analyze`) 완료 직후 결과 창을 연 뒤, 대체 식품만 비동기로 요청 */
         setShowHome(false);
         setShowResult(true);
         setResultEntrySource('scan');
@@ -2351,7 +2285,6 @@ export default function App() {
       setResultAnalysisSeconds(displaySec);
 
       let html = '';
-      /* 순서: 제목 → NOVA → 맞춤 참고 → 주의 원재료 → 대체 식품 → 원재료 보기 → 영양 비율 */
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
@@ -2682,7 +2615,6 @@ export default function App() {
     showInfoIngredient,
   ]);
 
-  /** 결과 HTML이 갱신될 때(대체 식품 로드 등) 스크롤 누적은 유지하고 「대체 식품」 펼침만 DOM과 맞춤 */
   useEffect(() => {
     if (!resultContentHtml) return;
     if (!showResult || resultEntrySource !== 'scan') return;
@@ -2825,7 +2757,6 @@ export default function App() {
     }
     if (altLoading) return '대체 식품을 찾는 중… 잠시만 기다려요';
     if (!altQuestDetailsOpen) return '「대체 식품」을 펼쳐 보면 퀘스트가 완료돼요';
-    /* 펼침·로딩 완료 뒤에도 퀘스트 완료 직전까지 안내 유지 — 아니면 XP 적립 직후 상단 캡슐이 비어 보임 */
     return '「대체 식품」을 확인하며 퀘스트를 마무리해요';
   }, [
     showResult,
@@ -2838,7 +2769,6 @@ export default function App() {
     resultEntrySource,
   ]);
 
-  /** 노란 배너 대신 상단 알약 토스트 한 줄로 씀(XP 대기 중이면 초 카운트 우선). XP 적립 순간에도 대체 식품 퀘스트 안내는 유지 */
   const stickyToastLine = useMemo(() => {
     if (showCompareResult && xpGrantToss) {
       return {
@@ -2867,7 +2797,6 @@ export default function App() {
     return null;
   }, [showCompareResult, showResult, xpGrantToss, altQuestBannerLine, altQuestScrollSecAccum]);
 
-  /** XP 적립 연출 중에도 대체 식품 퀘스트 안내(동일 문자열)를 두 번째 줄로 유지 */
   const stickyToastSublineWhileCelebrate =
     xpGrantCelebrate && showResult && altQuestBannerLine ? altQuestBannerLine : null;
 
@@ -2906,7 +2835,6 @@ export default function App() {
     }
     setCapturedPreviewDataUrl(null);
     setError('');
-    // 홈 FAB(촬영): 항상 새 제품 스캔 — 1/2(원재료)부터. 분석 직후 captureStep=2·이전 원재료가 남아 있어도 여기서 초기화.
     setCaptureStep(1);
     captureStepRef.current = 1;
     setRawImageBase64(null);
@@ -2918,7 +2846,6 @@ export default function App() {
     }
     if (isLikelyDesktop) {
       setUploadSource('gallery');
-      // 튜토리얼 중 데스크톱: 예시 오버레이 먼저 → 확인 후 앨범
       if (showTutorial) {
         setCaptureStepGuide(1);
         return;
@@ -2945,7 +2872,6 @@ export default function App() {
     try {
       sessionStorage.setItem('fp_desktopRecommendDismissed', '1');
     } catch {
-      /* ignore */
     }
     setShowDesktopRecommendModal(false);
   }, []);
@@ -2971,7 +2897,6 @@ export default function App() {
       try {
         localStorage.setItem(COMPARE_FLOW_HINT_LS, '1');
       } catch {
-        /* ignore */
       }
     }
     setShowCompareFlowHintModal(false);
@@ -3071,7 +2996,6 @@ export default function App() {
     tutorialAwaitHomeCompare,
   ]);
 
-  /** 카메라로 찍은 뒤 미리보기가 뜨면 코치 단계로 전환 */
   useLayoutEffect(() => {
     if (!showTutorial) return;
     if (tutorialPhase === 'camera_ingredient' && capturedPreviewDataUrl && captureStep === 1) {
@@ -3362,15 +3286,12 @@ export default function App() {
           setCaptureStep(2);
           captureStepRef.current = 2;
           setCaptureStepGuide(2);
-          // 다음 단계(2/2)를 이어서 진행: 카메라로 가지 않고, 선택한 소스(앨범/촬영)에서 계속 진행
           if (uploadSource === 'gallery') {
             setCapturedPreviewDataUrl(null);
-            // 튜토리얼: 영양표 예시 오버레이 후 두 번째 선택
             if (!showTutorialRef.current) {
               window.setTimeout(() => galleryInputRef.current?.click(), 0);
             }
           } else {
-            // 카메라 소스인 경우만 카메라로 이어집니다.
             if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
               startCamera();
             } else {
@@ -3479,6 +3400,30 @@ export default function App() {
       </div>
     );
   }
+
+  const activeCompareHistoryId = (() => {
+    if (compareHistoryId) return compareHistoryId;
+
+    if (currentHistoryId) {
+      const current = history.find((h) => h.id === currentHistoryId);
+      if (current?.entryKind === 'compare' && current.comparePayload) return current.id;
+    }
+
+    if (!showCompareResult || !compareApiResult) return null;
+
+    const matched = history.find((h) => {
+      if (h.entryKind !== 'compare' || !h.comparePayload) return false;
+      const hp = h.comparePayload;
+      return (
+        hp.betterChoice === compareApiResult.betterChoice &&
+        hp.comparisonSummary === compareApiResult.comparisonSummary &&
+        hp.recommendationLine === compareApiResult.recommendationLine &&
+        (hp.productA.product?.productName || '') === (compareApiResult.productA.product?.productName || '') &&
+        (hp.productB.product?.productName || '') === (compareApiResult.productB.product?.productName || '')
+      );
+    });
+    return matched?.id ?? null;
+  })();
 
   return (
     <>
@@ -4046,7 +3991,6 @@ export default function App() {
                       setShowOnboardingCompleteModal(true);
                       setShowPrivacyConsentGate(false);
                       refreshHistory();
-                      /* 토스트(약 2.2초) 이후 코치 튜토리얼 자동 시작 */
                       window.setTimeout(() => {
                         setTutorialPhase('tutorial_mode_pick');
                         setShowTutorial(true);
@@ -4681,6 +4625,23 @@ export default function App() {
             </div>
             <p className="compare-result-summary">{compareApiResult.comparisonSummary}</p>
             <p className="compare-result-rec">{compareApiResult.recommendationLine}</p>
+            {activeCompareHistoryId && (
+              <button
+                type="button"
+                className="btn btn-full btn-delete-record"
+                onClick={() => {
+                  if (!confirm('이 비교 기록을 삭제할까요?')) return;
+                  deleteFromHistory(clientId, activeCompareHistoryId);
+                  setShowCompareResult(false);
+                  setShowHome(true);
+                  setCompareApiResult(null);
+                  setCompareHistoryId(null);
+                  refreshHistory();
+                }}
+              >
+                이 비교 기록 삭제
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-primary btn-full compare-result-done"

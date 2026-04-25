@@ -1,7 +1,3 @@
-/**
- * 2000kcal 기준 일일 영양소 참고치(한국 영양성분 표의 % 계산에 흔히 쓰이는 값에 근사).
- * 실제 필요 에너지는 개인차가 크므로 참고용 문구에만 사용합니다.
- */
 import type { NutritionTableRow } from './store';
 
 export const DAILY_REFERENCE = {
@@ -13,9 +9,7 @@ export const DAILY_REFERENCE = {
   fatG: 54,
   saturatedFatG: 15,
   transFatG: 2.2,
-  /** 한국 영양성분 표에서 % 계산에 흔히 쓰는 1일 참고치(mg) */
   cholesterolMg: 300,
-  /** 식이섬유 1일 참고량(g) 근사 */
   dietaryFiberG: 25,
 } as const;
 
@@ -30,9 +24,7 @@ export interface NutritionFactsInput {
   transFatG?: number | null;
   cholesterolMg?: number | null;
   dietaryFiberG?: number | null;
-  /** 예: "1회 30g", "100ml당" */
   servingSizeText?: string | null;
-  /** 표 숫자가 1회 제공량 기준이면 true, 100g·100ml 기준이면 false */
   basisIsPerServing?: boolean;
   tableRows?: NutritionTableRow[] | null;
 }
@@ -80,10 +72,8 @@ export function computeDailyPercentages(n: NutritionFactsInput): NutritionDailyP
   return Object.keys(out).length > 0 ? out : null;
 }
 
-/** 맞춤 참고 아래 짧은 설명(키·몸무게 기반일 때만 API에서 채움) */
 export const PERSONALIZED_INTAKE_FOOTNOTE =
   '키·몸무게로 잡은 참고치예요. 사람마다 달라요.';
-/** @deprecated PERSONALIZED_INTAKE_FOOTNOTE 사용 */
 export const PERSONALIZED_INTAKE_KCAL_FOOTNOTE = PERSONALIZED_INTAKE_FOOTNOTE;
 
 function ageYearsFromBirthDate(isoDate: string): number | null {
@@ -102,7 +92,6 @@ function ageYearsFromBirthDate(isoDate: string): number | null {
   return age;
 }
 
-/** 출생연도만 있을 때 한국 나이: 현재연도 − 출생연도 + 1 */
 function ageKoreanFromBirthYear(birthYear: number): number | null {
   if (!Number.isFinite(birthYear)) return null;
   const cy = new Date().getFullYear();
@@ -123,10 +112,6 @@ function ageYearsForBmr(opts?: {
   return null;
 }
 
-/**
- * Mifflin–St Jeor BMR × 활동계수(1.45, 보통). 나이·성별 없으면 보수적 기본값 사용.
- * 의료·영양 상담 대체 아님.
- */
 export function estimateDailyKcalFromProfile(
   heightCm: number,
   weightKg: number,
@@ -160,7 +145,6 @@ export interface ProfileForKcalNote {
   gender?: string | null;
 }
 
-/** 대략적 하루 열량 참고(맞춤 안내 문장용, 의학적 권고 아님). 저체중이어도 2000kcal를 넘겨 올리지 않음 */
 function roughDailyKcalTarget(bmi: number | null, category: string | null): number {
   if (bmi == null || !category) return DAILY_REFERENCE.caloriesKcal;
   if (category === '비만') return 1800;
@@ -169,7 +153,6 @@ function roughDailyKcalTarget(bmi: number | null, category: string | null): numb
   return DAILY_REFERENCE.caloriesKcal;
 }
 
-/** 간식 / 한 끼·간편식 / 음료 / 기타 — 배정 비율·문구 구분 */
 type IntakeSlotKind = 'beverage' | 'snack' | 'meal' | 'general';
 
 function intakeSlotKind(
@@ -184,7 +167,6 @@ function intakeSlotKind(
   return 'general';
 }
 
-/** 내부 계산용: 하루 목표 열량 중 이 유형에 쓸 참고 몫(UI에는 kcal 숫자 미표시) */
 function dailyKcalBudgetForThisFood(target: number, kind: IntakeSlotKind): number {
   const ratio =
     kind === 'beverage' ? 0.12 : kind === 'snack' ? 0.17 : kind === 'meal' ? 0.36 : 0.22;
@@ -196,7 +178,6 @@ function beverageIntakeLine(): string {
   return '맞춤 참고: 1병=한 번이 아닐 수 있어요. 라벨의 1회 제공량(ml)을 보고, 단 음료면 양을 줄여 보세요.';
 }
 
-/** 통·봉지·박스 등 포장 개수로 허용량을 말하지 않을 때만 사용 가능한 단위 */
 function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string {
   const q = `${n}${unit}`;
   if (kind === 'snack') {
@@ -210,28 +191,22 @@ function solidIntakeLine(n: number, unit: string, kind: IntakeSlotKind): string 
 
 const PACKAGING_COUNT_UNITS = new Set(['통', '봉지', '박스']);
 
-/** 판매 포장 단위(통·봉 등). 섭취 1회와 다를 수 있음 */
 function detectPackageUnit(servingText: string): string | null {
   return retailUnitFromServing(servingText);
 }
 
-/**
- * 1회 제공량·섭취 참고 등이 라벨에 분명한지 (우선순위 1)
- */
 function detectServingUnitClear(servingText: string): boolean {
   return /1\s*회\s*섭취|1\s*회\s*제공|1\s*회\s*당|회\s*섭취|섭취\s*참고\s*량|제공량|1\s*일|일일\s*섭취|하루\s*\d+\s*회|1\s*회\s*\(|1\s*회\s*기준/i.test(
     servingText
   );
 }
 
-/** 낱개·개당 중량 등 (우선순위 2) */
 function detectPieceBasisClear(servingText: string): boolean {
   return /(?:개|알|정|캡슐)\s*당|1\s*(?:개|알)\s*당|당\s*\d+\s*(?:개|알)|\d+\s*(?:개|알)\s*입/i.test(
     servingText
   );
 }
 
-/** 캔디·껌·목캔디·정제형 등 — 1통=1회 가정 금지 */
 function isDiscreteCandyOrGumLike(
   foodCategory: string | null | undefined,
   productName: string | null | undefined,
@@ -251,7 +226,6 @@ function isDiscreteCandyOrGumLike(
   return false;
 }
 
-/** 총 내용량 g (우선순위 3). "3.4g×50" 형태면 합산 시도 */
 function extractTotalContentGrams(servingText: string): number | null {
   const t = servingText;
   let best = 0;
@@ -289,7 +263,6 @@ function weightBasisIntakeLine(grams: number, totalGramsKnown: boolean, kind: In
   return `맞춤 참고: ${g}g 안팎이면 ${slot} 열량 몫에 가깝습니다(이 표 기준).${tail}`;
 }
 
-/** 액체: 병·캔 **개수** 대신 ml 분량 기준으로만 서술 */
 function liquidPortionIntakeLine(n: number, mlPerPortion: number, kind: IntakeSlotKind): string {
   const slot =
     kind === 'snack' ? '간식·음료' : kind === 'meal' ? '한 끼·간편식' : '이 유형';
@@ -301,9 +274,6 @@ function conservativeWeightFallbackIntakeLine(_kind: IntakeSlotKind): string {
   return '맞춤 참고: 라벨의 1회 제공량이나 총 g를 보고 양을 잡아요.';
 }
 
-/**
- * 포장 개수 안내 전 단위 검증. 실패 시 중량·보수 문구로 전환해야 함.
- */
 function validateCountUnitForIntakeAdvice(
   unit: string | null,
   servingText: string,
@@ -326,7 +296,6 @@ function validateCountUnitForIntakeAdvice(
   return { ok: true, usePerServingWording: false };
 }
 
-/** 100g 기준 열량으로 하루 몫에 맞는 그램 수 */
 function fallbackToWeightGrams(
   caloriesPer100g: number,
   budgetKcal: number,
@@ -349,12 +318,9 @@ function lowKcalSolidLine(kind: IntakeSlotKind): string {
   return '맞춤 참고: 열량은 낮아 보여요. 다른 끼니와 나눠 드세요.';
 }
 
-/** 맞춤 안내에만 사용. API에서 넘길 때 선택. */
 export interface PersonalizedIntakeNoteExtras {
   foodCategory?: string | null;
-  /** 표기 1단위(1회·100ml당 등) 기준 당류 g, 있으면 문구에 반영 */
   sugarG?: number | null;
-  /** 제품명(콜라 등) — foodCategory·라벨 문구만으로 음료 판별이 빗나갈 때 보조 */
   productName?: string | null;
 }
 
@@ -372,7 +338,6 @@ function isLiquidRetailUnit(label: string | null | undefined): boolean {
   return label === '병' || label === '캔' || label === '팩' || label === '컵';
 }
 
-/** 100ml당 표에서 “열량 기준이 되는 ml”. 첫 번째 ml만 쓰면 500ml·총량이 잡혀 병 수가 터짐 */
 function extractNutritionBasisMl(servingText: string): number | null {
   const t = servingText;
   if (!t) return null;
@@ -402,7 +367,6 @@ function firstMlInString(servingText: string): number | null {
   return Number.isFinite(v) && v > 0 ? v : null;
 }
 
-/** 라벨 문구에서 소비 단위(병·봉지 등) 추출 */
 function retailUnitFromServing(t: string): string | null {
   if (t.includes('봉지')) return '봉지';
   if (t.includes('박스')) return '박스';
@@ -424,7 +388,6 @@ function defaultDrinkUnit(servingText: string): string {
   return '병';
 }
 
-/** 1병(500ml)·총 500ml 등에서 ‘한 포’ 용량(ml) 추정 */
 function extractPackageMl(servingText: string): number | null {
   const t = servingText;
   const m1 = t.match(/1\s*(?:병|캔|팩)\s*[\(（]?\s*(\d+(?:\.\d+)?)\s*ml/i);
@@ -442,7 +405,6 @@ function extractPackageMl(servingText: string): number | null {
   return Math.max(...all);
 }
 
-/** 포장(통·봉지)은 반환하지 않음 — 호출부에서 중량·1회 기준으로 처리 */
 function defaultSnackUnit(foodCategory: string | null | undefined, servingText: string): string | null {
   const u = retailUnitFromServing(servingText);
   if (u) {
@@ -465,7 +427,6 @@ export function buildPersonalizedIntakeNote(
   const normalizedServingSizeText = servingSizeText ? String(servingSizeText).trim() : '';
   const hintBlob = `${normalizedServingSizeText} ${extras?.productName ?? ''}`.trim();
   const beverage = isBeverageForIntakeNote(extras?.foodCategory ?? null, hintBlob);
-  /** 분류가 빗나가도 제품명·라벨에 콜라류가 보이면 병 수 나눗셈 안내를 막음 */
   const sodaLikeHint =
     /(?:콜라|펩시|코카콜라|코카|사이다|스프라이트|환타|제로\s*콜라|무설탕\s*콜라)\b/i.test(
       hintBlob
@@ -514,7 +475,6 @@ export function buildPersonalizedIntakeNote(
   if (target <= 0) return null;
   const budgetKcal = dailyKcalBudgetForThisFood(target, slotKind);
 
-  // 0kcal·저열량(제로 음료 등): 열량은 유효하게 “0”으로 읽힌 경우. 나눗셈은 쓰지 않음.
   if (caloriesKcal >= 0 && caloriesKcal < 0.5) {
     if (beverage || likelySweetDrinkPer100ml) {
       return beverageIntakeLine();
@@ -523,7 +483,6 @@ export function buildPersonalizedIntakeNote(
     return lowKcalSolidLine(solidKind);
   }
 
-  // 음료·100ml당 저열량 액체표 — 병·캔 **개수** 고정 안내 없음
   if (beverage || likelySweetDrinkPer100ml) {
     return beverageIntakeLine();
   }
@@ -548,7 +507,6 @@ export function buildPersonalizedIntakeNote(
   const servingClear = detectServingUnitClear(normalizedServingSizeText);
   const pieceClear = detectPieceBasisClear(normalizedServingSizeText);
 
-  // 캔디/껌/정제형: 1통=1회 금지 → 중량 또는 1회 제공량 문구만
   if (candyLike && !servingClear && !pieceClear) {
     if (basisIsPerServing === false && caloriesKcal > 0) {
       const totalG = extractTotalContentGrams(normalizedServingSizeText);
@@ -563,7 +521,6 @@ export function buildPersonalizedIntakeNote(
     return conservativeWeightFallbackIntakeLine(solidKindForLine);
   }
 
-  // 통·봉지·박스만 보이고 1회 제공이 불명확 — 포장 개수 안내 금지
   if (
     unitLabel &&
     PACKAGING_COUNT_UNITS.has(unitLabel) &&
@@ -583,7 +540,6 @@ export function buildPersonalizedIntakeNote(
     return conservativeWeightFallbackIntakeLine(solidKindForLine);
   }
 
-  // 100g/ml당 표기: ml은 **병·캔 개수**가 아니라 ml 분량으로 안내
   if (basisIsPerServing === false || (unitLabel == null && scaleMlForKcal != null)) {
     if (scaleMlForKcal != null && scaleMlForKcal > 0) {
       const packMl = extractPackageMl(normalizedServingSizeText);

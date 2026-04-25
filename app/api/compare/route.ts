@@ -45,7 +45,6 @@ interface CompareBody {
     birthDate?: string | null;
     gender?: string | null;
   };
-  /** 오늘 일일 미션 식품(8종 중 하나). 있으면 A·B 중 하나라도 일치 시 dailyQuestProductMatch */
   dailyQuestTarget?: string;
 }
 

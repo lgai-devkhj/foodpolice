@@ -74,7 +74,6 @@ export function IconImage({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 두 제품 비교(나란한 카드 느낌) */
 export function IconCompare({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -130,7 +129,6 @@ export function IconSpinner({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 톱니바퀴 (6날 기어) */
 export function IconSettings({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -283,7 +281,6 @@ export function IconLock({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 표시 중 — 키·몸무게·BMI 보기 모드 */
 export function IconEye({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -298,7 +295,6 @@ export function IconEye({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 숨김 — 가림 상태(눌러서 보기) */
 export function IconEyeOff({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -314,7 +310,6 @@ export function IconEyeOff({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 맞춤 안내 등 — 동심원 파동 느낌 */
 export function IconTargetRipple({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -347,7 +342,6 @@ export function IconPencil({ size = 24, className, ...p }: UiIconProps) {
   );
 }
 
-/** 연속 분석 스트릭(듀오링고 스타일) */
 export function IconFlame({ size = 24, className, ...p }: UiIconProps) {
   return (
     <svg {...p} width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} aria-hidden>

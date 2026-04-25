@@ -1,7 +1,3 @@
-/**
- * 라벨 정보만으로 원재료 함량(%)을 규칙·수식 기반으로 근사 추정합니다.
- * 법적·분석 확정값이 아닌 참고용 근사치입니다.
- */
 
 import type { IngredientRole, ValidateEstimatesAiResult } from '@/lib/ingredient-composition-ai';
 
@@ -20,9 +16,7 @@ export interface IngredientCompositionInput {
   knownPercents: Record<string, number>;
   category: string;
   servingBasis: ServingBasis;
-  /** 100ml 기준일 때 100g 환산용 (g/ml). 없으면 카테고리 기본값 사용 */
   densityGPerMl?: number;
-  /** true면 순서 제약 완화(동률 허용 등은 별도 플래그 없이 완화만) */
   relaxOrder?: boolean;
 }
 
@@ -49,13 +43,9 @@ export interface IngredientCompositionResult {
   assumptions: string[];
   warnings: string[];
   summary: string;
-  /** 하이브리드 모드에서 AI priors·검증 사용 여부 */
   aiUsed?: boolean;
-  /** AI가 제시한 priors 신뢰도(0~1), 수식만이면 생략 */
   priorsConfidence?: number;
-  /** AI 검증 단계 메모 */
   adjustmentNotes?: string[];
-  /** 내부 진단용 */
   _debug?: {
     normalizedKeys: string[];
     matchedKnown: Record<string, number>;
@@ -65,7 +55,6 @@ export interface IngredientCompositionResult {
 
 export interface CompositeIngredientMeta {
   displayName: string;
-  /** 향후 하위 분해용 */
   children?: { name: string; ratioInComposite: number }[];
 }
 
@@ -84,7 +73,6 @@ const CATEGORY_DEFAULT_DENSITY: Record<string, number> = {
   bread: 0.35,
 };
 
-/** 카테고리별 canonical 키 → 100g당 대표 영양 (문헌·일반값 근사, 참고용) */
 const PROFILE_BY_CATEGORY: Record<string, Record<string, IngredientProfile>> = {
   icecream: {
     cream: { fat: 37, carbs: 3, sugars: 3, protein: 2.5, water: 55 },
@@ -141,7 +129,6 @@ const PROFILE_BY_CATEGORY: Record<string, Record<string, IngredientProfile>> = {
   },
 };
 
-/** 표기 다양성 → canonical 키 */
 const NAME_ALIASES: Record<string, string> = {
   유크림: 'cream',
   크림: 'cream',
@@ -224,7 +211,6 @@ function sum(arr: number[]): number {
   return arr.reduce((a, b) => a + b, 0);
 }
 
-/** 공백·특수문자 정리 후 alias 매칭 */
 export function normalizeIngredientName(raw: string): string {
   const s = raw
     .trim()
@@ -280,7 +266,6 @@ export function predictNutritionFromEstimates(
   return nutritionFromPercents(percents, profiles);
 }
 
-/** 비음수·합 100 투영 */
 function projectSimplex(p: number[]): number[] {
   const n = p.length;
   let x = p.map((v) => Math.max(0, v));
@@ -289,7 +274,6 @@ function projectSimplex(p: number[]): number[] {
   return x.map((v) => (v / s) * 100);
 }
 
-/** 감소 수열 투영 (PAVA on -p) */
 function projectNonIncreasing(p: number[]): number[] {
   const n = p.length;
   if (n <= 1) return [...p];
@@ -354,7 +338,6 @@ export function generateInitialEstimates(
   category: string,
   fixed: Map<number, number>,
   priorKeys: string[],
-  /** AI typical(참고) — 고정 인덱스는 무시 */
   typicalHints?: (number | null | undefined)[],
 ): number[] {
   const cat = (category || 'snack').toLowerCase();
@@ -863,7 +846,6 @@ export function estimateIngredientCompositionWithExtras(
 export function estimateIngredientComposition(input: IngredientCompositionInput): IngredientCompositionResult {
   return estimateIngredientCompositionWithExtras(input, undefined);
 }
-
 
 export const INGREDIENT_ESTIMATE_LIMITATIONS = [
   '실제 배합비·수분 증발·복합원재료 내부 구성은 반영하지 못합니다.',

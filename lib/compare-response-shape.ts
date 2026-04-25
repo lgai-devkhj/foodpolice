@@ -1,7 +1,3 @@
-/**
- * 비교 API JSON 루트에서 productA·productB 객체를 꺼낸다.
- * 모델마다 키 표기가 달라 COMPARE_SHAPE 오류가 나는 경우를 줄인다.
- */
 export function extractCompareProductPair(
   parsed: Record<string, unknown>,
 ): { productA: Record<string, unknown>; productB: Record<string, unknown> } | null {

@@ -1,6 +1,3 @@
-/**
- * 일일 OX 퀴즈 — `/api/quiz`가 Gemini로 문항을 생성한다.
- */
 
 export type DailyOxQuizPayload = {
   questionType: 1 | 2 | 3;
@@ -10,7 +7,6 @@ export type DailyOxQuizPayload = {
   foodKeyword: string;
 };
 
-/** 오늘 퀴즈 완료 후 저장 — 다시 열었을 때 동일 문항·선택 표시 */
 export type DailyOxQuizSolvedStored = DailyOxQuizPayload & {
   dateYmd: string;
   userPick: 'O' | 'X';

@@ -1,6 +1,3 @@
-/**
- * 수식 최적화 + AI priors·검증 하이브리드 (AI는 비율 직접 산출 안 함).
- */
 
 import {
   generateIngredientPriorsWithAI,
@@ -16,13 +13,10 @@ import {
 } from '@/lib/ingredient-composition-estimate';
 
 export interface HybridOptions {
-  /** true면 AI 호출 없이 수식만 */
   disableAi?: boolean;
   apiKey?: string;
   signal?: AbortSignal;
-  /** priors 호출 타임아웃(ms) */
   priorsTimeoutMs?: number;
-  /** 검증 호출 타임아웃(ms) */
   validateTimeoutMs?: number;
 }
 
@@ -38,10 +32,6 @@ function priorsToExtras(
   return { aiPriors, typicalHints, aiPriorReasonings, priorsConfidence };
 }
 
-/**
- * 1) 라벨 입력 — 2) AI priors — 3) 수식 최적화 — 4) AI 검증·설명
- * API 키 없거나 실패 시 수식 전용으로 폴백합니다.
- */
 export async function estimateIngredientCompositionHybrid(
   input: IngredientCompositionInput,
   options?: HybridOptions,

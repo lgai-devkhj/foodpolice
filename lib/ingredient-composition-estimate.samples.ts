@@ -4,7 +4,6 @@ import {
   INGREDIENT_ESTIMATE_LIMITATIONS,
 } from './ingredient-composition-estimate';
 
-/** 아이스크림: 크림·우유·설탕·난황 + 표기 함량 */
 export const sampleIcecreamInput: IngredientCompositionInput = {
   ingredients: ['크림', '탈지우유', '설탕', '난황'],
   nutritionPer100g: { fat: 17, carbs: 20, sugars: 18, protein: 4 },
@@ -13,7 +12,6 @@ export const sampleIcecreamInput: IngredientCompositionInput = {
   servingBasis: '100g',
 };
 
-/** 음료: 정제수·액상과당·과즙(농축) */
 export const sampleDrinkInput: IngredientCompositionInput = {
   ingredients: ['정제수', '액상과당', '오렌지농축액', '구연산'],
   nutritionPer100g: { fat: 0, carbs: 11, sugars: 10, protein: 0 },
@@ -23,7 +21,6 @@ export const sampleDrinkInput: IngredientCompositionInput = {
   densityGPerMl: 1.04,
 };
 
-/** 스낵: 밀가루·설탕·팜유 + 표기 함량 */
 export const sampleSnackInput: IngredientCompositionInput = {
   ingredients: ['밀가루', '설탕', '팜유', '코코아분말', '탈지분유', '딸기퓨레', '초코칩'],
   nutritionPer100g: { fat: 24, carbs: 62, sugars: 28, protein: 5.5 },

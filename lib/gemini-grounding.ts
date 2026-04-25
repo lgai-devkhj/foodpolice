@@ -1,6 +1,3 @@
-/**
- * Gemini REST: `tools: [{ google_search: {} }]` 그라운딩 공통 호출.
- */
 
 const DEFAULT_TIMEOUT_MS = 24_000;
 
@@ -25,9 +22,6 @@ export interface GoogleSearchGroundingResult {
   status: number;
 }
 
-/**
- * @param modelId REST용 모델 ID (예: gemini-2.5-flash)
- */
 export async function generateContentWithGoogleSearch(
   apiKey: string,
   modelId: string,

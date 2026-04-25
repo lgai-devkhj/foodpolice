@@ -5,7 +5,6 @@ export const NOVA_NAMES: Record<number, string> = {
   4: '4단계 · 초가공 식품',
 };
 
-/** 프로젝트 내 업로드 이미지 (public/images/) — 드라이브 미사용 */
 export const NOVA_IMG: Record<number, string> = {
   1: '/images/nova-1.svg',
   2: '/images/nova-2.svg',
@@ -26,7 +25,6 @@ export const NOVA_SHORT_REASON: Record<number, string> = {
   4: '원재료 구조 상실, 산업적 첨가물 다수 포함 등',
 };
 
-/** 4단계(초가공) 세분 (한국형 NOVA 보조 표기) */
 export const NOVA_SUBGROUP_NAMES: Record<string, string> = {
   '4A': '4A · 경계형 초가공',
   '4B': '4B · 명확한 초가공',
@@ -39,7 +37,6 @@ export const NOVA_SUBGROUP_HINTS: Record<string, string> = {
   '4C': '당·염·지방이 매우 높고 첨가물이 복합적이며, 자극적 맛으로 과식하기 쉬운 구조에 가까워요.',
 };
 
-/** 촬영 단계·촬영 팁 시트 — 원재료 / 영양표 예시 각 2장 (public/images/) */
 export const CAPTURE_GUIDE_INGREDIENT_EXAMPLES = [
   '/images/ingredient1.png',
   '/images/ingredient2.jpg',
@@ -49,7 +46,6 @@ export const CAPTURE_GUIDE_NUTRIENT_EXAMPLES = [
   '/images/nutrient2.jpg',
 ] as const;
 
-/** HTML `<link rel="preload" as="image">`·클라이언트 워밍용 — 촬영 예시·NOVA·QR 등 */
 export const PUBLIC_IMAGE_PRELOAD_HREFS: readonly string[] = Array.from(
   new Set<string>([
     ...Object.values(NOVA_IMG),

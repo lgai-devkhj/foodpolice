@@ -683,11 +683,6 @@ export function normalizeGeminiJson(response: string): string {
 }
 
 export type DailyOxQuizPromptOptions = {
-  /**
-   * true면 이번 문항은 **거짓 진술**로만 내고 correctAnswer는 반드시 "X".
-   * false면 **참 진술**만 내고 correctAnswer는 반드시 "O".
-   * (서버에서 날짜·기기별로 번갈아 넣어 O/X 편향을 줄임)
-   */
   requireAnswerX: boolean;
 };
 

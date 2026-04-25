@@ -1,6 +1,3 @@
-/**
- * 듀오링고 스타일 일일 퀘스트(로컬 날짜 기준).
- */
 
 import { normalizeAnalysisStreak, type AnalysisStreak } from './analysis-streak';
 import { parseDailyOxQuizSolvedStored, type DailyOxQuizSolvedStored } from './daily-quiz';
@@ -22,23 +19,17 @@ export interface QuestDaily {
   dateYmd: string;
   analyzeDone: boolean;
   alternativeDone: boolean;
-  /** 상품 비교하기(제품 A·B 각 원재료+영양표) 완료 */
   compareDone: boolean;
   bodyMeasurementDone: boolean;
 }
 
 export interface QuestsSlice {
-  /** 첫 분석 시각(ISO). 사용 기간·퀘스트 노출에 사용 */
   firstUseAt?: string;
   lifetime?: QuestLifetime;
   daily?: QuestDaily;
-  /** 일일 2개 퀘스트를 모두 완료한 날(YYYY-MM-DD), 오름차순 */
   dailyPairCompleteYmds?: string[];
-  /** 누적 경험치(XP) */
   totalXp?: number;
-  /** 로컬 날짜(YYYY-MM-DD)별 획득 XP 합계(주간 차트용). 오래된 키는 주기적으로 잘라 냄 */
   xpEarnedByDay?: Record<string, number>;
-  /** 오늘 OX 퀴즈 정답 처리 시 저장(다시 보기). 날짜가 바뀌면 무시 */
   dailyOxQuizSolved?: DailyOxQuizSolvedStored;
 }
 
@@ -49,7 +40,6 @@ export function toLocalYmd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 로컬 달력 기준 YYYY-MM-DD에 일 수 더하기 */
 export function addDaysToYmd(ymd: string, deltaDays: number): string {
   const [y, m, d] = ymd.split('-').map(Number);
   const dt = new Date(y, m - 1, d + deltaDays);
@@ -132,7 +122,6 @@ export function normalizeQuestsSlice(raw: unknown): QuestsSlice {
   };
 }
 
-/** 오늘 기준 최근 `keepDays`일만 유지(저장 크기·정렬 부담 완화) */
 export function trimXpEarnedByDayMap(
   map: Record<string, number>,
   keepDays: number,
@@ -150,7 +139,6 @@ export function trimXpEarnedByDayMap(
   return out;
 }
 
-/** 기록에만 있고 firstUseAt이 없을 때 마이그레이션 */
 export function earliestScannedAtFromHistory(history: Array<{ scannedAt: string }>): string | undefined {
   if (!Array.isArray(history) || history.length === 0) return undefined;
   let min = history[0].scannedAt;
@@ -173,7 +161,6 @@ export interface QuestRowUi {
   done: boolean;
 }
 
-/** 매일 2개(특정 상품·대체·비교 중 무작위 2종)만 일일·스트릭에 반영. 문구는 날짜·사용자별로 바뀜 */
 export interface QuestBoardUi {
   lead: string;
   dailyRows: QuestRowUi[];
@@ -181,7 +168,6 @@ export interface QuestBoardUi {
   dailyTotal: number;
 }
 
-/** 일일 첫 퀘스트 대상 식품(순서 고정, 8개). AI가 촬영 제품이 맞는지 판단 */
 export const DAILY_QUEST_ANALYZE_LABELS = [
   '삼각김밥',
   '샌드위치',
@@ -255,7 +241,6 @@ export function questFlavorIndex(ymd: string, clientId: string): number {
   return Math.abs(h) % DAILY_QUEST_ANALYZE_LABELS.length;
 }
 
-/** fnv-1a 스타일 해시 — 퀘스트·퀴즈 난수 시드용 */
 export function hashStringFnv(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
@@ -265,7 +250,6 @@ export function hashStringFnv(seed: string): number {
   return h;
 }
 
-/** 특정 상품 찍기 / 대체 식품 확인 / 상품 비교하기 — 매일 그중 2개만 배정 */
 export type DailyQuestPairSlot = 'analyze' | 'alternative' | 'compare';
 
 const DAILY_QUEST_PAIRS: Array<[DailyQuestPairSlot, DailyQuestPairSlot]> = [
@@ -274,9 +258,6 @@ const DAILY_QUEST_PAIRS: Array<[DailyQuestPairSlot, DailyQuestPairSlot]> = [
   ['alternative', 'compare'],
 ];
 
-/**
- * 로컬 날짜·기기(clientId)마다 고정된 2슬롯(3종 중 2개 조합).
- */
 export function pickDailyQuestPair(
   clientId: string,
   ymd: string,
@@ -290,12 +271,8 @@ const COMPARE_QUEST_UI = {
   subtitle: '「상품 비교하기」로 A·B 각각 원재료·영양표(총 4장)',
 } as const;
 
-/** 표시 인덱스 체인 시작일(그 전 날은 raw 해시만 이전일 프록시로 사용) */
 const DISPLAY_FLAVOR_EPOCH_YMD = '2020-01-01';
 
-/**
- * 날짜별로 캐시해 같은 날짜는 O(1). 첫 요청만 에포크→목표일까지 순회(수천 일 이하).
- */
 const displayedFlavorIndexMemo = new Map<string, number>();
 
 function pickDistinctFromRaw(
@@ -314,10 +291,6 @@ function pickDistinctFromRaw(
   return others[Math.abs(h) % others.length]!;
 }
 
-/**
- * 로컬 날짜 기준, **바로 전날에 화면에 나왔던 품목**과는 항상 다른 인덱스(0~7).
- * 에포크 이전 날짜는 raw만 사용.
- */
 export function displayedFlavorIndexForLocalYmd(clientId: string, targetYmd: string): number {
   const cid = clientId || 'local';
   const memoKey = `${cid}|${targetYmd}`;
@@ -354,14 +327,10 @@ export function displayedFlavorIndexForLocalYmd(clientId: string, targetYmd: str
   return displayedFlavorIndexMemo.get(memoKey)!;
 }
 
-/**
- * 오늘의 퀘스트 품목 인덱스. **어제(로컬)에 표시된 품목과는 항상 다름.**
- */
 export function questFlavorIndexForToday(clientId: string, now: Date): number {
   return displayedFlavorIndexForLocalYmd(clientId, toLocalYmd(now));
 }
 
-/** API `/api/analyze`에 넘길 오늘 미션 식품 라벨 */
 export function getTodayAnalyzeLabel(clientId: string, now: Date): string {
   const idx = questFlavorIndexForToday(clientId, now);
   return DAILY_QUEST_ANALYZE_LABELS[idx] ?? DAILY_QUEST_ANALYZE_LABELS[0];
@@ -436,7 +405,6 @@ export function questAfterAnalyze(
   };
 }
 
-/** 첫 번째 일일 퀘스트(구 「찍기」)를 퀴즈 정답으로 완료 */
 export function questAfterDailyQuizPassed(prev: QuestsSlice, now: Date): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
@@ -466,7 +434,6 @@ export function questAfterCompare(
   return { ...prev, firstUseAt, daily: { ...daily, compareDone: true } };
 }
 
-/** 오늘 배정된 2슬롯을 모두 완료했는지 */
 export function isDailyQuestPairComplete(
   daily: QuestDaily,
   clientId: string,
@@ -501,7 +468,6 @@ export function questAfterBodyMeasurement(prev: QuestsSlice, now: Date): QuestsS
   return { ...prev, daily: { ...daily, bodyMeasurementDone: true } };
 }
 
-/** 최근 7일(오늘 포함) 셀 — 일일 2개 완료한 날만 done */
 export interface WeekDayCell {
   ymd: string;
   weekdayLabel: string;
@@ -510,10 +476,6 @@ export interface WeekDayCell {
   isToday: boolean;
 }
 
-/**
- * 일일 퀘스트 완료일 + 저장된 연속 스트릭 구간(마지막 갱신일부터 current일).
- * 후자는 `dailyPairCompleteYmds` 누락·구버전 데이터와 맞추고, 일요일 미달성 직전 토요일 달성 표시에 필요함.
- */
 export function buildWeekStreakView(
   completeYmds: string[] | undefined,
   now: Date,

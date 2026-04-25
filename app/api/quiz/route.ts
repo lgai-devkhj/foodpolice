@@ -50,7 +50,6 @@ type OxQuizGenResult =
   | { kind: 'upstream'; status: number; bodyText: string }
   | { kind: 'bad_response' };
 
-/** Gemini HTTP 실패 시 상태·본문을 넘겨 사용자 메시지 구분에 사용 */
 async function geminiOxQuizGenerate(
   questionType: 1 | 2 | 3,
   requireAnswerX: boolean,
@@ -100,7 +99,6 @@ async function geminiOxQuizGenerate(
   }
 }
 
-/** OX 퀴즈: Gemini로만 생성. 클라이언트는 로드 시 미리 호출해 캐시 권장. */
 export async function POST(request: NextRequest) {
   try {
     let body: { clientId?: string };
@@ -123,7 +121,6 @@ export async function POST(request: NextRequest) {
     const ymd = toLocalYmd(new Date());
     const h = Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquiz`));
     const questionType = ((h % 3) + 1) as 1 | 2 | 3;
-    /** 날짜·기기별로 정답 O / X 요청을 번갈아 O 편향 완화 */
     const requireAnswerX =
       (Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquizx`)) % 2) === 1;
 

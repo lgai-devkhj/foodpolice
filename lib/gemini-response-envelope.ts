@@ -1,12 +1,8 @@
-/** 후보 배열이 비어 있으면 응답 본문이 없음(차단·내부 오류 등) */
 export function hasGeminiCandidates(envelope: unknown): boolean {
   const c = (envelope as { candidates?: unknown })?.candidates;
   return Array.isArray(c) && c.length > 0;
 }
 
-/**
- * generateContent 봉투에서 모델 텍스트·차단 사유 추출 (parts가 여러 개일 수 있음)
- */
 export function getGeminiCandidateText(envelope: unknown): string | null {
   const c = (
     envelope as {

@@ -1,14 +1,7 @@
-/**
- * 로컬 달력 기준 연속 분석 일수(듀오링고 스트릭과 유사).
- * 하루에 첫 분석 성공 시에만 일수가 오르고, 같은 날 여러 번은 카운트하지 않음.
- */
 
 export interface AnalysisStreak {
-  /** 마지막으로 스트릭이 갱신된 로컬 날짜 YYYY-MM-DD */
   lastStreakDate: string;
-  /** 저장된 연속 일수(끊긴 뒤에도 DB에는 남을 수 있음 — 표시는 getEffectiveAnalysisStreak 사용) */
   current: number;
-  /** 역대 최장 연속 */
   longest: number;
 }
 
@@ -43,7 +36,6 @@ export function normalizeAnalysisStreak(s: unknown): AnalysisStreak {
   return { lastStreakDate: last, current, longest };
 }
 
-/** 오늘·어제 안에 활동이 있으면 current를 표시, 그렇지 않으면 끊긴 것으로 0 */
 export function getEffectiveAnalysisStreak(streak: AnalysisStreak): {
   displayCurrent: number;
   longest: number;
@@ -61,9 +53,6 @@ export function getEffectiveAnalysisStreak(streak: AnalysisStreak): {
   return { displayCurrent: 0, longest: s.longest };
 }
 
-/**
- * 분석 1건이 기록될 때 호출. 같은 로컬 날에 두 번째 분석이면 일수는 그대로.
- */
 export function advanceStreakAfterAnalysis(prev: AnalysisStreak, now: Date): AnalysisStreak {
   const raw = normalizeAnalysisStreak(prev);
   const today = toLocalYmd(now);
@@ -73,7 +62,6 @@ export function advanceStreakAfterAnalysis(prev: AnalysisStreak, now: Date): Ana
 
   let nextCurrent = raw.current;
   if (raw.lastStreakDate === today) {
-    /* 이미 오늘 반영됨 */
   } else if (raw.lastStreakDate === yesterday) {
     nextCurrent = raw.current + 1;
   } else if (!raw.lastStreakDate) {

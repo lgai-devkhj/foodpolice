@@ -239,7 +239,6 @@ function parseLabelExplicitPercentages(raw: unknown): LabelExplicitPercentage[] 
   return out.length > 0 ? out : null;
 }
 
-/** Gemini가 camelCase 대신 snake_case 등으로 줄 때 */
 function concernMinMaxRawFromItem(item: {
   minPercent?: unknown;
   maxPercent?: unknown;
@@ -259,7 +258,6 @@ function concernMinMaxRawFromItem(item: {
   };
 }
 
-/** 라벨에 직접 적힌 %가 있으면 주의 성분 함량 표시에 병합 */
 function mergeExplicitPercentIntoConcerns(
   concerns: Array<{
     name: string;
@@ -305,7 +303,6 @@ function isNutritionLabelLike(name: string): boolean {
   );
 }
 
-/** `/api/analyze`·`/api/compare` 공통: Gemini JSON 한 덩어리 → 앱 `AnalysisResult` 형태 */
 export function buildAnalysisResultFromGeminiObject(
   parsed: Record<string, unknown>,
   options?: { dailyQuestProductMatch?: boolean }

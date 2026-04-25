@@ -5,7 +5,6 @@ import {
 } from '@/lib/gemini-models';
 import { logGeminiHttpError } from '@/lib/log-gemini-upstream';
 
-/** 2.5 폴백은 thinkingConfig를 지원하지 않거나 거부할 수 있어 제거한다. */
 function cloneRequestBodyWithoutThinkingConfig(body: unknown): unknown {
   if (!body || typeof body !== 'object') return body;
   const o = body as Record<string, unknown>;
@@ -22,7 +21,6 @@ function geminiGenerateUrl(modelId: string, apiKey: string): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`;
 }
 
-/** 첫 모델 실패 시 Flash로 재시도할지 (클라이언트에 그대로 넘길 불필요한 오류는 제외) */
 export function shouldRetryGeminiWithFlashFallback(httpStatus: number, bodyText: string): boolean {
   if (httpStatus === 503 || httpStatus === 429) return true;
   if (httpStatus === 404) {
@@ -60,13 +58,11 @@ function sleepMs(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** 마지막 응답이 과부하라서 전체 워터폴을 한 번 더 돌릴지 */
 function shouldRetryRoundAfterOverload(last: GeminiFetchWithFallbackResult): boolean {
   if (last.ok) return false;
   return last.status === 503 || last.status === 429;
 }
 
-/** primary 먼저 시도 후, `GEMINI_WATERFALL_ORDER` 순으로 나머지(중복 제거) */
 function buildOverloadModelChain(primaryModel: string): string[] {
   const primary = normalizeGeminiModelId(primaryModel);
   const seen = new Set<string>();
@@ -87,10 +83,6 @@ function buildOverloadModelChain(primaryModel: string): string[] {
 
 const MAX_OVERLOAD_ROUNDS = 3;
 
-/**
- * 동일 요청으로 **모델 워터폴**(primary → `GEMINI_WATERFALL_ORDER`, 중복 제거) 후,
- * 끝까지 503/429면 백오프하며 최대 3라운드 반복.
- */
 export async function fetchGeminiGenerateContentWithFlashFallback(
   primaryModel: string,
   apiKey: string,

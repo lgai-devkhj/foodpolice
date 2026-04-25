@@ -1,6 +1,3 @@
-/**
- * 대체 식품 Perplexity 응답 — JSON 스키마 공유(서버 검증 · 클라이언트 렌더).
- */
 
 export type AlternativeFoodJsonTier = 'slight' | 'better' | 'best';
 
@@ -8,7 +5,6 @@ export type AlternativeFoodJsonItem = {
   tier: AlternativeFoodJsonTier;
   productName: string;
   reason: string;
-  /** 클릭 시 상품/스토어로 이동 가능한 URL — UI에는 노출하지 않을 수 있음 */
   purchaseUrl: string;
 };
 
@@ -18,7 +14,6 @@ export type AlternativeFoodJsonRoot = {
   alternatives: AlternativeFoodJsonItem[];
 };
 
-/** 오픈마켓·대형마트·브랜드관 등(Perplexity가 주는 링크 호스트 다양성 대응) */
 const SHOP_URL_HOST_PATH_RE =
   /(shopping|smartstore|brand\.naver|product|products|\/item\/|\/goods\/|\/p\/|goods|mall|store|mart|market|coupang|ssg\.|emart|gmarket|11st|auction|kurly|lotteon|lotte|costco|homeplus|gsfresh|gs25|traders|interpark|danawa|cjonstyle|hmall|thehyundai|akmall|lfmall|oliveyoung|\.naver\.com|store\.kakao|11번가)/i;
 
@@ -43,7 +38,6 @@ export function isPurchaseableProductUrl(raw: string): boolean {
   }
 }
 
-/** 숫자·용량·개수 등을 제거한 식별용 코어(같은 제품·용량만 다른 근사 비교) */
 export function productIdentityCore(name: string): string {
   return String(name || '')
     .toLowerCase()
@@ -56,10 +50,6 @@ export function productIdentityCore(name: string): string {
     .trim();
 }
 
-/**
- * 손으로 집어먹는 견과·꿀/볶음/코팅 스낵으로 보이면 true (통조림 페이스트·버터 제외).
- * 대체 식품이 땅콩버터 등으로 바뀌는 것을 서버에서 걸러낼 때 사용.
- */
 export function scannedProductLooksLikeWholeNutSnack(
   productName: string,
   rawMaterials?: string,
@@ -105,7 +95,6 @@ export function scannedProductLooksLikeWholeNutSnack(
   return false;
 }
 
-/** 견과 버터·스프레드·페이스트형 제명(스낵과 다른 식품군) */
 export function alternativeLooksLikeNutSpreadOrPaste(alternativeName: string): boolean {
   const n = String(alternativeName || '').toLowerCase();
   if (!n.trim()) return false;
@@ -121,7 +110,6 @@ export function alternativeLooksLikeNutSpreadOrPaste(alternativeName: string): b
   );
 }
 
-/** 잼·초콜릿 스프레드 등 발라 먹는 통제품(손으로 집는 과자·스낵과 다른 형태) */
 export function alternativeLooksLikeSpreadJarOrPaste(alternativeName: string): boolean {
   if (alternativeLooksLikeNutSpreadOrPaste(alternativeName)) return true;
   const n = String(alternativeName || '').toLowerCase();
@@ -137,10 +125,6 @@ export function alternativeLooksLikeSpreadJarOrPaste(alternativeName: string): b
   );
 }
 
-/**
- * 손으로 집어먹는 과자·스낵·견과 스낵 등(통·봉지)으로 보일 때 true.
- * 꿀땅콩뿐 아니라 칩·쿠키 등에도 스프레드형 대안이 섞이지 않게 쓴다.
- */
 export function scannedLooksLikeHandheldPieceSnack(
   productName: string,
   rawMaterials?: string,
@@ -168,9 +152,6 @@ export function scannedLooksLikeHandheldPieceSnack(
   return snackCat && pieceCue;
 }
 
-/**
- * Gemini foodCategory와 대안 상품명이 **명백히** 다른 식품군이면 true (오탐 줄이기 위해 보수적).
- */
 export function alternativeLikelyWrongFoodCategory(
   alternativeName: string,
   foodCategory: string | null | undefined

@@ -35,7 +35,6 @@ import {
 import { analysisProductIdentityKey, comparePairIdentityKey } from './product-identity';
 import type { DailyOxQuizSolvedStored } from './daily-quiz';
 
-/** 결과 화면을 이 시간(초) 이상 본 뒤에만 분석·비교 퀘스트 XP 지급 */
 export const MIN_VIEW_SECONDS_FOR_XP = 5;
 
 export type { AnalysisStreak };
@@ -46,9 +45,7 @@ export interface BodyMeasurement {
   date: string; // ISO
   heightCm: number;
   weightKg: number;
-  /** 같은 calendar 날짜에 여러 건일 때 정렬·최신 판별용(추가 시각) */
   recordedAt?: string;
-  /** 추가 순서 번호(항상 증가). 같은 날짜/시각 충돌 시 최종 tie-breaker */
   seq?: number;
 }
 
@@ -68,7 +65,6 @@ function measurementDateKey(v: string | undefined | null): string {
   return toLocalYmd(d);
 }
 
-/** 날짜 오름차순, 같은 날이면 recordedAt(없으면 0) 오름차순 */
 export function compareBodyMeasurementsAsc(a: BodyMeasurement, b: BodyMeasurement): number {
   const da = measurementDateKey(a.date);
   const db = measurementDateKey(b.date);
@@ -97,9 +93,7 @@ function nextBodyMeasurementSeq(list: BodyMeasurement[]): number {
 }
 
 export interface Profile {
-  /** 출생연도(연 나이·맞춤 열량 계산에 사용) */
   birthYear?: number | null;
-  /** @deprecated 이전 버전.data. `birthYear`로 이전됨 */
   birthDate?: string | null;
   gender?: string;
   heightCm?: number | null;
@@ -107,11 +101,9 @@ export interface Profile {
   bodyMeasurements?: BodyMeasurement[];
   appearanceMode?: string;
   onboardingLocked?: boolean;
-  /** 개인정보 수집·이용 동의(미동의 시 서비스 이용 불가) */
   privacyConsentAccepted?: boolean;
 }
 
-/** 생년월일(legacy) 또는 출생연도 */
 export function profileHasBirth(profile: Profile): boolean {
   const y = profile.birthYear;
   const cy = new Date().getFullYear();
@@ -136,12 +128,9 @@ export interface HistoryItem {
   scannedAt: string;
   maxRiskScore: number;
   result: AnalysisResult;
-  /** 해당 스캔 분석 소요 시간(초). 기록에서 다시 열어도 표시용으로 유지 */
   analysisSeconds?: number;
   customProductName?: string | null;
-  /** 기본 analyze. compare면 comparePayload로 비교 결과 재표시 */
   entryKind?: 'analyze' | 'compare';
-  /** 비교 API 소요 시간(초). 기록에서 다시 열어도 표시용 */
   compareSeconds?: number;
   comparePayload?: {
     productA: AnalysisResult;
@@ -150,18 +139,14 @@ export interface HistoryItem {
     comparisonSummary: string;
     recommendationLine: string;
   };
-  /** 분석 XP(10) 지급 대상(중복 상품이 아닐 때만 true). 옛 기록에는 없을 수 있음 */
   pendingAnalysisXp?: boolean;
   analysisXpGranted?: boolean;
-  /** 비교 퀘스트 XP(15) 지급 대상 */
   pendingCompareXp?: boolean;
   compareXpGranted?: boolean;
 }
 
-/** 영양표 한 줄(항목명 + 표기량 문자열). 칼슘·비타민 등 임의 항목 포함 */
 export interface NutritionTableRow {
   name: string;
-  /** 숫자·단위·% 등 라벨에 적힌 그대로 */
   amount: string;
 }
 
@@ -174,13 +159,10 @@ export interface NutritionFacts {
   fatG?: number | null;
   saturatedFatG?: number | null;
   transFatG?: number | null;
-  /** 한국 영양표 기준 mg */
   cholesterolMg?: number | null;
-  /** 식이섬유 g */
   dietaryFiberG?: number | null;
   servingSizeText?: string | null;
   basisIsPerServing?: boolean;
-  /** 표에 보이는 영양항목 전부(위에서 아래 순). 있으면 UI에서 이걸 우선 표시 */
   tableRows?: NutritionTableRow[] | null;
 }
 
@@ -197,13 +179,11 @@ export interface NutritionDailyPercent {
   dietaryFiber?: number;
 }
 
-/** 라벨에 명시된 원재료 함량 %(있을 때만) */
 export interface LabelExplicitPercentage {
   name: string;
   percent: number;
 }
 
-/** AI 추정 첨가·감미 등 미량 성분 함량 범위(참고용) */
 export interface EstimatedIngredient {
   name: string;
   minPercent: number;
@@ -216,23 +196,17 @@ export type AnalysisConfidenceLevel = 'low' | 'medium' | 'high';
 export interface AnalysisResult {
   product: { productName: string; companyName?: string; rawMaterials?: string };
   novaGroup: number;
-  /** Group IV일 때 4A | 4B | 4C */
   novaSubgroup?: string | null;
   judgmentReason?: string | null;
   concernIngredients: Array<{
     name: string;
     explanation: string;
-    /** 통합 엔진 추정 함량 범위(%) */
     minPercent?: number | null;
     maxPercent?: number | null;
   }>;
-  /** 스키마 호환용(모델은 빈 배열만 반환). 과거 분석에 값이 남을 수 있음 */
   estimatedIngredients?: EstimatedIngredient[] | null;
-  /** 짧은 인사이트 문장 */
   keyInsights?: string[] | null;
-  /** 비율·라벨 해석 전체의 불확실도(LLM이 프롬프트 규칙으로 선택한 low|medium|high) */
   analysisConfidence?: AnalysisConfidenceLevel | null;
-  /** 라벨에 직접 인쇄된 % (있을 때) */
   labelExplicitPercentages?: LabelExplicitPercentage[] | null;
   briefDescription?: string | null;
   consumptionAdvice?: string | null;
@@ -240,24 +214,15 @@ export interface AnalysisResult {
   nutrition?: NutritionFacts | null;
   nutritionDailyPercent?: NutritionDailyPercent | null;
   personalizedIntakeNote?: string | null;
-  /** 키·몸무게가 있을 때 맞춤 열량 안내 아래에 붙이는 짧은 설명 */
   personalizedIntakeFootnote?: string | null;
   alternativeFoodText?: string | null;
-  /** true면 대체 식품 문구가 Google Search 그라운딩 2차 호출 결과 */
   alternativeFoodFromWebSearch?: boolean;
-  /** 웹 검색이 비었을 때 앱 내 추천 엔진으로 채운 경우 */
   alternativeFoodEngineFallback?: boolean;
-  /** 로드 완료 후에도 비어 있을 때 사유(찾는 중과 구분). 로딩 중에는 보통 없음 */
   alternativeUnavailableReason?: 'NO_SEARCH_KEY' | 'FETCH_FAILED' | 'NO_MATCH' | null;
-  /** NOVA 3·4: /api/alternatives 응답 전 false → 로딩. 1·2는 즉시 true */
   alternativeFoodLoaded?: boolean;
-  /** NOVA 1~2 등: 대체 추천 없음 이유(즉시 표시, 웹 검색 없음) */
   alternativeFoodNotice?: string | null;
-  /** NOVA 1~2: 사용자가 「그래도 받기」로 웹 추천을 요청함 */
   alternativeFoodUserRequested?: boolean;
-  /** 일일 첫 퀘스트: AI가 오늘 미션 식품 종류와 실제 촬영 제품이 맞는다고 판단한 경우 */
   dailyQuestProductMatch?: boolean;
-  /** 시연용 빠른 분석 파이프라인 — `/api/alternatives` 등 2차 호출 생략 */
   fastAnalysisDemo?: boolean;
 }
 
@@ -265,9 +230,7 @@ export interface AppState {
   onboardingCompleted: boolean;
   profile: Profile;
   history: HistoryItem[];
-  /** 연속 분석 일수(로컬 저장). 없으면 normalize 시 빈 값 */
   analysisStreak?: AnalysisStreak;
-  /** 일일 퀘스트·첫 사용 시각 등 */
   quests?: QuestsSlice;
 }
 
@@ -314,7 +277,6 @@ export function loadState(clientId: string): AppState {
         },
       ];
     }
-    /* 하나만 있어도 기록 표시: 키·몸무게만 있고 기록 배열이 비어 있으면 한 건 채움 */
     if (
       Array.isArray(profile.bodyMeasurements) &&
       profile.bodyMeasurements.length === 0 &&
@@ -397,7 +359,6 @@ export function getHistory(clientId: string): HistoryItem[] {
   return loadState(clientId).history || [];
 }
 
-/** 화면 표시용: 끊긴 스트릭은 0일로 표시 */
 export function getAnalysisStreak(clientId: string): { displayCurrent: number; longest: number } {
   const s = loadState(clientId);
   return getEffectiveAnalysisStreak(normalizeAnalysisStreak(s.analysisStreak));
@@ -408,7 +369,6 @@ export function getQuestBoard(clientId: string) {
   return buildQuestBoard(resolveQuestSlice(state), new Date(), clientId);
 }
 
-/** 스트릭 UI·토스트용 스냅샷(증가 없음) */
 export function getStreakToastSnapshot(clientId: string): {
   displayCurrent: number;
   didIncrease: boolean;
@@ -448,7 +408,6 @@ export function addXp(clientId: string, delta: number): number {
   return next;
 }
 
-/** 오늘 저장된 OX 퀴즈 다시 보기(날짜·형식 맞을 때만) */
 export function getDailyOxQuizSolvedForToday(clientId: string): DailyOxQuizSolvedStored | null {
   const qs = normalizeQuestsSlice(loadState(clientId).quests);
   const s = qs.dailyOxQuizSolved;
@@ -458,7 +417,6 @@ export function getDailyOxQuizSolvedForToday(clientId: string): DailyOxQuizSolve
   return s;
 }
 
-/** 일일 첫 퀘스트(키워드 퀴즈) 정답 시 — 오늘 이미 한 경우 무시. `solved`는 다시 보기용 로컬 저장 */
 export function markDailyAnalyzeQuizDone(
   clientId: string,
   solved?: DailyOxQuizSolvedStored | null,
@@ -485,7 +443,6 @@ export function markDailyAnalyzeQuizDone(
   return { ...streak, totalXp: getTotalXp(clientId) };
 }
 
-/** 매일 배정된 2개 미션을 모두 완료했을 때만 연속 일수를 올림. */
 export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
   displayCurrent: number;
   didIncrease: boolean;
@@ -533,7 +490,6 @@ export function getWeekStreakSheetData(clientId: string): {
   return { displayStreak, longest: st.longest, week };
 }
 
-/** 이번 주(로컬·월~일 아님: 오늘 포함 과거 7일) 일별 XP — 주간 막대 그래프용 */
 export function getXpWeekChartData(clientId: string): {
   cells: Array<{
     ymd: string;
@@ -696,9 +652,6 @@ export function addToHistory(
   return { id: itemId, item, streak };
 }
 
-/**
- * 결과 화면을 MIN_VIEW_SECONDS_FOR_XP 이상 본 뒤 호출. 중복 상품이 아니면 분석 XP(10) 지급.
- */
 export function grantAnalysisXpAfterView(
   clientId: string,
   historyId: string,
@@ -724,9 +677,6 @@ export function grantAnalysisXpAfterView(
   return { granted: true, totalXp: getTotalXp(clientId) };
 }
 
-/**
- * 비교 결과 화면을 충분히 본 뒤 호출. 같은 제품 쌍 재비교가 아니면 비교 퀘스트 XP(15) 지급.
- */
 export function grantCompareXpAfterView(
   clientId: string,
   historyId: string,
@@ -754,7 +704,6 @@ export function grantCompareXpAfterView(
   return { granted: true, totalXp: getTotalXp(clientId) };
 }
 
-/** 비교 결과를 최근 기록에 남김(퀘스트·스트릭은 호출부에서 이미 처리된 경우가 많음) */
 export function addCompareToHistory(
   clientId: string,
   payload: NonNullable<HistoryItem['comparePayload']>,
@@ -832,7 +781,6 @@ export function clearAllHistory(clientId: string): void {
   saveState(clientId, state);
 }
 
-/** 스캔 기록·개인 맞춤화·화면 설정 등 모든 데이터 삭제. 하나도 남기지 않음. */
 export function clearAllData(clientId: string): void {
   const state = loadState(clientId);
   state.history = [];
@@ -880,7 +828,6 @@ export function addBodyMeasurement(
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
-/** index: 목록을 날짜 내림차순 정렬했을 때의 순서(0 = 최신) */
 export function removeBodyMeasurement(clientId: string, index: number): void {
   const state = loadState(clientId);
   const p = state.profile || {};

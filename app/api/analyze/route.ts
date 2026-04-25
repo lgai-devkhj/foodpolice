@@ -24,7 +24,6 @@ import {
   isGemini3FamilyModelId,
 } from '@/lib/gemini-models';
 
-/** 본 분석: 이미지 1~2장 → 단일 멀티모달 Gemini 호출(비교 API와 동일한 스키마·품질) */
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
@@ -43,7 +42,6 @@ interface AnalyzeBody {
     birthDate?: string | null;
     gender?: string | null;
   };
-  /** 오늘 일일 미션 식품 라벨(8종 중 하나). 있으면 프롬프트에 퀘스트 일치 필드 포함 */
   dailyQuestTarget?: string;
 }
 

@@ -208,7 +208,6 @@ function inferBaseDomain(foodType: string): 'beverage' | 'snack' | 'meal' | 'dai
 }
 
 const FOOD_TYPE_ALLOWED_TARGETS: Record<string, Set<string>> = {
-  // 비만·과체중/저체중과 무관하게, "같은 용도(간식/음료)" 축에서 대체 후보를 뽑기 위한 허용 매핑
   sweet_nut_snack: new Set([
     'unsalted_mixed_nuts',
     'dry_roasted_almonds',
@@ -221,11 +220,9 @@ const FOOD_TYPE_ALLOWED_TARGETS: Record<string, Set<string>> = {
     'sparkling_water_unsweetened',
     'unsweetened_iced_tea',
   ]),
-  // 나머지는 런타임에서 fallbackCandidatesForFoodType로 처리
 };
 
 const MOCK_CANDIDATES: ConceptCandidate[] = [
-  // 간식(견과류)
   {
     foodType: 'unsalted_mixed_nuts',
     labelKo: '무가당 견과류 믹스(달지 않고 볶은 타입)',
@@ -277,7 +274,6 @@ const MOCK_CANDIDATES: ConceptCandidate[] = [
     realism: 0.9,
   },
 
-  // 음료(콜라/탄산 대체)
   {
     foodType: 'zero_carbonated_drink',
     labelKo: '제로 탄산음료',
@@ -852,8 +848,6 @@ async function resolveRetailCandidatesForConcepts(
     groupedByFoodType.set(concept.foodType, labels);
   }
 
-  // NOTE: `Map.prototype.entries()` iterator를 for-of로 순회하면 TS target(다운레벨 이터레이션) 설정에 따라 컴파일 에러가 날 수 있어요.
-  // 그래서 `Array.from(...entries())` 형태로 바꿔 호환성을 확보합니다.
   for (const [foodType, labels] of Array.from(groupedByFoodType.entries())) {
     const uniqueLabels = Array.from(new Set(labels));
     let resolved: { label: string; url?: string }[] = [];
@@ -1107,8 +1101,6 @@ export function runRecommendationPipeline(
         .map(({ c, ev }) => ({ c, score: ev.total }))
         .slice(0, 8);
 
-  // NOTE: 이 엔진은 현재 기본 경로(테스트/클라이언트 폴백)에서 동기 반환만 지원합니다.
-  // 검색 포트 기반의 실제 상품명 해석은 별도 비동기 파이프라인에서 처리할 수 있어요.
   return buildTypedRecommendationsFromConcepts(input, finalConcepts, targets, undefined);
 }
 
