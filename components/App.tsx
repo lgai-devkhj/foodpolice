@@ -4269,7 +4269,7 @@ export default function App() {
               <h2 className="hero-title">
                 포장만 찍으면
                 <br />
-                원재료·NOVA·영양 비율을 알려 드릴게요
+                원재료·가공 정도·영양 비율을 알려 드릴게요
               </h2>
               <div className="home-product-mode-row" role="group" aria-label="기능 선택">
                 <button
