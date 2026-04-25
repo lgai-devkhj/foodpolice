@@ -58,6 +58,7 @@ import {
 import {
   NOVA_NAMES,
   NOVA_IMG,
+  NOVA_SUBGROUP_IMG,
   NOVA_SHORT_REASON,
   NOVA_SUBGROUP_NAMES,
   NOVA_SUBGROUP_HINTS,
@@ -318,6 +319,7 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
   const nova = result.novaGroup || 4;
   const sub = (result.novaSubgroup || '').trim().toUpperCase();
   const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
+  const novaIcon = nova === 4 && subKey ? NOVA_SUBGROUP_IMG[subKey] : (NOVA_IMG[nova] || '');
   const name = (result.product?.productName || '').trim() || label;
   const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
   return (
@@ -330,7 +332,7 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
             <div className="card-title nova-result-title">한국형 NOVA</div>
           </div>
           <div className={`nova-badge nova-${nova}`}>
-            <img src={NOVA_IMG[nova] || ''} alt="" className="nova-icon" referrerPolicy="no-referrer" />
+            <img src={novaIcon} alt="" className="nova-icon" referrerPolicy="no-referrer" />
             {NOVA_NAMES[nova]}
             {nova === 4 ? (
               <div className="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">
@@ -338,7 +340,9 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
                   const nodeLabel = subKey === k && NOVA_SUBGROUP_NAMES[k] ? NOVA_SUBGROUP_NAMES[k] : k;
                   return (
                     <span key={k} style={{ display: 'inline' }}>
-                      <span className={`nova-subgroup-node${subKey === k ? ' active' : ''}`}>{nodeLabel}</span>
+                      <span className={`nova-subgroup-node node-${k.toLowerCase()}${subKey === k ? ' active' : ''}`}>
+                        {nodeLabel}
+                      </span>
                       {k !== '4C' ? (
                         <span className="nova-subgroup-link" aria-hidden="true">
                           {' '}
@@ -2292,6 +2296,7 @@ export default function App() {
       const nova = result.novaGroup || 4;
       const sub = (result.novaSubgroup || '').trim().toUpperCase();
       const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
+      const novaIcon = nova === 4 && subKey ? NOVA_SUBGROUP_IMG[subKey] : (NOVA_IMG[nova] || '');
       const reason = stripMarkdownBold(result.judgmentReason || '');
       const concerns = (result.concernIngredients || []).map((c) => ({
         ...c,
@@ -2356,7 +2361,7 @@ export default function App() {
         '<div class="nova-badge nova-' +
         nova +
         '"><img src="' +
-        (NOVA_IMG[nova] || '') +
+        novaIcon +
         '" alt="" class="nova-icon" referrerpolicy="no-referrer">' +
         NOVA_NAMES[nova];
       if (nova === 4) {
@@ -2365,7 +2370,8 @@ export default function App() {
         subGraphItems.forEach((k) => {
           const label = subKey === k && NOVA_SUBGROUP_NAMES[k] ? NOVA_SUBGROUP_NAMES[k] : k;
           html +=
-            '<span class="nova-subgroup-node' +
+            '<span class="nova-subgroup-node node-' +
+            k.toLowerCase() +
             (subKey === k ? ' active' : '') +
             '">' +
             escapeHtml(label) +

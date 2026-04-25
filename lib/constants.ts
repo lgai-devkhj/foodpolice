@@ -13,6 +13,12 @@ export const NOVA_IMG: Record<number, string> = {
   4: '/images/nova-4.svg',
 };
 
+export const NOVA_SUBGROUP_IMG: Record<'4A' | '4B' | '4C', string> = {
+  '4A': '/images/nova-4A.svg',
+  '4B': '/images/nova-4B.svg',
+  '4C': '/images/nova-4C.svg',
+};
+
 export const NOVA_SHORT_REASON: Record<number, string> = {
   1: '자연 상태, 원재료 구조 유지',
   2: '조리용 재료',
@@ -47,6 +53,7 @@ export const CAPTURE_GUIDE_NUTRIENT_EXAMPLES = [
 export const PUBLIC_IMAGE_PRELOAD_HREFS: readonly string[] = Array.from(
   new Set<string>([
     ...Object.values(NOVA_IMG),
+    ...Object.values(NOVA_SUBGROUP_IMG),
     ...CAPTURE_GUIDE_INGREDIENT_EXAMPLES,
     ...CAPTURE_GUIDE_NUTRIENT_EXAMPLES,
     '/images/qrcode.png',

@@ -2978,12 +2978,41 @@
       max-width: 100%;
       transition: box-shadow 0.18s ease, border-color 0.18s ease;
     }
-    .nova-subgroup-node.active {
-      background: linear-gradient(160deg, rgba(229,57,53,0.2) 0%, rgba(255,138,128,0.36) 100%);
-      border-color: rgba(183, 28, 28, 0.68);
-      color: #9a1414;
+    .nova-subgroup-node.node-4a {
+      background: #FF8A8033;
+      border-color: #FF8A80;
+      color: #FF8A80;
+    }
+    .nova-subgroup-node.node-4b {
+      background: #FF000033;
+      border-color: #FF0000;
+      color: #FF0000;
+    }
+    .nova-subgroup-node.node-4c {
+      background: #C0000033;
+      border-color: #C00000;
+      color: #C00000;
+    }
+    .nova-subgroup-node.node-4a.active {
+      background: #FF8A8066;
+      border-color: #FF8A80;
+      color: #FF8A80;
       font-weight: 900;
-      box-shadow: 0 0 0 2px rgba(183, 28, 28, 0.22), 0 6px 14px rgba(183, 28, 28, 0.2);
+      box-shadow: 0 0 0 2px #FF8A8044, 0 6px 14px #FF8A8033;
+    }
+    .nova-subgroup-node.node-4b.active {
+      background: #FF000066;
+      border-color: #FF0000;
+      color: #FF0000;
+      font-weight: 900;
+      box-shadow: 0 0 0 2px #FF000044, 0 6px 14px #FF000033;
+    }
+    .nova-subgroup-node.node-4c.active {
+      background: #C0000066;
+      border-color: #C00000;
+      color: #C00000;
+      font-weight: 900;
+      box-shadow: 0 0 0 2px #C0000044, 0 6px 14px #C0000033;
     }
     .nova-subgroup-link {
       color: var(--text3);
@@ -3996,12 +4025,44 @@
       color: rgba(255,255,255,0.8);
       border-color: rgba(255,255,255,0.2);
     }
-    [data-theme="dark"] .nova-subgroup-node.active,
-    html:not([data-theme="light"]) .nova-subgroup-node.active {
-      background: linear-gradient(160deg, rgba(255, 99, 71, 0.26) 0%, rgba(255, 138, 128, 0.34) 100%);
-      border-color: rgba(255, 176, 165, 0.78);
-      color: #fff0ec;
-      box-shadow: 0 0 0 2px rgba(255, 176, 165, 0.26), 0 6px 14px rgba(0,0,0,0.35);
+    [data-theme="dark"] .nova-subgroup-node.node-4a,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4a {
+      background: #FF8A8033;
+      color: #FF8A80;
+      border-color: #FF8A80;
+    }
+    [data-theme="dark"] .nova-subgroup-node.node-4b,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4b {
+      background: #FF000033;
+      color: #FF0000;
+      border-color: #FF0000;
+    }
+    [data-theme="dark"] .nova-subgroup-node.node-4c,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4c {
+      background: #C0000033;
+      color: #C00000;
+      border-color: #C00000;
+    }
+    [data-theme="dark"] .nova-subgroup-node.node-4a.active,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4a.active {
+      background: #FF8A8066;
+      border-color: #FF8A80;
+      color: #FF8A80;
+      box-shadow: 0 0 0 2px #FF8A8044, 0 6px 14px rgba(0,0,0,0.35);
+    }
+    [data-theme="dark"] .nova-subgroup-node.node-4b.active,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4b.active {
+      background: #FF000066;
+      border-color: #FF0000;
+      color: #FF0000;
+      box-shadow: 0 0 0 2px #FF000044, 0 6px 14px rgba(0,0,0,0.35);
+    }
+    [data-theme="dark"] .nova-subgroup-node.node-4c.active,
+    html:not([data-theme="light"]) .nova-subgroup-node.node-4c.active {
+      background: #C0000066;
+      border-color: #C00000;
+      color: #C00000;
+      box-shadow: 0 0 0 2px #C0000044, 0 6px 14px rgba(0,0,0,0.35);
     }
     [data-theme="dark"] .nova-subgroup-link,
     html:not([data-theme="light"]) .nova-subgroup-link {
