@@ -2180,6 +2180,16 @@
       min-width: 40px;
     }
     .history-nova-icon { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+    .history-nova-icon-pair {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .history-nova-icon--pair {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+    }
     .history-nova-caption {
       display: block;
       margin-top: 3px;

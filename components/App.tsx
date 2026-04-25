@@ -1167,13 +1167,17 @@ function formatHistoryListNovaCaption(item: HistoryItem): string {
   return formatNovaTierForHistoryList(r.novaGroup ?? item.maxRiskScore ?? 4, r.novaSubgroup);
 }
 
+function analysisNovaIconSrc(result: AnalysisResult | null | undefined, fallbackGroup: number): string {
+  const group = result?.novaGroup ?? fallbackGroup;
+  const sub = normalizeNovaSubgroupLabel(result?.novaSubgroup);
+  if (group === 4 && sub) return NOVA_SUBGROUP_IMG[sub];
+  return NOVA_IMG[group] || '';
+}
+
 function historyListNovaIconSrc(item: HistoryItem): string {
   if (item.entryKind === 'compare') return NOVA_IMG[item.maxRiskScore] || '';
   const r = item.result;
-  const group = r.novaGroup ?? item.maxRiskScore ?? 4;
-  const sub = normalizeNovaSubgroupLabel(r.novaSubgroup);
-  if (group === 4 && sub) return NOVA_SUBGROUP_IMG[sub];
-  return NOVA_IMG[item.maxRiskScore] || '';
+  return analysisNovaIconSrc(r, item.maxRiskScore ?? 4) || NOVA_IMG[item.maxRiskScore] || '';
 }
 
 function getBirthYearFromProfile(p: Profile): number | null {
@@ -4404,6 +4408,14 @@ export default function App() {
                 <h2 className="history-list-title">최근에 본 분석</h2>
                 {history.slice(0, 5).map((item) => {
                   const novaIconSrc = historyListNovaIconSrc(item);
+                  const compareIconA =
+                    item.entryKind === 'compare' && item.comparePayload
+                      ? analysisNovaIconSrc(item.comparePayload.productA, item.comparePayload.productA.novaGroup ?? 4)
+                      : '';
+                  const compareIconB =
+                    item.entryKind === 'compare' && item.comparePayload
+                      ? analysisNovaIconSrc(item.comparePayload.productB, item.comparePayload.productB.novaGroup ?? 4)
+                      : '';
                   return (
                     <div
                       key={item.id}
@@ -4437,7 +4449,12 @@ export default function App() {
                       tabIndex={0}
                     >
                       <div className="history-nova-wrap" title={`NOVA ${formatHistoryListNovaCaption(item)}`}>
-                        {novaIconSrc ? (
+                        {item.entryKind === 'compare' && compareIconA && compareIconB ? (
+                          <div className="history-nova-icon-pair" aria-hidden="true">
+                            <img src={compareIconA} alt="" className="history-nova-icon history-nova-icon--pair" referrerPolicy="no-referrer" />
+                            <img src={compareIconB} alt="" className="history-nova-icon history-nova-icon--pair" referrerPolicy="no-referrer" />
+                          </div>
+                        ) : novaIconSrc ? (
                           <img
                             src={novaIconSrc}
                             alt=""
