@@ -167,8 +167,7 @@ const JSON_OUTPUT_SPEC = [
   '- alternatives는 최소 1개, 가능하면 3개예요.',
   '- tier는 slight, better, best 중 가능한 것만 써요.',
   '- purchaseUrl은 반드시 http(s) 실제 상품 또는 스토어 페이지예요.',
-  '- reason은 아래 [말투 · 앱인토스 UX 라이팅]을 따르고, 짧고 분명하게 써요.',
-  '- reason은 부정적 단정이나 겁주는 표현보다 비교 근거를 능동형·긍정형으로 바로 말해요.',
+  '- reason은 아래 [말투 · 앱인토스 UX 라이팅]을 따라 짧고 분명하게 써요.',
 ].join('\n');
 
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {

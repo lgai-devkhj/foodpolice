@@ -6,7 +6,6 @@ import {
 import type {
   AnalysisConfidenceLevel,
   AnalysisResult,
-  EstimatedIngredient,
   LabelExplicitPercentage,
 } from '@/lib/store';
 
@@ -185,27 +184,6 @@ function parsePercentPair(
   return { minPercent: a, maxPercent: b };
 }
 
-function parseEstimatedIngredients(raw: unknown): EstimatedIngredient[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: EstimatedIngredient[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const o = item as Record<string, unknown>;
-    const name = o.name != null ? String(o.name).trim() : '';
-    if (!name) continue;
-    const { minPercent: mn, maxPercent: mx } = parsePercentPair(o.minPercent, o.maxPercent);
-    if (mn == null || mx == null) continue;
-    out.push({
-      name,
-      minPercent: mn,
-      maxPercent: mx,
-      isConcern: o.isConcern === true,
-    });
-    if (out.length >= 20) break;
-  }
-  return out.length > 0 ? out : null;
-}
-
 function parseKeyInsights(raw: unknown): string[] | null {
   if (!Array.isArray(raw)) return null;
   const out: string[] = [];
@@ -343,7 +321,6 @@ export function buildAnalysisResultFromGeminiObject(
     labelExplicitPercentages,
   );
 
-  const estimatedIngredients = parseEstimatedIngredients(parsed.estimatedIngredients);
   const keyInsights = parseKeyInsights(parsed.keyInsights);
   const analysisConfidence = parseAnalysisConfidence(parsed.analysisConfidence);
 
@@ -372,7 +349,6 @@ export function buildAnalysisResultFromGeminiObject(
         ? String(parsed.judgmentReason).trim()
         : null,
     concernIngredients,
-    estimatedIngredients,
     keyInsights,
     analysisConfidence,
     labelExplicitPercentages,

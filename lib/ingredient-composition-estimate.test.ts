@@ -31,13 +31,11 @@ describe('estimateIngredientComposition', () => {
     expect(s).toBeGreaterThan(99);
     expect(s).toBeLessThan(101);
     expect(r.ingredientsEstimate.length).toBe(4);
-    expect(r.totalError).toBeGreaterThanOrEqual(0);
-    expect(r.summary.length).toBeGreaterThan(0);
   });
 
-  it('100ml drink uses density assumption', () => {
+  it('100ml drink returns estimate rows', () => {
     const r = estimateIngredientComposition(sampleDrinkInput);
-    expect(r.assumptions.some((a) => a.includes('밀도'))).toBe(true);
+    expect(r.ingredientsEstimate.length).toBe(sampleDrinkInput.ingredients.length);
   });
 
   it('knownPercents fix listed items', () => {

@@ -184,13 +184,6 @@ export interface LabelExplicitPercentage {
   percent: number;
 }
 
-export interface EstimatedIngredient {
-  name: string;
-  minPercent: number;
-  maxPercent: number;
-  isConcern: boolean;
-}
-
 export type AnalysisConfidenceLevel = 'low' | 'medium' | 'high';
 
 export interface AnalysisResult {
@@ -204,7 +197,6 @@ export interface AnalysisResult {
     minPercent?: number | null;
     maxPercent?: number | null;
   }>;
-  estimatedIngredients?: EstimatedIngredient[] | null;
   keyInsights?: string[] | null;
   analysisConfidence?: AnalysisConfidenceLevel | null;
   labelExplicitPercentages?: LabelExplicitPercentage[] | null;

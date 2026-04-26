@@ -1,5 +1,6 @@
 
 import {
+  generateIngredientProfilesWithAI,
   generateIngredientPriorsWithAI,
   validateEstimatesWithAI,
   type IngredientPriorFromAI,
@@ -16,8 +17,13 @@ export interface HybridOptions {
   disableAi?: boolean;
   apiKey?: string;
   signal?: AbortSignal;
+  profilesTimeoutMs?: number;
   priorsTimeoutMs?: number;
   validateTimeoutMs?: number;
+}
+
+function compositionAiFailure(message: string): never {
+  throw new Error(`분석에 실패했어요. 다시 시도해 주세요. [${message}]`);
 }
 
 function priorsToExtras(
@@ -37,12 +43,34 @@ export async function estimateIngredientCompositionHybrid(
   options?: HybridOptions,
 ): Promise<IngredientCompositionResult> {
   if (options?.disableAi) {
-    return estimateIngredientCompositionWithExtras(input, undefined);
+    compositionAiFailure('AI_DISABLED');
   }
 
   const ingredients = input.ingredients.map((s) => s.trim()).filter(Boolean);
   if (ingredients.length === 0) {
-    return estimateIngredientCompositionWithExtras(input, undefined);
+    compositionAiFailure('EMPTY_INGREDIENTS');
+  }
+
+  const profiles = await generateIngredientProfilesWithAI(
+    {
+      ingredients,
+      nutritionPer100g: input.nutritionPer100g,
+      category: input.category,
+    },
+    {
+      apiKey: options?.apiKey,
+      timeoutMs: options?.profilesTimeoutMs ?? 1800,
+      signal: options?.signal,
+    },
+  );
+
+  const profilesOk =
+    profiles != null &&
+    profiles.items.length === ingredients.length &&
+    !profiles.rawModelError &&
+    profiles.profilesConfidence > 0.05;
+  if (!profilesOk) {
+    compositionAiFailure(profiles?.rawModelError || 'PROFILE_GENERATION');
   }
 
   let priors = await generateIngredientPriorsWithAI(
@@ -65,8 +93,19 @@ export async function estimateIngredientCompositionHybrid(
     priors.priorsConfidence > 0.05;
 
   let extras: CompositionExtras = { aiUsed: false };
+  if (profilesOk && profiles) {
+    extras.aiIngredientProfiles = profiles.items.map((it) => ({
+      fat: it.fat,
+      carbs: it.carbs,
+      sugars: it.sugars,
+      protein: it.protein,
+      water: it.water,
+    }));
+    extras.aiUsed = true;
+  }
   if (priorsOk && priors) {
     extras = {
+      ...extras,
       aiUsed: true,
       ...priorsToExtras(priors.items, priors.priorsConfidence),
       priorsConfidence: priors.priorsConfidence,
@@ -80,7 +119,7 @@ export async function estimateIngredientCompositionHybrid(
   }
 
   const p = base.ingredientsEstimate.map((r) => r.estimatedPercent);
-  const nutritionForValidate = base._debug?.nutritionTarget ?? input.nutritionPer100g;
+  const nutritionForValidate = input.nutritionPer100g;
   const val = await validateEstimatesWithAI(
     ingredients,
     input.category,

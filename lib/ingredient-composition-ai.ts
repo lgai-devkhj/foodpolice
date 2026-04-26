@@ -34,6 +34,23 @@ export interface GeneratePriorsAiResult {
   rawModelError?: string;
 }
 
+export interface IngredientNutritionProfileFromAI {
+  name: string;
+  fat: number;
+  carbs: number;
+  sugars: number;
+  protein: number;
+  water: number;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface GenerateProfilesAiResult {
+  items: IngredientNutritionProfileFromAI[];
+  profilesConfidence: number;
+  rawModelError?: string;
+}
+
 export interface ValidateEstimatesAiResult {
   unrealisticFlags: string[];
   adjustmentNotes: string[];
@@ -77,6 +94,103 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
     return JSON.parse(t.slice(start, end + 1)) as Record<string, unknown>;
   } catch {
     return null;
+  }
+}
+
+const PROFILES_SYSTEM = `당신은 식품 원재료별 대표 영양 특성을 추정해 수식 엔진 입력을 만드는 도우미예요.
+출력은 반드시 JSON 스키마만 따르고, 설명 문장은 넣지 않아요.
+각 원재료의 100g 기준 대표값으로 fat, carbs, sugars, protein, water(0~100)를 추정해요.
+불확실하면 confidence를 낮추고 reasoning을 짧게 남겨요.`;
+
+function buildProfilesUserPrompt(inp: PriorsAiInput): string {
+  return (
+    `${PROFILES_SYSTEM}\n\n` +
+    `[입력]\n` +
+    `category: ${inp.category}\n` +
+    `ingredients (라벨 순서): ${JSON.stringify(inp.ingredients)}\n` +
+    `nutritionPer100g: ${JSON.stringify(inp.nutritionPer100g)}\n\n` +
+    `[규칙]\n` +
+    `- items 길이는 ingredients와 같아야 해요.\n` +
+    `- name은 입력 문자열과 동일해야 해요.\n` +
+    `- sugars <= carbs를 지켜요.\n` +
+    `- 각 값은 0~100 사이 숫자예요.\n` +
+    `- 추정치는 수식 엔진 입력용 대표치예요.\n\n` +
+    `[출력 JSON]\n` +
+    '{"profilesConfidence":0.0-1.0,"items":[{"name":"","fat":0,"carbs":0,"sugars":0,"protein":0,"water":0,"confidence":0.0-1.0,"reasoning":""}]}'
+  );
+}
+
+function clamp01(v: unknown, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return fallback;
+  return Math.max(0, Math.min(1, v));
+}
+
+function clampN(v: unknown, fallback: number): number {
+  if (typeof v !== 'number' || !Number.isFinite(v)) return fallback;
+  return Math.max(0, Math.min(100, v));
+}
+
+export async function generateIngredientProfilesWithAI(
+  input: PriorsAiInput,
+  options?: { apiKey?: string; model?: string; timeoutMs?: number; signal?: AbortSignal },
+): Promise<GenerateProfilesAiResult | null> {
+  const apiKey = options?.apiKey ?? process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  const model = options?.model ?? ANALYSIS_GEMINI_MODEL;
+  const timeoutMs = options?.timeoutMs ?? 1800;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const signal = options?.signal ?? ctrl.signal;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const userText = buildProfilesUserPrompt(input);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({
+        contents: [{ parts: [textPart(userText)] }],
+        generationConfig: generationConfigJsonMode({ maxOutputTokens: 2048, temperature: 0 }),
+      }),
+    });
+    clearTimeout(t);
+    if (!res.ok) return { items: [], profilesConfidence: 0, rawModelError: `HTTP ${res.status}` };
+    const body = (await res.json()) as unknown;
+    if (!hasGeminiCandidates(body)) return { items: [], profilesConfidence: 0, rawModelError: 'no_candidates' };
+    const text = getGeminiCandidateText(body);
+    if (!text) return { items: [], profilesConfidence: 0, rawModelError: 'empty_text' };
+    const parsed = extractJsonObject(text);
+    if (!parsed || !Array.isArray(parsed.items)) return { items: [], profilesConfidence: 0, rawModelError: 'parse' };
+
+    const profilesConfidence = clamp01(parsed.profilesConfidence, 0.5);
+    const rawItems = parsed.items as Array<Record<string, unknown>>;
+    const items: IngredientNutritionProfileFromAI[] = [];
+
+    for (let i = 0; i < input.ingredients.length; i++) {
+      const row = rawItems[i] ?? {};
+      const carbs = clampN(row.carbs, 0);
+      const sugars = Math.min(clampN(row.sugars, 0), carbs);
+      items.push({
+        name: row.name != null ? String(row.name) : input.ingredients[i],
+        fat: clampN(row.fat, 0),
+        carbs,
+        sugars,
+        protein: clampN(row.protein, 0),
+        water: clampN(row.water, 0),
+        confidence: clamp01(row.confidence, 0.5),
+        reasoning: row.reasoning != null ? String(row.reasoning).slice(0, 300) : '',
+      });
+    }
+
+    return { items, profilesConfidence };
+  } catch (e) {
+    clearTimeout(t);
+    return {
+      items: [],
+      profilesConfidence: 0,
+      rawModelError: e instanceof Error ? e.message : 'abort',
+    };
   }
 }
 

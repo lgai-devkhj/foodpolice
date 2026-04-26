@@ -38,7 +38,6 @@ export function runSampleEstimates(): void {
   for (const { name, input } of samples) {
     const r = estimateIngredientComposition(input);
     console.log(`\n=== ${name} ===`);
-    console.log(JSON.stringify({ summary: r.summary, totalError: r.totalError, warnings: r.warnings }, null, 2));
     console.log(JSON.stringify(r.ingredientsEstimate, null, 2));
   }
   console.log('\n[한계]', INGREDIENT_ESTIMATE_LIMITATIONS);

@@ -3,7 +3,7 @@ import { ANALYSIS_GEMINI_MODEL } from '@/lib/gemini-models';
 export const GEMINI_MODEL = ANALYSIS_GEMINI_MODEL;
 
 export type BmiTier = 'underweight' | 'normal' | 'overweight' | 'obese';
-export type PromptMode = 'fast' | 'standard' | 'strict';
+export type PromptMode = 'fast' | 'standard';
 
 export type PersonalizationInput = {
   bmiValue: number | null;
@@ -12,8 +12,6 @@ export type PersonalizationInput = {
 
 type PersonalizationFocus = {
   adviceTone: 'general' | 'careful';
-  evaluationBias: string;
-  leniencyRule: string;
   personalSummary: string;
 };
 
@@ -47,17 +45,13 @@ function getPersonalizationFocus(tier: BmiTier): PersonalizationFocus {
   if (tier === 'overweight' || tier === 'obese') {
     return {
       adviceTone: 'careful',
-      evaluationBias: '분류 기준은 바꾸지 않고 주의 톤만 조금 더 분명하게 해요.',
-      leniencyRule: '완화 표현을 줄이고 주의 포인트를 더 또렷하게 적어요.',
-      personalSummary: '내용은 같고 표현 강도만 조금 높여요.',
+      personalSummary: '분류는 그대로 두고 주의 톤만 조금 더 분명하게 써요.',
     };
   }
 
   return {
     adviceTone: 'general',
-    evaluationBias: '분류 기준은 바꾸지 않고 일반 톤으로 설명해요.',
-    leniencyRule: '과한 경고는 피하고 확인 중심으로 짧게 적어요.',
-    personalSummary: '내용은 같고 표현 강도만 조금 낮춰요.',
+    personalSummary: '분류는 그대로 두고 일반 톤으로 간결하게 써요.',
   };
 }
 
@@ -115,7 +109,7 @@ function getFoodPoliceFinalCriteriaBlock(mode: PromptMode = 'standard'): string 
       '- Group 4: 분해 성분 1개 이상 또는 첨가물 3개 이상 또는 핵심 첨가물 포함',
       '- 4C: 분해 성분 2개 이상 + 첨가물 3개 이상',
       '- 4B: 분해 성분 1개 이상 + 첨가물 1개 이상',
-      '- 4A: 나머지 Group 4'
+      '- 4A: 나머지 Group 4 (핵심 첨가물만 있고 4B/4C가 아니어도 4A)'
     );
   }
 
@@ -146,7 +140,7 @@ function getFoodPoliceFinalCriteriaBlock(mode: PromptMode = 'standard'): string 
     '[Group 4 세분화]',
     '- 4C: 분해 성분 2개 이상이고 첨가물 3개 이상이면 4C예요.',
     '- 4B: 4C가 아니면서 분해 성분 1개 이상이고 첨가물 1개 이상이면 4B예요.',
-    '- 4A: 나머지 Group 4는 4A예요.',
+    '- 4A: 나머지 Group 4는 4A예요. 핵심 첨가물만 있는 경우도 4B/4C가 아니면 4A예요.',
     '',
     '[중요]',
     '- 4A, 4B, 4C는 오직 분해 성분 개수와 첨가물 개수로만 판단해요.',
@@ -209,16 +203,13 @@ function getConsumptionAdviceBlock(mode: PromptMode = 'standard'): string {
 function getTossToneBlock(): string {
   return joinLines(
     '[말투 · 앱인토스 UX 라이팅]',
-    '- 토스 앱인토스 UX 라이팅 가이드(해요체·능동·긍정·캐주얼 경어·문장 풀어 쓰기)를 따라요.',
-    '- 사용자에게 보이는 한국어는 모두 짧고 읽기 쉬운 -해요체로 통일해요.',
-    '- 능동형 문장을 우선해요. 의미가 더 분명할 때만 수동형을 써요.',
-    '- 부정만 나열하지 말고, 될 때는 ~할 수 있어요처럼 긍정형으로 바꿀 수 있으면 그렇게 써요. (제한·위험·정책 안내처럼 분명히 알려야 할 때는 부정형이어도 돼요.)',
-    '- \'되어요\'는 쓰지 말고 \'돼요\'로 통일해요.',
-    '- \'~시겠어요?\', \'~께\' 같은 과한 경어는 피하고, 캐주얼한 존댓말로 써요. (사용자 맥락 질문 등 가이드 예외가 필요할 때만 제한적으로 써요.)',
-    '- 한자어 명사만 나열하지 말고, 풀어서 동사형으로 쓸 수 있으면 풀어 써요.',
+    '- 사용자에게 보이는 문장은 짧은 -해요체로 써요.',
+    '- 능동형과 쉬운 단어를 우선해요.',
+    '- 가능한 긍정형으로 쓰되, 주의가 필요하면 분명하게 알려요.',
+    '- \'되어요\' 대신 \'돼요\'를 써요.',
+    '- 과한 경어, 명령조, 과장, 공포 표현은 피해요.',
     '- 적용 필드: briefDescription, judgmentReason, concernIngredients.explanation, consumptionAdvice, koreanReclassificationNote, comparisonSummary, recommendationLine',
-    '- 보고서체, 명령조, 과장, 공포 표현은 피해요.',
-    '- 사용자에게 부담을 주는 딱딱한 말투는 쓰지 않아요.'
+    '- 보고서체보다 앱 문장처럼 자연스럽게 써요.'
   );
 }
 
@@ -234,8 +225,6 @@ function getPersonalizationCompactBlock(profile?: PersonalizationInput | null): 
     `- BMI: ${bmiText}, 체형: ${bmiTierLabel}, 톤: ${focus.adviceTone}`,
     '- BMI는 novaGroup, novaSubgroup을 바꾸지 않아요.',
     '- BMI는 briefDescription, concernIngredients.explanation, consumptionAdvice의 표현 강도에만 반영해요.',
-    `- ${focus.evaluationBias}`,
-    `- ${focus.leniencyRule}`,
     `- ${focus.personalSummary}`,
     '- BMI는 생활 참고 정보로만 다뤄요.'
   );
@@ -296,15 +285,23 @@ function getOcrCorrectionBlock(): string {
   );
 }
 
+function getKoreanReclassificationBlock(): string {
+  return joinLines(
+    '[한국형 재분류]',
+    '- koreanReclassificationNote를 항상 채워요.',
+    '- 한 문장으로, 왜 한국형 FoodPolice 기준에서 현재 분류가 나왔는지 쉽게 설명해요.',
+    '- 기준과 차이가 없거나 추가 설명이 필요 없으면 ""로 둬요.'
+  );
+}
+
 function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string {
   if (mode === 'fast') {
     return joinLines(
       '[주의 원재료 + 추정 범위]',
       '- concernIngredients만 사용하고 별도의 전체 미량 성분 목록은 만들지 않아요.',
       '- concernIngredients는 최대 3개예요.',
-      '- minPercent, maxPercent는 알 수 있을 때만 넣고 모르면 null이에요.',
+      '- minPercent, maxPercent는 가능하면 숫자로 넣고, 정말 판단이 어려울 때만 null로 둬요.',
       '- analysisConfidence는 high, medium, low 중 하나예요.',
-      '- estimatedIngredients는 항상 []예요.',
       '- labelExplicitPercentages는 라벨에 직접 적힌 %만 넣고 없으면 []예요.'
     );
   }
@@ -315,15 +312,14 @@ function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string
     '- concernIngredients는 최대 3개예요.',
     '- 분류 기준에 직접 쓰인 핵심 성분, 분해 성분, 핵심 첨가물, 주의할 만한 첨가물을 우선 후보로 봐요.',
     '- 일반적인 기저 원료는 보통 제외하지만, 제품 특성을 좌우하는 성분이면 포함할 수 있어요.',
-    '- 각 항목에 **반드시 숫자** minPercent, maxPercent(0~100)를 넣어요. 라벨에 해당 성분 함량 %가 있으면 그 값으로 맞추고, 없으면 원재료 순서·제품 유형·유사 식품 상식으로 **추정 범위**를 넣어요.',
-    '- 정말로 전혀 추정할 수 없을 때만 null이에요. 가능하면 항상 두 숫자를 채워요.',
+    '- minPercent, maxPercent(0~100)는 가능하면 숫자로 넣어요. 라벨에 해당 성분 함량 %가 있으면 그 값으로 맞추고, 없으면 원재료 순서·제품 유형·유사 식품 상식으로 추정 범위를 넣어요.',
+    '- 정말로 전혀 추정할 수 없을 때만 null이에요.',
     '- 라벨에 명시된 %가 있으면 labelExplicitPercentages에도 넣고, concernIngredients의 같은 성분 min/max와 일치시켜요.',
     '- 항목별 독립 추정이며 합이 100%일 필요는 없어요.',
     '- analysisConfidence는 high, medium, low 중 하나를 선택해요.',
     '- high: 원재료·영양표가 또렷하고 명시 함량 또는 좁은 범위 추정이 가능할 때예요.',
     '- medium: 명시 % 없이 순서와 일반 상식으로만 범위를 잡을 때예요.',
     '- low: 원재료가 흐릿·누락·불완전하거나 범위가 넓고 애매할 때예요.',
-    '- estimatedIngredients는 항상 []예요.',
     '- labelExplicitPercentages는 라벨에 직접 적힌 원재료 함량 %만 넣고, 없으면 []예요.'
   );
 }
@@ -340,6 +336,7 @@ function getFoodPoliceCorePrompt(
     getConsumptionAdviceBlock(mode),
     getPersonalizationCompactBlock(profile),
     getTossToneBlock(),
+    getKoreanReclassificationBlock(),
     getNutritionRulesCore(mode),
     getIntegratedRatioEstimationCore(mode)
   );
@@ -361,7 +358,6 @@ function getSingleProductSchemaObject(includeDailyQuest?: boolean) {
         maxPercent: 12,
       },
     ],
-    estimatedIngredients: [],
     analysisConfidence: 'medium',
     labelExplicitPercentages: [],
     briefDescription: '',
@@ -440,7 +436,6 @@ export function getIntegratedRatioEstimationEngineBlock(mode: PromptMode = 'stan
   return joinLines(
     '[통합 엔진]',
     '- concernIngredients만 사용하고 별도의 전체 미량 성분 목록은 만들지 않아요.',
-    '- estimatedIngredients는 항상 []예요.',
     mode === 'fast'
       ? '- analysisConfidence, labelExplicitPercentages, concernIngredients.minPercent/maxPercent는 공통 규칙을 따라요.'
       : '- analysisConfidence, labelExplicitPercentages, concernIngredients.minPercent/maxPercent는 위 공통 규칙을 따라요.'
@@ -702,16 +697,13 @@ export function getDailyOxQuizPrompt(
   const answerModeBlock = requireX
     ? joinLines(
         '[이번 문항 정답 — 반드시 X]',
-        '- 이번 문항만큼은 진술이 **반드시 거짓**이어야 해요. correctAnswer는 **"X"**만 출력해요.',
-        '- 참처럼 들리지만 기준과 어긋난 말, 흔한 오해, 규칙을 한두 단계만 틀리게 말하기 같은 방식으로 거짓 진술을 만드세요.',
-        '- explanation은 **왜 그 말이 틀렸는지** 한 줄로 짚어요. (정답이 X일 때는 "맞아요" 식 설명 금지)',
-        '- 유형 1 거짓 예: 원재료 개수·NOVA 단계를 지나치게 단순하게 단정하는 문장.',
-        '- 유형 2 거짓 예: 분해 성분/첨가물 정의를 바꿔 말한 문장.',
-        '- 유형 3 거짓 예: 판정 순서나 Group 정의를 반대로 말한 문장.',
+        '- 진술은 반드시 거짓이어야 하고 correctAnswer는 "X"만 출력해요.',
+        '- 흔한 오해나 규칙 일부를 바꾼 거짓 진술로 만드세요.',
+        '- explanation은 왜 틀렸는지 한 줄로 써요.',
       )
     : joinLines(
         '[이번 문항 정답 — 반드시 O]',
-        '- 이번 문항만큼은 진술이 **반드시 참**이어야 해요. correctAnswer는 **"O"**만 출력해요.',
+        '- 진술은 반드시 참이어야 하고 correctAnswer는 "O"만 출력해요.',
         '- FoodPolice 기준에 맞는 확실한 참 진술로 만드세요.',
         '- explanation은 **왜 맞는 말인지** 한 줄로 짚어요.',
       );
@@ -733,7 +725,7 @@ export function getDailyOxQuizPrompt(
       '- 원재료 이해 능력 향상',
       '- 분해 성분과 첨가물 구분 능력 강화',
       '- FoodPolice 최종 분류 기준 학습',
-      '- O만 골라도 맞는 문제에 치우치지 않도록, **거짓 진술·정답 X** 문항도 충분히 다루는 것이 중요해요.'
+      '- O/X 정답이 한쪽으로 치우치지 않게 균형 있게 출제해요.'
     ),
     joinLines(
       '[중요]',

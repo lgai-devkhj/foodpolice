@@ -39,18 +39,6 @@ export interface IngredientEstimateRow {
 
 export interface IngredientCompositionResult {
   ingredientsEstimate: IngredientEstimateRow[];
-  totalError: number;
-  assumptions: string[];
-  warnings: string[];
-  summary: string;
-  aiUsed?: boolean;
-  priorsConfidence?: number;
-  adjustmentNotes?: string[];
-  _debug?: {
-    normalizedKeys: string[];
-    matchedKnown: Record<string, number>;
-    nutritionTarget: NutritionPer100g;
-  };
 }
 
 export interface CompositeIngredientMeta {
@@ -666,64 +654,61 @@ export interface CompositionExtras {
   aiPriors?: OptimizeAiPriors;
   typicalHints?: (number | null | undefined)[];
   aiPriorReasonings?: string[];
+  aiIngredientProfiles?: Array<Partial<IngredientProfile> | null | undefined>;
   priorsConfidence?: number;
   aiUsed?: boolean;
   validateResult?: ValidateEstimatesAiResult | null;
+}
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function mergeProfileWithAi(
+  base: IngredientProfile,
+  ai?: Partial<IngredientProfile> | null,
+): IngredientProfile {
+  if (!ai) return base;
+  return {
+    fat: isFiniteNum(ai.fat) ? clamp(ai.fat, 0, 100) : base.fat,
+    carbs: isFiniteNum(ai.carbs) ? clamp(ai.carbs, 0, 100) : base.carbs,
+    sugars: isFiniteNum(ai.sugars) ? clamp(ai.sugars, 0, 100) : base.sugars,
+    protein: isFiniteNum(ai.protein) ? clamp(ai.protein, 0, 100) : base.protein,
+    water: isFiniteNum(ai.water) ? clamp(ai.water, 0, 100) : base.water,
+  };
 }
 
 export function estimateIngredientCompositionWithExtras(
   input: IngredientCompositionInput,
   extras?: CompositionExtras,
 ): IngredientCompositionResult {
-  const assumptions: string[] = [
-    '각 원재료는 내부 DB에 있는 대표 영양(100g 기준)으로만 기여한다고 가정합니다.',
-    '실제 제품은 배합·수분·공정에 따라 동일 원재료라도 성분이 다를 수 있습니다.',
-  ];
-  if (extras?.aiUsed) {
-    assumptions.push(
-      'AI가 제안한 역할·함량 범위는 soft constraint로만 반영했으며, 최종 비율은 수식 최적화로만 결정했습니다.',
-    );
-  }
-  const warnings: string[] = [];
   const ingredients = input.ingredients.map((s) => s.trim()).filter(Boolean);
   const n = ingredients.length;
   if (n === 0) {
-    return {
-      ingredientsEstimate: [],
-      totalError: 0,
-      assumptions,
-      warnings: ['원재료 목록이 비어 있습니다.'],
-      summary: '추정 불가',
-    };
+    return { ingredientsEstimate: [] };
   }
 
   const category = (input.category || 'snack').toLowerCase();
   const normalizedKeys = ingredients.map((name) => normalizeIngredientName(name));
   const unknownCt = normalizedKeys.filter((k) => k === 'unknown').length;
-  if (unknownCt > n * 0.45) warnings.push('DB에 없거나 일반화하기 어려운 원재료명이 많아 추정 불확실도가 큽니다.');
 
   let nutrition = { ...input.nutritionPer100g };
   if (input.servingBasis === '100ml') {
     const d = input.densityGPerMl ?? CATEGORY_DEFAULT_DENSITY[category] ?? 1;
-    assumptions.push(`100ml 기준 표를 밀도 ${d.toFixed(3)} g/ml로 가정해 100g 환산 영양으로 맞춥니다.`);
     nutrition = {
       fat: nutrition.fat / d,
       carbs: nutrition.carbs / d,
       sugars: nutrition.sugars / d,
       protein: nutrition.protein / d,
     };
-    warnings.push('100ml 기준 영양은 밀도 가정 없이는 g 기준과 직접 비교하기 어렵습니다.');
-  } else if (input.servingBasis === 'serving') {
-    warnings.push('1회 제공량 기준 영양은 본 추정기는 100g 환산 없이 입력값을 그대로 사용합니다(단위 불일치 가능).');
   }
 
-  if (nutrition.sugars > nutrition.carbs + 0.5) warnings.push('당류가 탄수화물보다 큽니다. 라벨 오기 또는 단위 혼동 가능성을 확인하세요.');
-
-  const profiles = normalizedKeys.map((k) => getIngredientProfile(k, category));
-  const matchedProfileCount = normalizedKeys.filter((k) => k !== 'unknown').length;
+  const aiProfiles = extras?.aiIngredientProfiles ?? [];
+  const profiles = normalizedKeys.map((k, i) => mergeProfileWithAi(getIngredientProfile(k, category), aiProfiles[i]));
+  const aiProfileCount = aiProfiles.filter(Boolean).length;
+  const matchedProfileCount = Math.max(normalizedKeys.filter((k) => k !== 'unknown').length, aiProfileCount);
 
   const fixed = new Map<number, number>();
-  const matchedKnown: Record<string, number> = {};
   for (const [label, pct] of Object.entries(input.knownPercents || {})) {
     const labelNorm = label.replace(/\s/g, '');
     const keyFromLabel = normalizeIngredientName(label);
@@ -740,15 +725,8 @@ export function estimateIngredientCompositionWithExtras(
     }
     if (j >= 0 && pct >= 0) {
       fixed.set(j, clamp(pct, 0, 100));
-      matchedKnown[ingredients[j]] = fixed.get(j)!;
     }
   }
-
-  let fixedSum = 0;
-  fixed.forEach((v) => {
-    fixedSum += v;
-  });
-  if (fixedSum > 100.5) warnings.push('표기 함량 합이 100%를 초과하여 비율을 축소했습니다.');
 
   const pInit = generateInitialEstimates(
     n,
@@ -770,10 +748,6 @@ export function estimateIngredientCompositionWithExtras(
   for (let i = 0; i < n - 1; i++) {
     if (pOpt[i] + 0.05 < pOpt[i + 1]) orderViolations++;
   }
-  if (orderViolations > 0) warnings.push('영양 오차 최소화 과정에서 라벨 순서(앞쪽이 더 많음)와 동시에 맞추기 어려운 구간이 있습니다.');
-
-  if (terr > 8) warnings.push('영양표와 원재료 프로필 간 오차가 커서 함량 추정은 참고 수준에 그칩니다.');
-
   const baseConf = calculateConfidence({
     knownCount: fixed.size,
     nIngredients: n,
@@ -813,34 +787,7 @@ export function estimateIngredientCompositionWithExtras(
     });
   }
 
-  const aiUsed = extras?.aiUsed === true;
-  const priorsConfidence = extras?.priorsConfidence;
-  const adjustmentNotes: string[] = [
-    ...(extras?.validateResult?.adjustmentNotes ?? []),
-    ...(extras?.validateResult?.unrealisticFlags?.map((f) => `점검: ${f}`) ?? []),
-  ];
-  if (extras?.validateResult?.userSummary) adjustmentNotes.push(extras.validateResult.userSummary);
-
-  let summary =
-    `총 ${n}개 원재료, 영양 오차 합 약 ${terr.toFixed(1)} (지·탄·당·단백 절대차 합). ` +
-    `표기 확정 함량 ${fixed.size}건. ` +
-    `순서 제약 ${relaxOrder ? '완화' : '적용'} 모드. ` +
-    `aiUsed=${aiUsed ? 'true' : 'false'}`;
-  if (priorsConfidence != null) summary += ` priorsConfidence=${priorsConfidence.toFixed(2)}`;
-  if (adjustmentNotes.length)
-    summary += ` adjustmentNotes=${adjustmentNotes.length}건`;
-
-  return {
-    ingredientsEstimate,
-    totalError: Math.round(terr * 100) / 100,
-    assumptions,
-    warnings,
-    summary,
-    aiUsed,
-    priorsConfidence,
-    adjustmentNotes: adjustmentNotes.length ? adjustmentNotes : undefined,
-    _debug: { normalizedKeys, matchedKnown, nutritionTarget: nutrition },
-  };
+  return { ingredientsEstimate };
 }
 
 export function estimateIngredientComposition(input: IngredientCompositionInput): IngredientCompositionResult {
