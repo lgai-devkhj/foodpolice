@@ -9,7 +9,7 @@ export const NOVA_IMG: Record<number, string> = {
   1: '/images/nova-1.svg',
   2: '/images/nova-2.svg',
   3: '/images/nova-3.svg',
-  4: '/images/nova-4.svg',
+  4: '',
 };
 
 export const NOVA_SUBGROUP_IMG: Record<'4A' | '4B' | '4C', string> = {
@@ -53,7 +53,7 @@ export const PUBLIC_IMAGE_PRELOAD_HREFS: readonly string[] = Array.from(
     ...CAPTURE_GUIDE_INGREDIENT_EXAMPLES,
     ...CAPTURE_GUIDE_NUTRIENT_EXAMPLES,
     '/images/qrcode.png',
-  ]),
+  ].filter(Boolean)),
 );
 
 export const STORE_PREFIX = 'fp_state_v1_';

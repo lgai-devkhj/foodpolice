@@ -3094,6 +3094,41 @@
       border-color: #c62828;
     }
     .info-category-nova-4 h4 { color: #4a1414; }
+    .knova-subgroup-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .knova-subgroup-card {
+      border-radius: 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(120, 24, 24, 0.18);
+      background: rgba(255, 255, 255, 0.6);
+    }
+    .knova-subgroup-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #4a1414;
+      font-size: 0.98rem;
+      margin-bottom: 6px;
+    }
+    .knova-subgroup-icon {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+    .knova-subgroup-card p {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: rgba(40, 20, 20, 0.9);
+      word-break: keep-all;
+    }
+    .knova-subgroup-card-4a { background: rgba(255, 255, 255, 0.72); }
+    .knova-subgroup-card-4b { background: rgba(255, 245, 245, 0.78); }
+    .knova-subgroup-card-4c { background: rgba(255, 236, 236, 0.82); }
     .nutrition-pct-bar {
       height: 8px;
       border-radius: 6px;

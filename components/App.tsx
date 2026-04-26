@@ -318,7 +318,7 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
             <div className="card-title nova-result-title">한국형 NOVA</div>
           </div>
           <div className={`nova-badge nova-${nova}`}>
-            <img src={novaIcon} alt="" className="nova-icon" referrerPolicy="no-referrer" />
+            {novaIcon ? <img src={novaIcon} alt="" className="nova-icon" referrerPolicy="no-referrer" /> : null}
             {NOVA_NAMES[nova]}
             {nova === 4 ? (
               <div className="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">
@@ -2303,13 +2303,11 @@ export default function App() {
         '<p class="nova-result-intro">' +
         escapeHtml(NOVA_CLASSIFICATION_INTRO) +
         '</p>';
-      html +=
-        '<div class="nova-badge nova-' +
-        nova +
-        '"><img src="' +
-        novaIcon +
-        '" alt="" class="nova-icon" referrerpolicy="no-referrer">' +
-        NOVA_NAMES[nova];
+      html += '<div class="nova-badge nova-' + nova + '">';
+      if (novaIcon) {
+        html += '<img src="' + novaIcon + '" alt="" class="nova-icon" referrerpolicy="no-referrer">';
+      }
+      html += NOVA_NAMES[nova];
       if (nova === 4) {
         const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
         html += '<div class="nova-subgroup-graph" role="img" aria-label="4A, 4B, 4C 단계 중 현재 분류">';
@@ -5268,7 +5266,9 @@ export default function App() {
             {[1, 2, 3, 4].map((n) => (
               <div key={n} className={`info-category info-category-nova info-category-nova-${n}`}>
                 <h4>
-                  <img src={NOVA_IMG[n]} alt="" className="nova-sheet-icon" referrerPolicy="no-referrer" />
+                  {NOVA_IMG[n] ? (
+                    <img src={NOVA_IMG[n]} alt="" className="nova-sheet-icon" referrerPolicy="no-referrer" />
+                  ) : null}
                   {NOVA_NAMES[n]}
                 </h4>
                 <ul>
@@ -5280,6 +5280,24 @@ export default function App() {
                       '원재료 형태가 많이 사라진 초가공이에요. 세부는 4A·4B·4C로 나눠요.'}
                   </li>
                 </ul>
+                {n === 4 && (
+                  <div className="knova-subgroup-grid" aria-label="4A, 4B, 4C 세부 분류 설명">
+                    {(['4A', '4B', '4C'] as const).map((sub) => (
+                      <div key={sub} className={`knova-subgroup-card knova-subgroup-card-${sub.toLowerCase()}`}>
+                        <div className="knova-subgroup-head">
+                          <img
+                            src={NOVA_SUBGROUP_IMG[sub]}
+                            alt=""
+                            className="knova-subgroup-icon"
+                            referrerPolicy="no-referrer"
+                          />
+                          <strong>{NOVA_SUBGROUP_NAMES[sub]}</strong>
+                        </div>
+                        <p>{NOVA_SUBGROUP_HINTS[sub]}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <p style={{ margin: '12px 0 0', color: 'var(--text2)', fontSize: '1.05rem', lineHeight: 1.5 }}>
