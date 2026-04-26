@@ -272,10 +272,8 @@ export function alternativeLikelyFlavorMismatch(
 
   if (sourceTags.size === 0 || altTags.size === 0) return false;
 
-  for (const tag of sourceTags) {
-    if (altTags.has(tag)) return false;
-  }
-  return true;
+  const sourceList = Array.from(sourceTags);
+  return !sourceList.some((tag) => altTags.has(tag));
 }
 
 export function isSameProductLineOrWeightOnlyVariant(
