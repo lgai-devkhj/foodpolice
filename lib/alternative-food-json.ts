@@ -230,6 +230,54 @@ export function alternativeLikelyWrongFoodCategory(
   }
 }
 
+const FLAVOR_TAG_RULES: Array<{ tag: string; re: RegExp }> = [
+  { tag: 'strawberry', re: /딸기|strawberry/i },
+  { tag: 'banana', re: /바나나|banana/i },
+  { tag: 'chocolate', re: /초코|초콜릿|choco|chocolate|코코아|cocoa/i },
+  { tag: 'coffee', re: /커피|coffee|라떼|latte|모카|mocha/i },
+  { tag: 'vanilla', re: /바닐라|vanilla/i },
+  { tag: 'melon', re: /메론|멜론|melon/i },
+  { tag: 'grape', re: /포도|grape/i },
+  { tag: 'apple', re: /사과|apple/i },
+  { tag: 'orange', re: /오렌지|orange/i },
+  { tag: 'mango', re: /망고|mango/i },
+  { tag: 'peach', re: /복숭아|peach/i },
+  { tag: 'blueberry', re: /블루베리|blueberry/i },
+];
+
+function extractFlavorTags(text: string): Set<string> {
+  const s = String(text || '').trim();
+  const out = new Set<string>();
+  if (!s) return out;
+  for (const rule of FLAVOR_TAG_RULES) {
+    if (rule.re.test(s)) out.add(rule.tag);
+  }
+  return out;
+}
+
+function isFlavorSensitiveCategory(foodCategory: string | null | undefined): boolean {
+  return foodCategory === '음료' || foodCategory === '유제품·디저트';
+}
+
+export function alternativeLikelyFlavorMismatch(
+  scannedName: string,
+  alternativeName: string,
+  foodCategory?: string | null,
+  rawMaterials?: string
+): boolean {
+  if (!isFlavorSensitiveCategory(foodCategory)) return false;
+
+  const sourceTags = extractFlavorTags(`${scannedName} ${rawMaterials || ''}`);
+  const altTags = extractFlavorTags(alternativeName);
+
+  if (sourceTags.size === 0 || altTags.size === 0) return false;
+
+  for (const tag of sourceTags) {
+    if (altTags.has(tag)) return false;
+  }
+  return true;
+}
+
 export function isSameProductLineOrWeightOnlyVariant(
   alternativeName: string,
   scannedName: string

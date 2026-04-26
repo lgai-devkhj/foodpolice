@@ -181,6 +181,9 @@ function parsePercentPair(
   let a = clampPercent(min);
   let b = clampPercent(max);
   if (a > b) [a, b] = [b, a];
+  // 모델이 애매할 때 던지는 0~100 같은 무의미한 전구간 값은 노출하지 않아요.
+  if (a <= 0.1 && b >= 99.9) return { minPercent: null, maxPercent: null };
+  if (b - a >= 95) return { minPercent: null, maxPercent: null };
   return { minPercent: a, maxPercent: b };
 }
 

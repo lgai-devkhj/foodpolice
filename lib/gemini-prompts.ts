@@ -301,6 +301,7 @@ function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string
       '- concernIngredients만 사용하고 별도의 전체 미량 성분 목록은 만들지 않아요.',
       '- concernIngredients는 최대 3개예요.',
       '- minPercent, maxPercent는 가능하면 숫자로 넣고, 정말 판단이 어려울 때만 null로 둬요.',
+      '- 0~100 같은 전구간 추정은 금지예요. 근거가 약하면 null로 둬요.',
       '- analysisConfidence는 high, medium, low 중 하나예요.',
       '- labelExplicitPercentages는 라벨에 직접 적힌 %만 넣고 없으면 []예요.'
     );
@@ -313,6 +314,7 @@ function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string
     '- 분류 기준에 직접 쓰인 핵심 성분, 분해 성분, 핵심 첨가물, 주의할 만한 첨가물을 우선 후보로 봐요.',
     '- 일반적인 기저 원료는 보통 제외하지만, 제품 특성을 좌우하는 성분이면 포함할 수 있어요.',
     '- minPercent, maxPercent(0~100)는 가능하면 숫자로 넣어요. 라벨에 해당 성분 함량 %가 있으면 그 값으로 맞추고, 없으면 원재료 순서·제품 유형·유사 식품 상식으로 추정 범위를 넣어요.',
+    '- 0~100처럼 정보가 없는 전구간 범위는 금지예요. 근거가 부족하면 null로 둬요.',
     '- 정말로 전혀 추정할 수 없을 때만 null이에요.',
     '- 라벨에 명시된 %가 있으면 labelExplicitPercentages에도 넣고, concernIngredients의 같은 성분 min/max와 일치시켜요.',
     '- 항목별 독립 추정이며 합이 100%일 필요는 없어요.',
