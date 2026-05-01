@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getPackageImagePrompt,
-  getTwoImagePackagePrompt,
+  getFoodPoliceSystemPolicyPrompt,
+  getPackageAnalyzeUserTurn,
+  getTwoImageAnalyzeUserTurn,
   type BmiTier,
   type PersonalizationInput,
 } from '@/lib/gemini-prompts';
+import { evaluateAnalysisGeminiConditions } from '@/lib/analysis-output-conditions';
 import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
@@ -103,19 +105,22 @@ export async function POST(request: NextRequest) {
     );
     const questTargetForPrompt = questTargetValid ? String(dailyQuestTarget).trim() : null;
 
-    const prompt = hasTwoImages
-      ? getTwoImagePackagePrompt(profileToPersonalization(profile), 'standard', questTargetForPrompt)
-      : getPackageImagePrompt(profileToPersonalization(profile), 'standard', questTargetForPrompt);
+    const personalization = profileToPersonalization(profile);
+    const systemPolicy = getFoodPoliceSystemPolicyPrompt('standard');
+    const userTurnText = hasTwoImages
+      ? getTwoImageAnalyzeUserTurn(personalization, questTargetForPrompt)
+      : getPackageAnalyzeUserTurn(personalization, questTargetForPrompt);
 
     const parts = hasTwoImages
       ? [
           inlineDataPart(rawMimeType, rawImageBase64 || ''),
           inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
-          textPart(prompt),
+          textPart(userTurnText),
         ]
-      : [inlineDataPart(mimeType, imageBase64 || ''), textPart(prompt)];
+      : [inlineDataPart(mimeType, imageBase64 || ''), textPart(userTurnText)];
 
     const generationBody = {
+      systemInstruction: { parts: [textPart(systemPolicy)] },
       contents: [{ parts }],
       generationConfig: generationConfigJsonMode({
         maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
@@ -212,6 +217,24 @@ export async function POST(request: NextRequest) {
     }
 
     const rec = parsed as Record<string, unknown>;
+    const conditionChecks = evaluateAnalysisGeminiConditions(rec, {
+      requireDailyQuestField: questTargetValid,
+    });
+    const fatalConditions = conditionChecks.filter((c) => c.severity === 'error');
+    if (fatalConditions.length > 0) {
+      const first = fatalConditions[0]!;
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[api/analyze] 조건 위반', conditionChecks);
+      }
+      return NextResponse.json(
+        apiErrorBody(first.detail, first.id),
+        { status: 502 },
+      );
+    }
+    if (conditionChecks.length > 0 && process.env.NODE_ENV === 'development') {
+      console.warn('[api/analyze] 조건 경고(계속 처리)', conditionChecks);
+    }
+
     const dailyQuestProductMatch =
       questTargetValid && rec.dailyQuestProductMatch === true;
 

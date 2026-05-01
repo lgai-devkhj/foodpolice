@@ -326,21 +326,113 @@ function getIntegratedRatioEstimationCore(mode: PromptMode = 'standard'): string
   );
 }
 
-function getFoodPoliceCorePrompt(
-  profile?: PersonalizationInput | null,
-  mode: PromptMode = 'standard'
-): string {
+/** 모든 분석 요청에 공통 적용되는 정책(systemInstruction 용). 개인화(BMI)는 사용자 턴에 둡니다. */
+export function getFoodPoliceSystemPolicyPrompt(mode: PromptMode = 'standard'): string {
   return joinBlocks(
+    joinLines(
+      '[다중 조건 처리 — 공통 정책(system)]',
+      '- 블록마다 서로 다른 제약이에요. 충돌하면 FoodPolice NOVA 분류 규칙과 JSON 필수 필드를 최우선으로 해요.',
+      '- 사용자 메시지의 「이번 요청」 블록에 OCR·스키마·이미지 순서 조건이 있어요.',
+    ),
     getCoreIdentityBlock(),
     getCorePrinciplesBlock(mode),
     getFoodPoliceFinalCriteriaBlock(mode),
     getOutputRulesBlock(mode),
     getConsumptionAdviceBlock(mode),
-    getPersonalizationCompactBlock(profile),
     getTossToneBlock(),
     getKoreanReclassificationBlock(),
     getNutritionRulesCore(mode),
-    getIntegratedRatioEstimationCore(mode)
+    getIntegratedRatioEstimationCore(mode),
+  );
+}
+
+function getFoodPoliceCorePrompt(
+  profile?: PersonalizationInput | null,
+  mode: PromptMode = 'standard'
+): string {
+  return joinBlocks(getFoodPoliceSystemPolicyPrompt(mode), getPersonalizationCompactBlock(profile));
+}
+
+function analyzeDailyQuestBlocks(dailyQuestTarget?: string | null): string {
+  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
+  if (!q) return '';
+  return joinBlocks(
+    getDailyQuestProductMatchBlock(q),
+    joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
+  );
+}
+
+function getSingleImageAnalyzeTaskBlock(): string {
+  return joinLines(
+    '[할 일]',
+    '- 이미지는 식품 포장, 원재료명, 영양정보 표, 앞면 중 일부 또는 전체일 수 있어요.',
+    '- 텍스트를 읽고 productName, companyName, rawMaterials, nutrition, foodCategory를 판단해요.',
+    '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
+    '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
+    '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+    '- companyName이 정확히 보이지 않으면 ""로 둬요.',
+    '- rawMaterials가 없으면 ""로 둬요.',
+    '- koreanReclassificationNote는 기본적으로 ""예요.',
+    '- 중간 과정은 출력하지 말고 JSON 하나만 출력해요.',
+  );
+}
+
+function getTwoImageAnalyzeTaskBlock(): string {
+  return joinBlocks(
+    joinLines('[입력 이미지 순서]', '1) 원재료/제품 표시', '2) 영양정보 표'),
+    joinLines(
+      '[할 일]',
+      '- 1번 이미지에서 productName, companyName, rawMaterials를 추출해요.',
+      '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
+      '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
+      '- 2번 이미지에서 nutrition을 추출해요. 없거나 판독 불가면 null이에요.',
+      '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+      '- companyName이 정확히 보이지 않으면 ""로 둬요.',
+      '- rawMaterials가 없으면 ""로 둬요.',
+      '- koreanReclassificationNote는 기본적으로 ""예요.',
+      '- JSON 하나만 출력해요.',
+    ),
+  );
+}
+
+/** Gemini 사용자 턴 텍스트(이미지 parts 앞에 붙이지 말고, 동일 content의 마지막 text 권장). */
+export function getPackageAnalyzeUserTurn(
+  profile?: PersonalizationInput | null,
+  dailyQuestTarget?: string | null,
+): string {
+  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
+  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
+  return joinBlocks(
+    joinLines(
+      '[조건 묶음 — 이번 요청(user)]',
+      '- 공통 정책은 system 메시지에 있어요. 여기서는 세션 개인화(BMI)·추출·카테고리·스키마 조건을 모두 만족해야 해요.',
+    ),
+    getPersonalizationCompactBlock(profile),
+    getSingleImageAnalyzeTaskBlock(),
+    questBlocks,
+    getFoodCategoryBlock(),
+    getOcrCorrectionBlock(),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
+  );
+}
+
+export function getTwoImageAnalyzeUserTurn(
+  profile?: PersonalizationInput | null,
+  dailyQuestTarget?: string | null,
+): string {
+  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
+  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
+  return joinBlocks(
+    joinLines(
+      '[조건 묶음 — 이번 요청(user)]',
+      '- 공통 정책은 system 메시지에 있어요. 여기서는 이미지 순서·세션 개인화·추출·카테고리·스키마 조건을 모두 만족해야 해요.',
+    ),
+    getPersonalizationCompactBlock(profile),
+    getTwoImageAnalyzeTaskBlock(),
+    questBlocks,
+    getFoodCategoryBlock(),
+    getOcrCorrectionBlock(),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
   );
 }
 
@@ -457,40 +549,15 @@ export function getTwoImagePackagePrompt(
   dailyQuestTarget?: string | null,
 ): string {
   const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks =
-    q.length > 0
-      ? joinBlocks(
-          getDailyQuestProductMatchBlock(q),
-          joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
-        )
-      : '';
+  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
 
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
-    joinLines(
-      '[입력 이미지 순서]',
-      '1) 원재료/제품 표시',
-      '2) 영양정보 표'
-    ),
-    joinLines(
-      '[할 일]',
-      '- 1번 이미지에서 productName, companyName, rawMaterials를 추출해요.',
-      '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
-      '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
-      '- 2번 이미지에서 nutrition을 추출해요. 없거나 판독 불가면 null이에요.',
-      '- productName이 완전히 정확하지 않으면 ""로 둬요.',
-      '- companyName이 정확히 보이지 않으면 ""로 둬요.',
-      '- rawMaterials가 없으면 ""로 둬요.',
-      '- koreanReclassificationNote는 기본적으로 ""예요.',
-      '- JSON 하나만 출력해요.'
-    ),
+    getTwoImageAnalyzeTaskBlock(),
     questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines(
-      '[JSON 출력]',
-      JSON.stringify(getSingleProductSchemaObject(q.length > 0)),
-    ),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
   );
 }
 
@@ -500,35 +567,15 @@ export function getPackageImagePrompt(
   dailyQuestTarget?: string | null,
 ): string {
   const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks =
-    q.length > 0
-      ? joinBlocks(
-          getDailyQuestProductMatchBlock(q),
-          joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
-        )
-      : '';
+  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
 
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
-    joinLines(
-      '[할 일]',
-      '- 이미지는 식품 포장, 원재료명, 영양정보 표, 앞면 중 일부 또는 전체일 수 있어요.',
-      '- 텍스트를 읽고 productName, companyName, rawMaterials, nutrition, foodCategory를 판단해요.',
-      '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
-      '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
-      '- productName이 완전히 정확하지 않으면 ""로 둬요.',
-      '- companyName이 정확히 보이지 않으면 ""로 둬요.',
-      '- rawMaterials가 없으면 ""로 둬요.',
-      '- koreanReclassificationNote는 기본적으로 ""예요.',
-      '- 중간 과정은 출력하지 말고 JSON 하나만 출력해요.'
-    ),
+    getSingleImageAnalyzeTaskBlock(),
     questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines(
-      '[JSON 출력]',
-      JSON.stringify(getSingleProductSchemaObject(q.length > 0)),
-    ),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
   );
 }
 
