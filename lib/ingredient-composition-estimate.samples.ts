@@ -29,6 +29,7 @@ export const sampleSnackInput: IngredientCompositionInput = {
   servingBasis: '100g',
 };
 
+/** 로컬 스크립트(tsx 등)로 호출할 때 샘플 추정 결과를 콘솔에 출력합니다. */
 export function runSampleEstimates(): void {
   const samples: { name: string; input: IngredientCompositionInput }[] = [
     { name: 'icecream', input: sampleIcecreamInput },

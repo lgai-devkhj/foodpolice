@@ -34,7 +34,7 @@ describe('analysis-streak', () => {
     expect(afterGap.current).toBe(1);
   });
 
-  it('이틀 이상 비면 표시는 0이지만 최장 기록은 유지', () => {
+  it('마지막 활동이 오늘·어제가 아니면 표시 연속은 0, 최장 기록은 유지', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-10T12:00:00'));
     const s = normalizeAnalysisStreak({

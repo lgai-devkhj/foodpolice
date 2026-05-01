@@ -1,4 +1,3 @@
-
 export interface AnalysisStreak {
   lastStreakDate: string;
   current: number;
@@ -60,12 +59,11 @@ export function advanceStreakAfterAnalysis(prev: AnalysisStreak, now: Date): Ana
   y.setDate(y.getDate() - 1);
   const yesterday = toLocalYmd(y);
 
-  let nextCurrent = raw.current;
+  let nextCurrent: number;
   if (raw.lastStreakDate === today) {
+    nextCurrent = raw.current;
   } else if (raw.lastStreakDate === yesterday) {
     nextCurrent = raw.current + 1;
-  } else if (!raw.lastStreakDate) {
-    nextCurrent = 1;
   } else {
     nextCurrent = 1;
   }
