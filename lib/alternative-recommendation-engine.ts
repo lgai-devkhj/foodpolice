@@ -1132,7 +1132,7 @@ export function engineRecommendationsToAlternativeJson(
 
   const alternatives: AlternativeFoodJsonItem[] = recs.slice(0, 3).map((r) => ({
     tier: tierMap[r.recommendationType],
-    productName: r.name,
+    productName: `유형 참고 · ${r.name}`,
     reason: `${r.reason} (${r.shortComparison})`,
     purchaseUrl:
       r.url ||

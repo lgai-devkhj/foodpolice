@@ -171,7 +171,7 @@ const JSON_OUTPUT_SPEC = [
   ),
   '- alternatives는 최소 1개, 가능하면 3개예요.',
   '- tier는 slight, better, best 중 가능한 것만 써요.',
-  '- purchaseUrl은 반드시 http(s) 실제 상품 또는 스토어 페이지예요.',
+  '- purchaseUrl은 반드시 http(s) 상품 상세 페이지예요. 검색 결과·목록·통합검색(search.naver 등) URL은 금지예요.',
   '- reason은 아래 [말투 · 앱인토스 UX 라이팅]을 따라 짧고 분명하게 써요.',
 ].join('\n');
 
@@ -206,7 +206,8 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     '- 브랜드와 품목을 임의로 합치지 않아요.',
     '- reason은 짧은 한 문장으로, 앱인토스 UX 라이팅·능동형으로 바로 근거를 말해요.',
     '- reason은 사용자를 환자처럼 부르지 않고 병원·진료 맥락으로 쓰지 않아요.',
-    '- purchaseUrl은 눌렀을 때 실제 상품 또는 스토어로 이동되는 링크만 써요.',
+    '- purchaseUrl은 눌렀을 때 한 품목 상세로 고정되는 링크만 써요. 검색·목록 페이지는 넣지 않아요.',
+    '- productName은 그 링크 페이지 상단에 보이는 판매 상품명과 같은 문자열이어야 해요. 확실하지 않으면 해당 대안 줄 전체를 빼요.',
     '',
     '[식품군 고정]',
     `- 현재 foodCategory는 "${cat}"예요.`,
@@ -222,7 +223,7 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     '',
     '[검색]',
     '- 한국 온라인 판매 페이지 기준으로 찾아요.',
-    '- 네이버쇼핑, 쿠팡, SSG, 대형마트 채널 등 실제 상품 URL이 나올 때까지 검색어를 조정해요.',
+    '- 네이버 스마트스토어·브랜드관, 쿠팡 상품(/vp/products/), SSG 상품 상세 등 품목 URL이 나올 때까지 검색어를 조정해요.',
     ctx.nutritionHint
       ? '- 영양 숫자가 있으면 같은 식품군 안에서 당, 나트륨, 포화지방, 열량 부담이 상대적으로 낮은 쪽을 우선해요.'
       : '',
@@ -392,7 +393,7 @@ async function generateAlternativesOnce(
           {
             role: 'system',
             content:
-              '웹 검색 근거로만 답하고, 유효한 JSON 객체 하나만 출력해요. 마크다운, 코드 블록, 설명 문장, 추측, 임의 조합은 넣지 않아요.',
+              '웹 검색으로 확인된 실제 판매 품목만 답하고, 유효한 JSON 객체 하나만 출력해요. 존재하지 않거나 검증되지 않은 상품명·검색 목록 URL은 넣지 않아요. 마크다운, 코드 블록, 설명 문장, 추측, 임의 조합은 넣지 않아요.',
           },
           {
             role: 'user',
@@ -490,7 +491,7 @@ export async function fetchAlternativesWithPerplexity(
     '- JSON만 출력해요.',
     '- alternatives는 최소 1개, 가능하면 3개예요.',
     '- tier는 slight, better, best 중 가능한 것만 써요.',
-    '- purchaseUrl은 http(s) 실제 상품 또는 스토어 페이지예요.',
+    '- purchaseUrl은 http(s) 상품 상세 페이지만이에요. 검색·목록 URL은 금지예요.',
     '- 촬영한 제품과 같거나 중량, 용량, 개수만 다른 같은 제품은 넣지 않아요.',
     '- foodCategory는 반드시 지켜요.',
     '- reason은 짧은 한 문장으로, 앱인토스 UX 라이팅·-해요체만 써요.',

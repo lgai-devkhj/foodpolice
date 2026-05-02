@@ -17,22 +17,89 @@ export type AlternativeFoodJsonRoot = {
 const SHOP_URL_HOST_PATH_RE =
   /(shopping|smartstore|brand\.naver|product|products|\/item\/|\/goods\/|\/p\/|goods|mall|store|mart|market|coupang|ssg\.|emart|gmarket|11st|auction|kurly|lotteon|lotte|costco|homeplus|gsfresh|gs25|traders|interpark|danawa|cjonstyle|hmall|thehyundai|akmall|lfmall|oliveyoung|\.naver\.com|store\.kakao|11번가)/i;
 
+/** 검색·목록·SNS 등 상품 상세가 아닌 호스트 */
+function isDeniedAlternativeUrlHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return (
+    h.startsWith('search.naver') ||
+    h.startsWith('m.search.naver') ||
+    h.includes('google.') ||
+    h.includes('youtube.') ||
+    h.includes('youtu.be') ||
+    h.includes('facebook.') ||
+    h.includes('instagram.') ||
+    h.startsWith('blog.naver') ||
+    h.startsWith('m.blog.naver') ||
+    h.startsWith('cafe.naver') ||
+    h.startsWith('news.naver') ||
+    h.includes('fmkorea') ||
+    h.includes('reddit.') ||
+    h.includes('wikipedia.')
+  );
+}
+
+function looksLikeSearchOrListingPath(u: URL): boolean {
+  const path = `${u.pathname}${u.search}`.toLowerCase();
+  return (
+    /\/np\/search|\/vm\/search|\/bestSeller|\/event\/|\/promotion\/|\/display\/|\/search\b|\/search\.ssg|keyword=|where=nexearch|\bquery=/i.test(
+      path
+    ) ||
+    (/shopping\.naver\.com/i.test(u.hostname) &&
+      !/\/catalog\/\d+/i.test(u.pathname) &&
+      /\/search|\bwhere=|\bquery=/i.test(path))
+  );
+}
+
+/** 실제 상품 상세·바로구매로 이어지는 경로·쿼리 신호 */
+function hasLikelyProductDetailSignals(u: URL): boolean {
+  const path = u.pathname.toLowerCase();
+  const host = u.hostname.toLowerCase();
+  const q = u.search.toLowerCase();
+
+  if (
+    /(?:^|[?&])(?:itemid|item_no|goods_no|goodscode|prdno|productid|product_no)=/i.test(q)
+  ) {
+    return true;
+  }
+
+  if (/smartstore\.naver\.com/.test(host) && /\/products\//.test(path)) return true;
+  if (/brand\.naver\.com/.test(host) && /\/products\//.test(path)) return true;
+  if (/coupang\.com/.test(host) && /\/vp\/products\//.test(path)) return true;
+  if (/market\.coupang\.com/.test(host)) return true;
+  if (/shopping\.naver\.com/.test(host) && /\/catalog\/\d+/i.test(path)) return true;
+
+  if (
+    /\/(?:vp\/products|products\/|product\/|goods\/|goodsdetail|items\/|item\/|gift\/)/i.test(path)
+  ) {
+    return true;
+  }
+
+  if (/kurly\.com/.test(host) && /\/goods\//.test(path)) return true;
+  if (/oliveyoung\.co\.kr/.test(host) && /\/store\/goods\//.test(path)) return true;
+
+  if (/\d{8,}/.test(path)) return true;
+
+  return false;
+}
+
 export function isPurchaseableProductUrl(raw: string): boolean {
   const s = String(raw || '').trim();
   if (!/^https?:\/\//i.test(s)) return false;
   try {
     const u = new URL(s);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (isDeniedAlternativeUrlHost(u.hostname)) return false;
+    if (looksLikeSearchOrListingPath(u)) return false;
+
     const hp = `${u.hostname}${u.pathname}`.toLowerCase();
-    if (SHOP_URL_HOST_PATH_RE.test(hp)) return true;
-    if (
+    const hostLooksRetail = SHOP_URL_HOST_PATH_RE.test(hp);
+    const pathLooksRetail =
       /(\/product\/|\/products\/|\/item\/|\/goods\/|\/goodsdetail|mall\.product|\/p\/|\/shopping\/)/i.test(
         u.pathname
-      )
-    ) {
-      return true;
-    }
-    return false;
+      );
+
+    if (!hostLooksRetail && !pathLooksRetail) return false;
+    return hasLikelyProductDetailSignals(u);
   } catch {
     return false;
   }
