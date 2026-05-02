@@ -171,29 +171,6 @@ const JSON_OUTPUT_SPEC = [
   '- reason은 아래 [말투 · 앱인토스 UX 라이팅]을 따라 짧고 분명하게 써요.',
 ].join('\n');
 
-function inferFlavorAnchorFromText(text: string): string | null {
-  const s = String(text || '').trim();
-  if (!s) return null;
-  const rules: Array<{ label: string; re: RegExp }> = [
-    { label: '딸기', re: /딸기|strawberry/i },
-    { label: '바나나', re: /바나나|banana/i },
-    { label: '초코', re: /초코|초콜릿|choco|chocolate|코코아|cocoa/i },
-    { label: '커피', re: /커피|coffee|라떼|latte|모카|mocha/i },
-    { label: '바닐라', re: /바닐라|vanilla/i },
-    { label: '멜론', re: /메론|멜론|melon/i },
-    { label: '포도', re: /포도|grape/i },
-    { label: '사과', re: /사과|apple/i },
-    { label: '오렌지', re: /오렌지|orange/i },
-    { label: '망고', re: /망고|mango/i },
-    { label: '복숭아', re: /복숭아|peach/i },
-    { label: '블루베리', re: /블루베리|blueberry/i },
-  ];
-  for (const r of rules) {
-    if (r.re.test(s)) return r.label;
-  }
-  return null;
-}
-
 export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContext): string {
   const raw = clampText(ctx.rawMaterials, 500);
   const sub = ctx.novaSubgroup ? ` · ${ctx.novaSubgroup}` : '';
@@ -202,9 +179,6 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
   const desc = clampText(ctx.briefDescription || '', 150);
   const nut = ctx.nutritionHint ? `- 영양: ${clampText(ctx.nutritionHint, 180)}\n` : '';
   const scanned = clampText(ctx.productName || '', 100);
-  const flavorAnchor =
-    inferFlavorAnchorFromText(`${ctx.productName || ''} ${ctx.rawMaterials || ''}`) ||
-    inferFlavorAnchorFromText(ctx.briefDescription || '');
 
   return [
     '웹 검색으로 실제 판매 중인 더 나은 대체 식품을 찾고 JSON 하나만 출력해요.',
@@ -232,8 +206,8 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
     `- 현재 foodCategory는 "${cat}"예요.`,
     '- 모든 alternatives는 같은 식품군, 같은 용도, 같은 먹는 방식이어야 해요.',
     '- 음료는 음료, 간식은 간식, 한 끼는 한 끼, 빵·시리얼은 빵·시리얼, 유제품·디저트는 유제품·디저트로 유지해요.',
-    flavorAnchor && (cat === '음료' || cat === '유제품·디저트')
-      ? `- 현재 제품의 핵심 맛·향 앵커는 "${flavorAnchor}"예요. 대체품도 같은 맛·향 축을 유지해요.`
+    cat === '음료' || cat === '유제품·디저트'
+      ? '- foodCategory가 음료 또는 유제품·디저트면, 위 제품명·설명·원재료에서 소비자가 기대하는 핵심 맛·향(과일·초코·커피·캐러멜·솜사탕 등 어떤 표현이든)을 스스로 정하고, alternatives는 그 맛·향 축을 벗어나지 않게 골라요.'
       : '',
     '- 달콤한 간식·짭짤한 간식이면 손으로 집어먹는 형태를 유지하고, 스프레드·페이스트·잼·넛버터 통 형태로 바꾸지 않아요.',
     cat === '미분류'
