@@ -5278,7 +5278,7 @@ export default function App() {
                 {NOVA_CLASSIFICATION_INTRO}
               </p>
               <p className="info-knova-intro-line">
-                4단계(초가공)는 4A·4B·4C로 더 나눠서 봐요. 4A는 재료에 가깝게 남은 편, 4B는 가공·맛 조정이 분명한 편, 4C는 당·염·첨가가 강한 편에 가깝다고 보면 돼요.
+                4단계(초가공)는 4A·4B·4C로 더 나눠서 봐요. 판정은 완만한 4A부터 보고, 단계를 거쳐 4C까지 올라가요. 4A는 초가공 신호가 가장 약한 편, 4B는 중간, 4C는 분해·첨가 신호가 가장 강한 편에 가깝다고 보면 돼요.
               </p>
               <p className="info-knova-intro-line info-knova-intro-line--muted">
                 해외에서 쓰는 다른 분류 이름도 있지만, 이 앱은 한국형 NOVA를 기준으로 설명해요.
