@@ -10,7 +10,11 @@ import {
   scannedLooksLikeHandheldPieceSnack,
   unwrapModelJsonBlock,
 } from '@/lib/alternative-food-json';
-import { getTossUserFacingToneBlock, type BmiTier } from '@/lib/gemini-prompts';
+import {
+  getTossUserFacingToneBlock,
+  getWebAlternativesPrecedenceAndGuardrails,
+  type BmiTier,
+} from '@/lib/gemini-prompts';
 
 export const PERPLEXITY_MODEL = 'sonar';
 
@@ -182,6 +186,8 @@ export function buildAlternativeFoodWebSearchPrompt(ctx: AlternativeSearchContex
 
   return [
     '웹 검색으로 실제 판매 중인 더 나은 대체 식품을 찾고 JSON 하나만 출력해요.',
+    '',
+    getWebAlternativesPrecedenceAndGuardrails(),
     '',
     '[현재 제품]',
     `- 제품명: ${ctx.productName || '(라벨에서 읽지 못함)'}`,

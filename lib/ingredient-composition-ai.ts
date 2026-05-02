@@ -1,5 +1,11 @@
-
-import { ANALYSIS_GEMINI_MODEL } from '@/lib/gemini-models';
+import { geminiGenerateContentUrl, readGeminiApiKeyFromEnv } from '@/lib/gemini-api';
+import {
+  ANALYSIS_GEMINI_MODEL,
+  GEMINI_INGREDIENT_AI_TIMEOUT_MS,
+  GEMINI_INGREDIENT_AUX_MAX_OUTPUT_TOKENS,
+  GEMINI_INGREDIENT_VALIDATE_MAX_OUTPUT_TOKENS,
+  GEMINI_INGREDIENT_VALIDATE_TIMEOUT_MS,
+} from '@/lib/gemini-models';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
 import {
   getGeminiCandidateText,
@@ -100,7 +106,10 @@ function extractJsonObject(raw: string): Record<string, unknown> | null {
 const PROFILES_SYSTEM = `당신은 식품 원재료별 대표 영양 특성을 추정해 수식 엔진 입력을 만드는 도우미예요.
 출력은 반드시 JSON 스키마만 따르고, 설명 문장은 넣지 않아요.
 각 원재료의 100g 기준 대표값으로 fat, carbs, sugars, protein, water(0~100)를 추정해요.
-불확실하면 confidence를 낮추고 reasoning을 짧게 남겨요.`;
+불확실하면 confidence를 낮추고 reasoning을 짧게 남겨요.
+
+[우선순위] JSON 스키마·필수 필드 > sugars≤carbs 등 수치 제약 > 입력 ingredients 순서·이름 일치 > 짧은 reasoning.
+[출력 가드레일] 마크다운·코드펜스 금지. 라벨에 없는 원재료를 새로 넣지 않아요.`;
 
 function buildProfilesUserPrompt(inp: PriorsAiInput): string {
   return (
@@ -134,14 +143,14 @@ export async function generateIngredientProfilesWithAI(
   input: PriorsAiInput,
   options?: { apiKey?: string; model?: string; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<GenerateProfilesAiResult | null> {
-  const apiKey = options?.apiKey ?? process.env.GEMINI_API_KEY;
+  const apiKey = options?.apiKey ?? readGeminiApiKeyFromEnv();
   if (!apiKey) return null;
   const model = options?.model ?? ANALYSIS_GEMINI_MODEL;
-  const timeoutMs = options?.timeoutMs ?? 1800;
+  const timeoutMs = options?.timeoutMs ?? GEMINI_INGREDIENT_AI_TIMEOUT_MS;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   const signal = options?.signal ?? ctrl.signal;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = geminiGenerateContentUrl(model, apiKey);
   const userText = buildProfilesUserPrompt(input);
 
   try {
@@ -151,7 +160,10 @@ export async function generateIngredientProfilesWithAI(
       signal,
       body: JSON.stringify({
         contents: [{ parts: [textPart(userText)] }],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 2048, temperature: 0 }),
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: GEMINI_INGREDIENT_AUX_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+        }),
       }),
     });
     clearTimeout(t);
@@ -203,7 +215,10 @@ export interface PriorsAiInput {
 const PRIORS_SYSTEM = `당신은 식품 라벨·제조 관행에 익숙한 조언자예요.
 출력은 반드시 요청 JSON 스키마만 따라요. 각 원재료의 함량 퍼센트(%)는 **직접 확정하지 않아요**.
 역할(role), 참고용 범위(expectedRange), 참고 typical(0~100, 합이 100일 필요 없음)과 짧은 reasoning만 제시해요.
-단정적·법적 표현은 쓰지 않고, 불확실하면 범위를 넓게 잡아요.`;
+단정적·법적 표현은 쓰지 않고, 불확실하면 범위를 넓게 잡아요.
+
+[우선순위] JSON 스키마·items 길이·name 일치 > 불확실 시 넓은 범위·낮은 신뢰 > reasoning 짧게.
+[출력 가드레일] 마크다운·코드펜스 금지. 실제 함량을 단정하지 않아요.`;
 
 function buildPriorsUserPrompt(inp: PriorsAiInput): string {
   return (
@@ -227,15 +242,15 @@ export async function generateIngredientPriorsWithAI(
   input: PriorsAiInput,
   options?: { apiKey?: string; model?: string; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<GeneratePriorsAiResult | null> {
-  const apiKey = options?.apiKey ?? process.env.GEMINI_API_KEY;
+  const apiKey = options?.apiKey ?? readGeminiApiKeyFromEnv();
   if (!apiKey) return null;
   const model = options?.model ?? ANALYSIS_GEMINI_MODEL;
-  const timeoutMs = options?.timeoutMs ?? 1800;
+  const timeoutMs = options?.timeoutMs ?? GEMINI_INGREDIENT_AI_TIMEOUT_MS;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   const signal = options?.signal ?? ctrl.signal;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = geminiGenerateContentUrl(model, apiKey);
   const userText = buildPriorsUserPrompt(input);
   try {
     const res = await fetch(url, {
@@ -244,7 +259,10 @@ export async function generateIngredientPriorsWithAI(
       signal,
       body: JSON.stringify({
         contents: [{ parts: [textPart(userText)] }],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 2048, temperature: 0 }),
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: GEMINI_INGREDIENT_AUX_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+        }),
       }),
     });
     clearTimeout(t);
@@ -339,10 +357,10 @@ export async function validateEstimatesWithAI(
   estimatedPercents: number[],
   options?: { apiKey?: string; model?: string; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<ValidateEstimatesAiResult | null> {
-  const apiKey = options?.apiKey ?? process.env.GEMINI_API_KEY;
+  const apiKey = options?.apiKey ?? readGeminiApiKeyFromEnv();
   if (!apiKey) return null;
   const model = options?.model ?? ANALYSIS_GEMINI_MODEL;
-  const timeoutMs = options?.timeoutMs ?? 1500;
+  const timeoutMs = options?.timeoutMs ?? GEMINI_INGREDIENT_VALIDATE_TIMEOUT_MS;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   const signal = options?.signal ?? ctrl.signal;
@@ -351,7 +369,7 @@ export async function validateEstimatesWithAI(
     name,
     percent: Math.round(estimatedPercents[i] * 10) / 10,
   }));
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = geminiGenerateContentUrl(model, apiKey);
   const userText = buildValidatePrompt(ingredients, category, nutrition, estimated);
   try {
     const res = await fetch(url, {
@@ -360,7 +378,10 @@ export async function validateEstimatesWithAI(
       signal,
       body: JSON.stringify({
         contents: [{ parts: [textPart(userText)] }],
-        generationConfig: generationConfigJsonMode({ maxOutputTokens: 1024, temperature: 0 }),
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: GEMINI_INGREDIENT_VALIDATE_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+        }),
       }),
     });
     clearTimeout(t);

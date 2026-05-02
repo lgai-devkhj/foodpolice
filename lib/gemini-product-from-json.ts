@@ -3,6 +3,7 @@ import {
   type NutritionDailyPercent,
   type NutritionFactsInput,
 } from '@/lib/nutrition-daily';
+import { isCanonicalFoodCategory } from '@/lib/food-domain-config';
 import type {
   AnalysisConfidenceLevel,
   AnalysisResult,
@@ -129,19 +130,10 @@ function parseNutrition(raw: unknown): NutritionFactsInput | null {
   };
 }
 
-const FOOD_CATEGORIES = [
-  '음료',
-  '달콤한 간식',
-  '짭짤한 간식',
-  '간편한 한 끼',
-  '빵·시리얼류',
-  '유제품·디저트',
-] as const;
-
 function normalizeFoodCategory(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v).trim();
-  if (FOOD_CATEGORIES.includes(s as (typeof FOOD_CATEGORIES)[number])) return s;
+  if (isCanonicalFoodCategory(s)) return s;
   return s.length > 0 ? s : null;
 }
 
@@ -284,10 +276,7 @@ function isNutritionLabelLike(name: string): boolean {
   );
 }
 
-export function buildAnalysisResultFromGeminiObject(
-  parsed: Record<string, unknown>,
-  options?: { dailyQuestProductMatch?: boolean }
-): AnalysisResult {
+export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unknown>): AnalysisResult {
   const product = {
     productName: (parsed.productName != null ? String(parsed.productName).trim() : '') as string,
     companyName: (parsed.companyName != null ? String(parsed.companyName).trim() : '') as string,
@@ -341,8 +330,6 @@ export function buildAnalysisResultFromGeminiObject(
 
   const novaSubgroup = normalizeNovaSubgroup(novaGroup, parsed.novaSubgroup);
 
-  const dailyQuestProductMatch = options?.dailyQuestProductMatch === true;
-
   return {
     product,
     novaGroup,
@@ -372,6 +359,5 @@ export function buildAnalysisResultFromGeminiObject(
     alternativeFoodFromWebSearch: false,
     alternativeFoodEngineFallback: false,
     alternativeUnavailableReason: null,
-    dailyQuestProductMatch,
   };
 }

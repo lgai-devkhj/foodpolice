@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "vitest run"
+    "lint": "next lint"
   },
   "dependencies": {
     "next": "^14.2.0",
@@ -18,7 +17,6 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vitest": "^3.0.0"
+    "typescript": "^5.0.0"
   }
 }

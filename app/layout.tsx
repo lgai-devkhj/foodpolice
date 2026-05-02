@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { APP_DISPLAY_NAME, APP_METADATA_DESCRIPTION } from '@/lib/app-config';
 import { PUBLIC_IMAGE_PRELOAD_HREFS } from '@/lib/constants';
 
 export const metadata: Metadata = {
-  title: 'FoodPolice',
-  description: '포장만 찍으면 가공 정도를 기준으로 원재료랑 맞춤 안내를 알려 드려요',
+  title: APP_DISPLAY_NAME,
+  description: APP_METADATA_DESCRIPTION,
 };
 
 export const viewport: Viewport = {

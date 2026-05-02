@@ -1,6 +1,8 @@
-
 import { normalizeAnalysisStreak, type AnalysisStreak } from './analysis-streak';
 import { parseDailyOxQuizSolvedStored, type DailyOxQuizSolvedStored } from './daily-quiz';
+import { toLocalYmd } from './local-date';
+
+export { toLocalYmd };
 
 export type QuestId =
   | 'analyze'
@@ -31,13 +33,6 @@ export interface QuestsSlice {
   totalXp?: number;
   xpEarnedByDay?: Record<string, number>;
   dailyOxQuizSolved?: DailyOxQuizSolvedStored;
-}
-
-export function toLocalYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 export function addDaysToYmd(ymd: string, deltaDays: number): string {
@@ -168,19 +163,6 @@ export interface QuestBoardUi {
   dailyTotal: number;
 }
 
-export const DAILY_QUEST_ANALYZE_LABELS = [
-  '삼각김밥',
-  '샌드위치',
-  '시리얼',
-  '요거트',
-  '냉동만두',
-  '에너지바',
-  '바나나우유',
-  '쥬스',
-] as const;
-
-export type DailyQuestAnalyzeLabel = (typeof DAILY_QUEST_ANALYZE_LABELS)[number];
-
 const QUEST_FLAVORS: Array<{
   lead: string;
   analyze: { title: string; subtitle: string };
@@ -238,7 +220,7 @@ export function questFlavorIndex(ymd: string, clientId: string): number {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return Math.abs(h) % DAILY_QUEST_ANALYZE_LABELS.length;
+  return Math.abs(h) % QUEST_FLAVORS.length;
 }
 
 export function hashStringFnv(seed: string): number {
@@ -285,7 +267,7 @@ function pickDistinctFromRaw(
   const altSeed = `${clientId || 'local'}|${ymd}|no-repeat`;
   const h = hashStringFnv(altSeed);
   const others: number[] = [];
-  for (let i = 0; i < DAILY_QUEST_ANALYZE_LABELS.length; i++) {
+  for (let i = 0; i < QUEST_FLAVORS.length; i++) {
     if (i !== prevDisplayedIndex) others.push(i);
   }
   return others[Math.abs(h) % others.length]!;
@@ -329,11 +311,6 @@ export function displayedFlavorIndexForLocalYmd(clientId: string, targetYmd: str
 
 export function questFlavorIndexForToday(clientId: string, now: Date): number {
   return displayedFlavorIndexForLocalYmd(clientId, toLocalYmd(now));
-}
-
-export function getTodayAnalyzeLabel(clientId: string, now: Date): string {
-  const idx = questFlavorIndexForToday(clientId, now);
-  return DAILY_QUEST_ANALYZE_LABELS[idx] ?? DAILY_QUEST_ANALYZE_LABELS[0];
 }
 
 export function buildQuestBoard(slice: QuestsSlice, now: Date, clientId = ''): QuestBoardUi {
@@ -392,7 +369,6 @@ export function questAfterAnalyze(
   prev: QuestsSlice,
   scannedAtIso: string,
   now: Date,
-  _dailyQuestProductMatch: boolean,
 ): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
@@ -420,14 +396,12 @@ export function questAfterAlternative(prev: QuestsSlice, now: Date): QuestsSlice
 export function questAfterCompare(
   prev: QuestsSlice,
   now: Date,
-  dailyQuestProductMatch?: boolean,
   scannedAtIso?: string,
 ): QuestsSlice {
   const todayYmd = toLocalYmd(now);
   const daily = ensureDailyForToday(prev, todayYmd);
-  const match = dailyQuestProductMatch === true;
   let firstUseAt = prev.firstUseAt;
-  if (match && scannedAtIso) {
+  if (scannedAtIso) {
     firstUseAt =
       !prev.firstUseAt || scannedAtIso < prev.firstUseAt ? scannedAtIso : prev.firstUseAt;
   }

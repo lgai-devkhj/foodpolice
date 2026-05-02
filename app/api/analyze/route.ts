@@ -6,8 +6,8 @@ import {
   type BmiTier,
   type PersonalizationInput,
 } from '@/lib/gemini-prompts';
+import { readGeminiApiKeyFromEnv } from '@/lib/gemini-api';
 import { evaluateAnalysisGeminiConditions } from '@/lib/analysis-output-conditions';
-import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
 import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
@@ -23,7 +23,7 @@ import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-
 import {
   ANALYSIS_GEMINI_MODEL,
   ANALYSIS_MAX_OUTPUT_TOKENS,
-  isGemini3FamilyModelId,
+  gemini3ThinkingLevelForStructured,
 } from '@/lib/gemini-models';
 
 export const runtime = 'nodejs';
@@ -44,7 +44,6 @@ interface AnalyzeBody {
     birthDate?: string | null;
     gender?: string | null;
   };
-  dailyQuestTarget?: string;
 }
 
 function profileToPersonalization(profile?: AnalyzeBody['profile']): PersonalizationInput | null {
@@ -77,7 +76,6 @@ export async function POST(request: NextRequest) {
       nutritionImageBase64,
       nutritionMimeType = 'image/jpeg',
       profile,
-      dailyQuestTarget,
     } = body;
     const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
     if (!clientId || clientId.length < 8) {
@@ -92,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(apiErrorBody('사진을 먼저 올려요.', 'NO_IMAGE'), { status: 400 });
     }
 
-    const key = process.env.GEMINI_API_KEY;
+    const key = readGeminiApiKeyFromEnv();
     if (!key || key.length === 0) {
       return NextResponse.json(
         apiErrorBody('AI 키가 서버에 설정돼 있지 않아요. 관리자에게 문의해요.', 'NO_API_KEY'),
@@ -100,16 +98,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const questTargetValid = (DAILY_QUEST_ANALYZE_LABELS as readonly string[]).includes(
-      String(dailyQuestTarget || '').trim(),
-    );
-    const questTargetForPrompt = questTargetValid ? String(dailyQuestTarget).trim() : null;
-
     const personalization = profileToPersonalization(profile);
     const systemPolicy = getFoodPoliceSystemPolicyPrompt('standard');
     const userTurnText = hasTwoImages
-      ? getTwoImageAnalyzeUserTurn(personalization, questTargetForPrompt)
-      : getPackageAnalyzeUserTurn(personalization, questTargetForPrompt);
+      ? getTwoImageAnalyzeUserTurn(personalization)
+      : getPackageAnalyzeUserTurn(personalization);
 
     const parts = hasTwoImages
       ? [
@@ -125,7 +118,7 @@ export async function POST(request: NextRequest) {
       generationConfig: generationConfigJsonMode({
         maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
         temperature: 0,
-        ...(isGemini3FamilyModelId(ANALYSIS_GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
+        thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
       }),
     };
 
@@ -217,9 +210,7 @@ export async function POST(request: NextRequest) {
     }
 
     const rec = parsed as Record<string, unknown>;
-    const conditionChecks = evaluateAnalysisGeminiConditions(rec, {
-      requireDailyQuestField: questTargetValid,
-    });
+    const conditionChecks = evaluateAnalysisGeminiConditions(rec);
     const fatalConditions = conditionChecks.filter((c) => c.severity === 'error');
     if (fatalConditions.length > 0) {
       const first = fatalConditions[0]!;
@@ -235,13 +226,8 @@ export async function POST(request: NextRequest) {
       console.warn('[api/analyze] 조건 경고(계속 처리)', conditionChecks);
     }
 
-    const dailyQuestProductMatch =
-      questTargetValid && rec.dailyQuestProductMatch === true;
-
     try {
-      const result = buildAnalysisResultFromGeminiObject(rec, {
-        dailyQuestProductMatch,
-      });
+      const result = buildAnalysisResultFromGeminiObject(rec);
       return NextResponse.json(result);
     } catch (buildErr) {
       if (process.env.NODE_ENV === 'development') {

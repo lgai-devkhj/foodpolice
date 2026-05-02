@@ -12,7 +12,8 @@ import {
 } from 'react';
 import { getClientId } from '@/lib/clientId';
 import type { DailyOxQuizPayload, DailyOxQuizSolvedStored } from '@/lib/daily-quiz';
-import { getTodayAnalyzeLabel, normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
+import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
+import { APP_DISPLAY_NAME } from '@/lib/app-config';
 import type { BmiTier } from '@/lib/gemini-prompts';
 import { encodeImageForAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
 import {
@@ -21,6 +22,12 @@ import {
   formatApiErrorForDisplay,
   type ApiErrorBody,
 } from '@/lib/read-api-json';
+import {
+  UNKNOWN_PRODUCT_COMPARE_CARD_HINT,
+  UNKNOWN_PRODUCT_HINT_NO_HISTORY,
+  UNKNOWN_PRODUCT_HINT_WITH_HISTORY,
+  UNKNOWN_PRODUCT_LABEL,
+} from '@/lib/ui-copy';
 import {
   loadState,
   setProfile as saveProfile,
@@ -306,12 +313,17 @@ function CompareProductNovaCard({ label, result }: { label: string; result: Anal
   const sub = (result.novaSubgroup || '').trim().toUpperCase();
   const subKey = sub === '4A' || sub === '4B' || sub === '4C' ? sub : '';
   const novaIcon = nova === 4 && subKey ? NOVA_SUBGROUP_IMG[subKey] : (NOVA_IMG[nova] || '');
-  const name = (result.product?.productName || '').trim() || label;
+  const name = (result.product?.productName || '').trim() || UNKNOWN_PRODUCT_LABEL;
   const subGraphItems: Array<'4A' | '4B' | '4C'> = ['4A', '4B', '4C'];
   return (
     <div className="compare-result-card">
       <div className="compare-result-label">{label}</div>
       <div className="compare-result-name">{name}</div>
+      {name === UNKNOWN_PRODUCT_LABEL ? (
+        <p className="meta product-name-unknown-hint" role="status">
+          {UNKNOWN_PRODUCT_COMPARE_CARD_HINT}
+        </p>
+      ) : null}
       <div className={`card card-nova card-nova-${nova} compare-result-nova-inner`}>
         <div className="nova-result-slab">
           <div className="nova-result-title-row">
@@ -948,13 +960,15 @@ function applyAlternativesFetchResult(
   extras?: {
     engineFallback?: boolean;
     unavailableReason?: AnalysisResult['alternativeUnavailableReason'];
+    httpErrorDetail?: string;
   },
 ): void {
   const alt = altRaw.trim();
   const hasAlt = Boolean(alt);
+  const noticeFromHttp = !hasAlt ? (extras?.httpErrorDetail || '').trim() || null : null;
   const merged: AnalysisResult = {
     ...baseResult,
-    alternativeFoodNotice: null,
+    alternativeFoodNotice: noticeFromHttp,
     alternativeFoodText: alt || null,
     alternativeFoodFromWebSearch: Boolean(httpOk && hasAlt && fromWebSearch),
     alternativeFoodEngineFallback: Boolean(httpOk && hasAlt && extras?.engineFallback),
@@ -962,7 +976,7 @@ function applyAlternativesFetchResult(
     alternativeFoodLoaded: true,
   };
   updateHistoryResult(clientId, historyId, {
-    alternativeFoodNotice: null,
+    alternativeFoodNotice: noticeFromHttp,
     alternativeFoodText: merged.alternativeFoodText,
     alternativeFoodFromWebSearch: merged.alternativeFoodFromWebSearch,
     alternativeFoodEngineFallback: merged.alternativeFoodEngineFallback,
@@ -1006,6 +1020,7 @@ function requestAlternativesFromApi(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      clientId,
       productName: baseResult.product?.productName || '',
       companyName: baseResult.product?.companyName || '',
       foodCategory: baseResult.foodCategory || null,
@@ -1048,6 +1063,8 @@ function requestAlternativesFromApi(
         : r.ok
           ? parsedReason ?? 'NO_MATCH'
           : 'FETCH_FAILED';
+      const httpErr =
+        !r.ok && typeof d.error === 'string' && d.error.trim() ? d.error.trim() : '';
       applyAlternativesFetchResult(
         clientId,
         historyId,
@@ -1060,7 +1077,7 @@ function requestAlternativesFromApi(
         setCurrentResult,
         renderResult,
         fromWebSearch,
-        { engineFallback, unavailableReason },
+        { engineFallback, unavailableReason, httpErrorDetail: httpErr || undefined },
       );
     })
     .catch(() => {
@@ -1116,6 +1133,11 @@ function isObeseByProfile(p: Profile): boolean {
 
 function displayName(item: HistoryItem | null): string {
   return (item?.customProductName || item?.productName || '').trim() || '';
+}
+
+function effectiveAnalyzedProductName(result: AnalysisResult, historyItem: HistoryItem | null): string {
+  if (historyItem) return displayName(historyItem);
+  return (result.product?.productName || '').trim();
 }
 
 function normalizeNovaSubgroupLabel(sub: string | null | undefined): '4A' | '4B' | '4C' | null {
@@ -1977,7 +1999,6 @@ export default function App() {
           clientId,
           imageBase64: encoded.base64,
           mimeType: encoded.mimeType,
-          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const res = await fetchJsonHighPriority('/api/analyze', body);
@@ -2066,7 +2087,6 @@ export default function App() {
           rawMimeType: rawEnc.mimeType,
           nutritionImageBase64: nutEnc.base64,
           nutritionMimeType: nutEnc.mimeType,
-          dailyQuestTarget: getTodayAnalyzeLabel(clientId, new Date()),
           ...(profilePayload ? { profile: profilePayload } : {}),
         });
         const res = await fetchJsonHighPriority('/api/analyze', body);
@@ -2163,7 +2183,6 @@ export default function App() {
         });
         const res = await fetchJsonHighPriority('/api/compare', compareBody);
         const data = await readApiJson<{
-          dailyQuestProductMatch?: boolean;
           productA?: AnalysisResult;
           productB?: AnalysisResult;
           betterChoice?: string;
@@ -2177,7 +2196,7 @@ export default function App() {
           cameraStreamRef.current = null;
         }
         if (cameraVideoRef.current) cameraVideoRef.current.srcObject = null;
-        const streak = markQuestCompareDone(clientId, data.dailyQuestProductMatch === true);
+        const streak = markQuestCompareDone(clientId);
         setQuestBoard(getQuestBoard(clientId));
         notifyStreakFromQuest(streak);
         const comparePayload = {
@@ -2235,9 +2254,9 @@ export default function App() {
       opts?: { analysisSeconds: number; historyId: string; keepAltOpen?: boolean }
     ) => {
       const product = result.product || {};
-      const name = historyItem
-        ? (displayName(historyItem) || '알 수 없음')
-        : ((product.productName || '').trim() || '알 수 없음');
+      const rawProductTitle = effectiveAnalyzedProductName(result, historyItem);
+      const isUnknownProductName = !rawProductTitle;
+      const name = isUnknownProductName ? UNKNOWN_PRODUCT_LABEL : rawProductTitle;
       const company = (product.companyName || '').trim();
       const raw = (product.rawMaterials || '').trim();
       const nova = result.novaGroup || 4;
@@ -2287,6 +2306,11 @@ export default function App() {
       let html = '';
       html += '<div class="card" id="productNameCard">';
       html += '<div class="card-title" id="productNameDisplay">' + escapeHtml(name) + '</div>';
+      if (isUnknownProductName) {
+        const unknownHint = currentHistoryId ? UNKNOWN_PRODUCT_HINT_WITH_HISTORY : UNKNOWN_PRODUCT_HINT_NO_HISTORY;
+        html +=
+          '<p class="meta product-name-unknown-hint" role="status">' + escapeHtml(unknownHint) + '</p>';
+      }
       if (company) html += '<div class="meta">' + escapeHtml(company) + '</div>';
       if (currentHistoryId)
         html +=
@@ -3762,7 +3786,7 @@ export default function App() {
                     <IconLeaf size={44} />
                   </span>
                 </div>
-                <h2 className="ob-welcome-title">FoodPolice</h2>
+                <h2 className="ob-welcome-title">{APP_DISPLAY_NAME}</h2>
                 <p className="ob-welcome-desc">
                   원재료랑 NOVA,
                   <br />
@@ -4410,7 +4434,7 @@ export default function App() {
                       </div>
                       <div className="history-item-main">
                         <div className="product-name">
-                          {(item.customProductName || item.productName || '').trim() || '제품명 없음'}
+                          {(item.customProductName || item.productName || '').trim() || UNKNOWN_PRODUCT_LABEL}
                         </div>
                         <div className="meta">
                           {item.companyName ? item.companyName + ' · ' : ''}
@@ -4541,7 +4565,7 @@ export default function App() {
                   className="btn btn-full btn-delete-record"
                   onClick={() => {
                     if (!currentHistoryId) return;
-                    if (!confirm('이 스캔 기록을 삭제할까요?')) return;
+                    if (!confirm('이 분석 기록을 삭제할까요?')) return;
                     deleteFromHistory(clientId, currentHistoryId);
                     setCurrentHistoryId(null);
                     setShowResult(false);
@@ -4708,7 +4732,7 @@ export default function App() {
                     if (!clientId) return;
                     if (
                       !window.confirm(
-                        '스캔 기록이랑 프로필(출생연도·성별·키·몸무게)까지 전부 지울까요?\n한번 지우면 되돌릴 수 없어요.',
+                        '분석 기록이랑 프로필(출생연도·성별·키·몸무게)까지 전부 지울까요?\n한번 지우면 되돌릴 수 없어요.',
                       )
                     )
                       return;
@@ -4744,7 +4768,7 @@ export default function App() {
                   </span>
                   <span className="row-text">
                     <span className="row-title">모든 기록 삭제</span>
-                    <span className="row-subtitle">스캔 기록·개인 맞춤화 정보 전체 삭제</span>
+                    <span className="row-subtitle">분석 기록·개인 맞춤화 정보 전체 삭제</span>
                   </span>
                   <span className="row-chevron" aria-hidden>›</span>
                 </button>

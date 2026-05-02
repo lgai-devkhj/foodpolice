@@ -3406,6 +3406,18 @@
     }
     .result-scroll.editing-name #resultContent #productNameCard { display: none; }
 
+    #productNameCard .product-name-unknown-hint,
+    .compare-result-card .product-name-unknown-hint {
+      margin-top: 10px;
+      margin-bottom: 0;
+      line-height: 1.55;
+      color: var(--text2);
+    }
+    .compare-result-card .product-name-unknown-hint {
+      margin-top: 6px;
+      font-size: 0.8125rem;
+    }
+
     /* 결과 화면: 핵심만 보이게 접기(details) UI */
     details.result-details {
       margin: 12px 0;

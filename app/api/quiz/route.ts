@@ -10,8 +10,13 @@ import {
   hasGeminiCandidates,
 } from '@/lib/gemini-response-envelope';
 import { generationConfigJsonMode, textPart } from '@/lib/gemini-rest-body';
+import { readGeminiApiKeyFromEnv } from '@/lib/gemini-api';
 import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-with-fallback';
-import { isGemini3FamilyModelId } from '@/lib/gemini-models';
+import {
+  GEMINI_QUIZ_MAX_OUTPUT_TOKENS,
+  GEMINI_QUIZ_TEMPERATURE,
+  gemini3ThinkingLevelForStructured,
+} from '@/lib/gemini-models';
 
 export const runtime = 'nodejs';
 export const maxDuration = 45;
@@ -59,11 +64,11 @@ async function geminiOxQuizGenerate(
   const requestBody = {
     contents: [{ parts: [textPart(prompt)] }],
     generationConfig: generationConfigJsonMode({
-      maxOutputTokens: 1024,
-      temperature: 0.7,
+      maxOutputTokens: GEMINI_QUIZ_MAX_OUTPUT_TOKENS,
+      temperature: GEMINI_QUIZ_TEMPERATURE,
       topP: 0.95,
       topK: 40,
-      ...(isGemini3FamilyModelId(GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
+      thinkingLevel: gemini3ThinkingLevelForStructured(GEMINI_MODEL),
     }),
   };
   try {
@@ -124,7 +129,7 @@ export async function POST(request: NextRequest) {
     const requireAnswerX =
       (Math.abs(hashStringFnv(`${clientId}|${ymd}|oxquizx`)) % 2) === 1;
 
-    const key = process.env.GEMINI_API_KEY;
+    const key = readGeminiApiKeyFromEnv();
     if (!key || key.length === 0) {
       return NextResponse.json(
         apiErrorBody('퀴즈를 만들려면 서버에 AI 키가 설정돼 있어야 해요.', 'NO_GEMINI_KEY'),

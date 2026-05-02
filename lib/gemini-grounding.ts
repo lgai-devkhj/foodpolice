@@ -1,3 +1,4 @@
+import { geminiGenerateContentUrl } from '@/lib/gemini-api';
 
 const DEFAULT_TIMEOUT_MS = 24_000;
 
@@ -28,8 +29,7 @@ export async function generateContentWithGoogleSearch(
   userPrompt: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS
 ): Promise<GoogleSearchGroundingResult> {
-  const model = encodeURIComponent(modelId);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = geminiGenerateContentUrl(modelId, apiKey);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;

@@ -2,6 +2,8 @@
  * 모델 JSON을 「조건 ID」 단위로 점검해 다중 조건 계약을 코드에서도 한 번 더 거름니다.
  */
 
+import { isCanonicalFoodCategory } from '@/lib/food-domain-config';
+
 export type AnalysisConditionSeverity = 'error' | 'warn';
 
 export type AnalysisConditionViolation = {
@@ -10,15 +12,6 @@ export type AnalysisConditionViolation = {
   severity: AnalysisConditionSeverity;
 };
 
-const ALLOWED_FOOD_CATEGORIES = new Set([
-  '음료',
-  '달콤한 간식',
-  '짭짤한 간식',
-  '간편한 한 끼',
-  '빵·시리얼류',
-  '유제품·디저트',
-]);
-
 function novaGroupNum(v: unknown): number | null {
   if (v == null) return null;
   const n = typeof v === 'number' ? v : parseInt(String(v), 10);
@@ -26,19 +19,8 @@ function novaGroupNum(v: unknown): number | null {
   return n;
 }
 
-export function evaluateAnalysisGeminiConditions(
-  rec: Record<string, unknown>,
-  opts: { requireDailyQuestField: boolean },
-): AnalysisConditionViolation[] {
+export function evaluateAnalysisGeminiConditions(rec: Record<string, unknown>): AnalysisConditionViolation[] {
   const out: AnalysisConditionViolation[] = [];
-
-  if (opts.requireDailyQuestField && typeof rec.dailyQuestProductMatch !== 'boolean') {
-    out.push({
-      id: 'COND_DAILY_QUEST_BOOLEAN',
-      severity: 'error',
-      detail: '오늘 퀘스트 모드에서는 dailyQuestProductMatch가 true 또는 false여야 해요.',
-    });
-  }
 
   const ng = novaGroupNum(rec.novaGroup);
   if (rec.novaGroup != null && (ng == null || ng < 1 || ng > 4)) {
@@ -64,7 +46,7 @@ export function evaluateAnalysisGeminiConditions(
   }
 
   const fc = rec.foodCategory != null ? String(rec.foodCategory).trim() : '';
-  if (fc && !ALLOWED_FOOD_CATEGORIES.has(fc)) {
+  if (fc && !isCanonicalFoodCategory(fc)) {
     out.push({
       id: 'COND_FOOD_CATEGORY_ENUM',
       severity: 'warn',

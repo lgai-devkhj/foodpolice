@@ -1,3 +1,8 @@
+import { APP_DISPLAY_NAME } from '@/lib/app-config';
+import {
+  FOOD_CATEGORY_LABELS,
+  FOOD_CATEGORY_PROMPT_GUIDANCE_LINES,
+} from '@/lib/food-domain-config';
 import { ANALYSIS_GEMINI_MODEL } from '@/lib/gemini-models';
 
 export const GEMINI_MODEL = ANALYSIS_GEMINI_MODEL;
@@ -55,9 +60,40 @@ function getPersonalizationFocus(tier: BmiTier): PersonalizationFocus {
   };
 }
 
+/** 규칙이 겹칠 때 무엇을 이길지 명시 (모델·안전·포맷 정렬용). */
+function getPrecedenceRulesBlock(mode: PromptMode = 'standard'): string {
+  return joinLines(
+    '[우선순위 규칙 — 충돌 시 적용 순서]',
+    '1) 단일 JSON 객체·요청 스키마의 필수 키·파서가 읽을 수 있는 형식',
+    `2) 한국형 ${APP_DISPLAY_NAME} 판정 순서(Group 2→1→3→4, Group 4는 4C→4B→4A)와 개수 기반 규칙`,
+    '3) 이미지·라벨·영양표에서 직접 읽을 수 있는 사실',
+    '4) 불확실하면 빈 문자열("")·null·보수적 값(analysisConfidence 낮게, 무근거 추정 최소화)',
+    '5) 사용자 BMI·톤 지시는 novaGroup·novaSubgroup 판단에 쓰지 않음',
+    '6) 안전·금지 표현(의료 단정, 숫자 섭취 규칙, 공포 조장, 근거 없는 단정)은 서술을 풍부하게 하는 것보다 우선',
+    mode === 'fast'
+      ? '- 빠른 모드여도 위 순서는 변하지 않아요.'
+      : '- 같은 논점에서는 번호가 낮은 규칙이 항상 이겨요.',
+  );
+}
+
+/** 모델 출력 형식·안전·허위 정보 방지 상한. */
+function getOutputGuardrailsBlock(mode: PromptMode = 'standard'): string {
+  return joinLines(
+    '[출력 가드레일]',
+    '- 응답 본문은 파싱 가능한 JSON 한 개만이에요. 마크다운 제목, 코드펜스(```), 인삿말·중간 설명 문단은 넣지 않아요.',
+    '- 라벨·사진에 없는 제품명·회사명·영양 수치·원재료·인증·회수 여부·법적 효력을 지어내지 않아요.',
+    '- 확실하지 않은 필드는 비우거나 null로 두고, 모르는 내용을 그럴듯하게 채우지 않아요.',
+    '- 진단·치료·약 복용 지시, 질병 위험 단정, 신체·장애 비하 표현은 금지예요.',
+    '- 이 앱은 참고용 정보예요. 법률·의학 전문 조언이나 공식 인증을 대행한다고 말하지 않아요.',
+    mode === 'standard'
+      ? '- judgmentReason·briefDescription에서 브랜드 홍보나 타 제품 비방처럼 들리는 표현은 피해요.'
+      : '- 짧게 답하되 위 금지 항목은 그대로 지켜요.',
+  );
+}
+
 function getCoreIdentityBlock(): string {
   return joinLines(
-    '당신은 식품 분석 앱 FoodPolice를 돕는 AI예요.',
+    `당신은 식품 분석 앱 ${APP_DISPLAY_NAME}를 돕는 AI예요.`,
     '열량만 보지 않고 원재료, 영양성분, 가공 정도를 함께 살펴봐요.',
     '사용자가 식품 라벨을 더 쉽게 이해하게 도와줘요.'
   );
@@ -67,7 +103,7 @@ function getCorePrinciplesBlock(mode: PromptMode = 'standard'): string {
   if (mode === 'fast') {
     return joinLines(
       '[핵심 원칙]',
-      '- 한국형 FoodPolice 최종 기준으로 분류해요.',
+      `- 한국형 ${APP_DISPLAY_NAME} 최종 기준으로 분류해요.`,
       '- 반드시 주어진 판정 순서를 지켜요.',
       '- Group 1~4와 4A~4C는 개수 기반 규칙으로만 판단해요.',
       '- 사용자 정보는 분류 자체를 바꾸지 않고 설명 톤에만 반영해요.',
@@ -77,7 +113,7 @@ function getCorePrinciplesBlock(mode: PromptMode = 'standard'): string {
 
   return joinLines(
     '[핵심 원칙]',
-    '- 한국형 FoodPolice 최종 기준으로 분류해요.',
+    `- 한국형 ${APP_DISPLAY_NAME} 최종 기준으로 분류해요.`,
     '- 반드시 주어진 판정 순서를 그대로 지켜요.',
     '- Group 1~4와 4A~4C는 분해 성분 개수, 첨가물 개수, 핵심 첨가물 여부, 조리용 재료 여부로만 판단해요.',
     '- 다른 해석 기준을 임의로 추가하지 않아요.',
@@ -258,21 +294,12 @@ function getNutritionRulesCore(mode: PromptMode = 'standard'): string {
 }
 
 function getFoodCategoryBlock(): string {
+  const enumLines = FOOD_CATEGORY_LABELS.map((label) => `- "${label}"`);
   return joinLines(
     '[foodCategory]',
     '- 아래 중 정확히 하나만 출력해요.',
-    '- "음료"',
-    '- "달콤한 간식"',
-    '- "짭짤한 간식"',
-    '- "간편한 한 끼"',
-    '- "빵·시리얼류"',
-    '- "유제품·디저트"',
-    '- 과자, 젤리, 초콜릿, 스낵 등 소량 간식은 "달콤한 간식" 또는 "짭짤한 간식"이에요.',
-    '- 우유, 요거트, 푸딩, 아이스크림은 "유제품·디저트"예요.',
-    '- 컵라면, 즉석도시락, 햄버거, 샌드위치 등 끼니 대체형은 "간편한 한 끼"예요.',
-    '- 식빵, 시리얼, 베이글은 "빵·시리얼류"예요.',
-    '- 마시는 것만 "음료"예요.',
-    '- 애매하면 실제 섭취 형태를 기준으로 하나만 골라요.'
+    ...enumLines,
+    ...FOOD_CATEGORY_PROMPT_GUIDANCE_LINES,
   );
 }
 
@@ -289,7 +316,7 @@ function getKoreanReclassificationBlock(): string {
   return joinLines(
     '[한국형 재분류]',
     '- koreanReclassificationNote를 항상 채워요.',
-    '- 한 문장으로, 왜 한국형 FoodPolice 기준에서 현재 분류가 나왔는지 쉽게 설명해요.',
+    `- 한 문장으로, 왜 한국형 ${APP_DISPLAY_NAME} 기준에서 현재 분류가 나왔는지 쉽게 설명해요.`,
     '- 기준과 차이가 없거나 추가 설명이 필요 없으면 ""로 둬요.'
   );
 }
@@ -331,11 +358,13 @@ export function getFoodPoliceSystemPolicyPrompt(mode: PromptMode = 'standard'): 
   return joinBlocks(
     joinLines(
       '[다중 조건 처리 — 공통 정책(system)]',
-      '- 블록마다 서로 다른 제약이에요. 충돌하면 FoodPolice NOVA 분류 규칙과 JSON 필수 필드를 최우선으로 해요.',
+      '- system과 user 블록에 서로 다른 제약이 겹칠 수 있어요. 우선순위는 [우선순위 규칙]을 따르세요.',
       '- 사용자 메시지의 「이번 요청」 블록에 OCR·스키마·이미지 순서 조건이 있어요.',
     ),
+    getPrecedenceRulesBlock(mode),
     getCoreIdentityBlock(),
     getCorePrinciplesBlock(mode),
+    getOutputGuardrailsBlock(mode),
     getFoodPoliceFinalCriteriaBlock(mode),
     getOutputRulesBlock(mode),
     getConsumptionAdviceBlock(mode),
@@ -353,15 +382,6 @@ function getFoodPoliceCorePrompt(
   return joinBlocks(getFoodPoliceSystemPolicyPrompt(mode), getPersonalizationCompactBlock(profile));
 }
 
-function analyzeDailyQuestBlocks(dailyQuestTarget?: string | null): string {
-  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  if (!q) return '';
-  return joinBlocks(
-    getDailyQuestProductMatchBlock(q),
-    joinLines('[JSON 오늘 퀘스트]', '최상위에 dailyQuestProductMatch: true 또는 false를 반드시 넣어요.'),
-  );
-}
-
 function getSingleImageAnalyzeTaskBlock(): string {
   return joinLines(
     '[할 일]',
@@ -370,6 +390,7 @@ function getSingleImageAnalyzeTaskBlock(): string {
     '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
     '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
     '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+    '- 제품명이 사진에 없거나 라벨에서 읽을 수 없으면 추측하지 말고 productName은 ""로 둬요.',
     '- companyName이 정확히 보이지 않으면 ""로 둬요.',
     '- rawMaterials가 없으면 ""로 둬요.',
     '- koreanReclassificationNote는 기본적으로 ""예요.',
@@ -387,6 +408,7 @@ function getTwoImageAnalyzeTaskBlock(): string {
       '- novaGroup이 4이면 4C → 4B → 4A 순서로 novaSubgroup을 판단해요.',
       '- 2번 이미지에서 nutrition을 추출해요. 없거나 판독 불가면 null이에요.',
       '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+      '- 제품명이 사진에 없거나 라벨에서 읽을 수 없으면 추측하지 말고 productName은 ""로 둬요.',
       '- companyName이 정확히 보이지 않으면 ""로 둬요.',
       '- rawMaterials가 없으면 ""로 둬요.',
       '- koreanReclassificationNote는 기본적으로 ""예요.',
@@ -396,12 +418,7 @@ function getTwoImageAnalyzeTaskBlock(): string {
 }
 
 /** Gemini 사용자 턴 텍스트(이미지 parts 앞에 붙이지 말고, 동일 content의 마지막 text 권장). */
-export function getPackageAnalyzeUserTurn(
-  profile?: PersonalizationInput | null,
-  dailyQuestTarget?: string | null,
-): string {
-  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
+export function getPackageAnalyzeUserTurn(profile?: PersonalizationInput | null): string {
   return joinBlocks(
     joinLines(
       '[조건 묶음 — 이번 요청(user)]',
@@ -409,19 +426,13 @@ export function getPackageAnalyzeUserTurn(
     ),
     getPersonalizationCompactBlock(profile),
     getSingleImageAnalyzeTaskBlock(),
-    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject())),
   );
 }
 
-export function getTwoImageAnalyzeUserTurn(
-  profile?: PersonalizationInput | null,
-  dailyQuestTarget?: string | null,
-): string {
-  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
+export function getTwoImageAnalyzeUserTurn(profile?: PersonalizationInput | null): string {
   return joinBlocks(
     joinLines(
       '[조건 묶음 — 이번 요청(user)]',
@@ -429,15 +440,14 @@ export function getTwoImageAnalyzeUserTurn(
     ),
     getPersonalizationCompactBlock(profile),
     getTwoImageAnalyzeTaskBlock(),
-    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject())),
   );
 }
 
-function getSingleProductSchemaObject(includeDailyQuest?: boolean) {
-  const base = {
+function getSingleProductSchemaObject() {
+  return {
     productName: '',
     companyName: '',
     rawMaterials: '',
@@ -479,10 +489,6 @@ function getSingleProductSchemaObject(includeDailyQuest?: boolean) {
       ],
     },
   };
-  if (includeDailyQuest) {
-    return { ...base, dailyQuestProductMatch: false };
-  }
-  return base;
 }
 
 export function getSingleProductJsonSchemaExample(): string {
@@ -495,6 +501,25 @@ export function getTossUserFacingToneBlock(): string {
 
 export function getPersonalizationBlock(profile?: PersonalizationInput | null): string {
   return getPersonalizationCompactBlock(profile);
+}
+
+/** 웹 검색 기반 대체 식품 JSON 등 비분석 호출용 — 우선순위·가드레일만 묶음. */
+export function getWebAlternativesPrecedenceAndGuardrails(): string {
+  return joinBlocks(
+    joinLines(
+      '[우선순위 — 대체 식품 검색]',
+      '1) JSON 하나·요청 스키마 준수·purchaseUrl은 실제로 열리는 http(s) 상품 또는 스토어 페이지만',
+      '2) 현재 식품군·맛·용도 고정과 동일 제품 라인·용량 변형 제외 규칙',
+      '3) 검색으로 근거를 확보한 실제 유통 제품명만',
+      '4) 말투·문장 길이 같은 표현 규칙',
+    ),
+    joinLines(
+      '[출력 가드레일 — 대체 식품]',
+      '- 확인되지 않은 상품명·가격·영양 수치·URL을 만들지 않아요.',
+      '- 의료 처방·다이어트 단정·공포 조장 표현은 금지예요.',
+      '- 마크다운·코드펜스·JSON 바깥 잡담은 금지예요.',
+    ),
+  );
 }
 
 export function getFoodPoliceHolisticEvaluationIntro(
@@ -546,60 +571,33 @@ export function getKoreanNovaCriteria(
 export function getTwoImagePackagePrompt(
   profile?: PersonalizationInput | null,
   mode: PromptMode = 'standard',
-  dailyQuestTarget?: string | null,
 ): string {
-  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
-
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
     getTwoImageAnalyzeTaskBlock(),
-    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject())),
   );
 }
 
 export function getPackageImagePrompt(
   profile?: PersonalizationInput | null,
   mode: PromptMode = 'standard',
-  dailyQuestTarget?: string | null,
 ): string {
-  const q = typeof dailyQuestTarget === 'string' ? dailyQuestTarget.trim() : '';
-  const questBlocks = analyzeDailyQuestBlocks(dailyQuestTarget);
-
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
     getSingleImageAnalyzeTaskBlock(),
-    questBlocks,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
-    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject(q.length > 0))),
-  );
-}
-
-export function getDailyQuestProductMatchBlockForCompare(targetLabel: string): string {
-  return joinLines(
-    '[오늘 퀘스트 음식 일치]',
-    `- 오늘 퀘스트 음식은 「${targetLabel}」예요.`,
-    '- 제품 A 또는 제품 B 중 어느 한쪽이라도 위 퀘스트 음식이면 dailyQuestProductMatch: true예요.',
-    '- 둘 다 아니면 false예요.',
-    '- 애매하면 false예요.',
-    '- 1번, 3번 이미지의 제품명과 포장 정보를 기준으로 판단해요.'
+    joinLines('[JSON 출력]', JSON.stringify(getSingleProductSchemaObject())),
   );
 }
 
 export function getCompareFourImagesPrompt(
   profile?: PersonalizationInput | null,
-  dailyQuestTarget?: string | null,
   mode: PromptMode = 'standard'
 ): string {
-  const questBlock =
-    dailyQuestTarget && String(dailyQuestTarget).trim().length > 0
-      ? getDailyQuestProductMatchBlockForCompare(String(dailyQuestTarget).trim())
-      : '';
-
   return joinBlocks(
     getFoodPoliceCorePrompt(profile, mode),
     joinLines(
@@ -631,7 +629,6 @@ export function getCompareFourImagesPrompt(
       '- 카테고리가 완전히 달라 직접 비교가 어렵거나 정보가 부족하면 "similar"를 써도 돼요.',
       '- JSON 하나만 출력해요.'
     ),
-    questBlock,
     getFoodCategoryBlock(),
     getOcrCorrectionBlock(),
     joinLines(
@@ -642,20 +639,8 @@ export function getCompareFourImagesPrompt(
         betterChoice: '',
         comparisonSummary: '',
         recommendationLine: '',
-        ...(questBlock ? { dailyQuestProductMatch: false } : {}),
       })
     )
-  );
-}
-
-export function getDailyQuestProductMatchBlock(targetLabel: string): string {
-  return joinLines(
-    '[오늘 퀘스트 음식 일치]',
-    `- 오늘 퀘스트 음식은 「${targetLabel}」예요.`,
-    '- 이미지에 보이는 제품이 위 퀘스트 음식이면 dailyQuestProductMatch: true예요.',
-    '- 아니면 false예요.',
-    '- 애매하면 false예요.',
-    '- 추측은 최소화하고 라벨과 포장 형태로 판단해요.'
   );
 }
 
@@ -739,7 +724,7 @@ export function getDailyOxQuizPrompt(
       ? '- 유형 1: 가상의 원재료 나열을 주고, 이 식품이 어느 그룹에 가까운지 판단하게 하는 OX 진술을 만들어요.\n'
       : questionType === 2
         ? '- 유형 2: 제시한 성분이 분해 성분인지 첨가물인지 구분하게 하는 OX 진술을 만들어요.\n'
-        : '- 유형 3: FoodPolice 최종 분류 기준의 정의와 판정 순서를 묻는 OX 진술을 만들어요.\n';
+        : `- 유형 3: ${APP_DISPLAY_NAME} 최종 분류 기준의 정의와 판정 순서를 묻는 OX 진술을 만들어요.\n`;
 
   const requireX = options.requireAnswerX === true;
 
@@ -753,7 +738,7 @@ export function getDailyOxQuizPrompt(
     : joinLines(
         '[이번 문항 정답 — 반드시 O]',
         '- 진술은 반드시 참이어야 하고 correctAnswer는 "O"만 출력해요.',
-        '- FoodPolice 기준에 맞는 확실한 참 진술로 만드세요.',
+        `- ${APP_DISPLAY_NAME} 기준에 맞는 확실한 참 진술로 만드세요.`,
         '- explanation은 **왜 맞는 말인지** 한 줄로 짚어요.',
       );
 
@@ -767,13 +752,13 @@ export function getDailyOxQuizPrompt(
 
   return joinBlocks(
     joinLines(
-      '당신은 식품 라벨과 FoodPolice 분류 기준을 학습하는 OX 퀴즈를 한 문항 만드는 교육 도우미예요.'
+      `당신은 식품 라벨과 ${APP_DISPLAY_NAME} 분류 기준을 학습하는 OX 퀴즈를 한 문항 만드는 교육 도우미예요.`
     ),
     joinLines(
       '[퀴즈 목적]',
       '- 원재료 이해 능력 향상',
       '- 분해 성분과 첨가물 구분 능력 강화',
-      '- FoodPolice 최종 분류 기준 학습',
+      `- ${APP_DISPLAY_NAME} 최종 분류 기준 학습`,
       '- O/X 정답이 한쪽으로 치우치지 않게 균형 있게 출제해요.'
     ),
     joinLines(
@@ -786,12 +771,24 @@ export function getDailyOxQuizPrompt(
     ),
     answerModeBlock,
     joinLines(
+      '[우선순위 — 퀴즈]',
+      '1) 아래 [JSON 출력] 스키마와 correctAnswer가 바로 위 [이번 문항 정답]과 반드시 일치',
+      `2) ${APP_DISPLAY_NAME} 최종 분류 기준과 모순 없는 출제`,
+      '3) 교육 목적·중학생이 읽기 쉬운 길이와 어휘',
+    ),
+    joinLines(
+      '[출력 가드레일 — 퀴즈]',
+      '- JSON 하나만 출력해요. 마크다운·코드펜스·인삿말은 금지예요.',
+      '- 실제 브랜드·상품명은 쓰지 않아요.',
+      '- 의료·공포·혐오 표현은 금지예요.',
+    ),
+    joinLines(
       '[출제 규칙]',
       '- 문제는 반드시 O 또는 X 하나로만 답할 수 있는 짧은 진술이에요.',
       '- 진술이 참이면 correctAnswer는 "O", 거짓이면 "X"예요.',
       '- **이번 요청의 correctAnswer는 위 [이번 문항 정답]과 반드시 일치**해야 해요.',
       '- explanation은 정답 이유를 한 줄로 쉬운 말로 써요. 정답이 X면 틀린 이유를, O면 맞는 이유를 써요.',
-      '- FoodPolice 최종 기준과 어긋나지 않게 출제해요.',
+      `- ${APP_DISPLAY_NAME} 최종 기준과 어긋나지 않게 출제해요.`,
       '- 과장, 공포, 의료 조언은 금지해요.'
     ),
     joinLines(

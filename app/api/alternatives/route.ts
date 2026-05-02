@@ -12,16 +12,19 @@ import {
   buildNutritionHintForAlternatives,
   fetchAlternativesWithPerplexity,
 } from '@/lib/gemini-alternative-search';
+import { apiErrorBody } from '@/lib/read-api-json';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-export type AlternativeUnavailableReason =
-  | 'NO_SEARCH_KEY'
-  | 'FETCH_FAILED'
-  | 'NO_MATCH';
+/** 본문 전체 문자 수 상한 (메타데이터만 오므로 과도한 페이로드 차단). */
+const ALTERNATIVES_MAX_BODY_CHARS = 300_000;
+const MIN_CLIENT_ID_LEN = 8;
+
+export type AlternativeUnavailableReason = 'NO_SEARCH_KEY' | 'FETCH_FAILED' | 'NO_MATCH';
 
 interface AlternativesBody {
+  clientId?: string;
   productName?: string;
   companyName?: string;
   foodCategory?: string | null;
@@ -74,11 +77,36 @@ function engineFallbackResponse(input: RecommendationEngineInput) {
 }
 
 export async function POST(request: NextRequest) {
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    return NextResponse.json(apiErrorBody('요청 본문을 읽을 수 없어요.', 'BODY_READ'), { status: 400 });
+  }
+
+  if (raw.length > ALTERNATIVES_MAX_BODY_CHARS) {
+    return NextResponse.json(
+      apiErrorBody('요청이 너무 커요. 다시 시도해요.', 'PAYLOAD_TOO_LARGE'),
+      { status: 413 },
+    );
+  }
+
   let body: AlternativesBody;
   try {
-    body = (await request.json()) as AlternativesBody;
+    body = JSON.parse(raw) as AlternativesBody;
   } catch {
-    return NextResponse.json({ error: '요청 본문을 읽을 수 없어요.' }, { status: 400 });
+    return NextResponse.json(
+      apiErrorBody('요청 본문을 읽을 수 없어요.', 'BODY_JSON'),
+      { status: 400 },
+    );
+  }
+
+  const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
+  if (!clientId || clientId.length < MIN_CLIENT_ID_LEN) {
+    return NextResponse.json(
+      apiErrorBody('잠깐만요, 이 기기 정보가 없어요.', 'BAD_CLIENT_ID'),
+      { status: 400 },
+    );
   }
 
   const input = bodyToInput(body);
@@ -115,7 +143,7 @@ export async function POST(request: NextRequest) {
       {
         rawMaterials: input.rawMaterials ?? '',
         foodCategory: input.foodCategory ?? null,
-      }
+      },
     );
 
     let payloadJson = plex.json;
@@ -148,6 +176,6 @@ export async function POST(request: NextRequest) {
     const fallback = engineFallbackResponse(input);
     if (fallback) return fallback;
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해요.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(apiErrorBody(message, 'ALTERNATIVES_ERROR'), { status: 500 });
   }
 }

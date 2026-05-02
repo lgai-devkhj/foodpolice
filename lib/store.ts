@@ -20,11 +20,11 @@ import {
   buildWeekStreakView,
   ensureDailyForToday,
   isDailyQuestPairComplete,
-  toLocalYmd as questDayYmd,
   trimXpEarnedByDayMap,
   type QuestsSlice,
   type WeekDayCell,
 } from './daily-quests';
+import { toLocalYmd } from './local-date';
 import {
   XP_ALTERNATIVE_QUEST,
   XP_ANALYSIS,
@@ -47,13 +47,6 @@ export interface BodyMeasurement {
   weightKg: number;
   recordedAt?: string;
   seq?: number;
-}
-
-function toLocalYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
 function measurementDateKey(v: string | undefined | null): string {
@@ -214,7 +207,6 @@ export interface AnalysisResult {
   alternativeFoodLoaded?: boolean;
   alternativeFoodNotice?: string | null;
   alternativeFoodUserRequested?: boolean;
-  dailyQuestProductMatch?: boolean;
   fastAnalysisDemo?: boolean;
 }
 
@@ -388,7 +380,7 @@ export function addXp(clientId: string, delta: number): number {
   const qs = normalizeQuestsSlice(state.quests);
   const d = Math.floor(delta);
   const next = clampXp((qs.totalXp ?? 0) + d);
-  const ymd = questDayYmd(new Date());
+  const ymd = toLocalYmd(new Date());
   const prevDay = qs.xpEarnedByDay?.[ymd] ?? 0;
   const merged = { ...qs.xpEarnedByDay, [ymd]: prevDay + d };
   state.quests = {
@@ -404,7 +396,7 @@ export function getDailyOxQuizSolvedForToday(clientId: string): DailyOxQuizSolve
   const qs = normalizeQuestsSlice(loadState(clientId).quests);
   const s = qs.dailyOxQuizSolved;
   if (!s) return null;
-  const today = questDayYmd(new Date());
+  const today = toLocalYmd(new Date());
   if (s.dateYmd !== today) return null;
   return s;
 }
@@ -419,11 +411,11 @@ export function markDailyAnalyzeQuizDone(
 } {
   const state = loadState(clientId);
   const prev = normalizeQuestsSlice(state.quests);
-  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
+  const daily = ensureDailyForToday(prev, toLocalYmd(new Date()));
   if (daily.analyzeDone) {
     return { ...getStreakToastSnapshot(clientId), totalXp: getTotalXp(clientId) };
   }
-  const todayYmd = questDayYmd(new Date());
+  const todayYmd = toLocalYmd(new Date());
   let next = questAfterDailyQuizPassed(prev, new Date());
   if (solved && solved.dateYmd === todayYmd) {
     next = { ...next, dailyOxQuizSolved: solved };
@@ -441,7 +433,7 @@ export function tryAdvanceStreakIfAllQuestsDone(clientId: string): {
 } {
   const state = loadState(clientId);
   const slice = resolveQuestSlice(state);
-  const daily = ensureDailyForToday(slice, questDayYmd(new Date()));
+  const daily = ensureDailyForToday(slice, toLocalYmd(new Date()));
   const ymd = daily.dateYmd;
   if (!isDailyQuestPairComplete(daily, clientId, ymd)) {
     return getStreakToastSnapshot(clientId);
@@ -508,7 +500,7 @@ export function getXpWeekChartData(clientId: string): {
   let maxInWeek = 0;
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    const ymd = questDayYmd(d);
+    const ymd = toLocalYmd(d);
     const xp = Math.min(byDay[ymd] ?? 0, 99_999_999);
     weekTotal += xp;
     if (xp > maxInWeek) maxInWeek = xp;
@@ -530,7 +522,7 @@ export function markQuestAlternativeReceived(clientId: string): {
 } {
   const state = loadState(clientId);
   const prev = normalizeQuestsSlice(state.quests);
-  const daily = ensureDailyForToday(prev, questDayYmd(new Date()));
+  const daily = ensureDailyForToday(prev, toLocalYmd(new Date()));
   const already = daily.alternativeDone === true;
   state.quests = questAfterAlternative(prev, new Date());
   saveState(clientId, state);
@@ -540,22 +532,14 @@ export function markQuestAlternativeReceived(clientId: string): {
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
 
-export function markQuestCompareDone(
-  clientId: string,
-  dailyQuestProductMatch?: boolean,
-): {
+export function markQuestCompareDone(clientId: string): {
   displayCurrent: number;
   didIncrease: boolean;
 } {
   const state = loadState(clientId);
   const prev = normalizeQuestsSlice(state.quests);
   const scannedAtIso = new Date().toISOString();
-  state.quests = questAfterCompare(
-    prev,
-    new Date(),
-    dailyQuestProductMatch,
-    dailyQuestProductMatch === true ? scannedAtIso : undefined,
-  );
+  state.quests = questAfterCompare(prev, new Date(), scannedAtIso);
   saveState(clientId, state);
   return tryAdvanceStreakIfAllQuestsDone(clientId);
 }
@@ -637,7 +621,6 @@ export function addToHistory(
     normalizeQuestsSlice(state.quests),
     item.scannedAt,
     new Date(),
-    result.dailyQuestProductMatch === true,
   );
   saveState(clientId, state);
   const streak = tryAdvanceStreakIfAllQuestsDone(clientId);

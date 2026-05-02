@@ -1,3 +1,4 @@
+import { geminiGenerateContentUrl } from '@/lib/gemini-api';
 import {
   GEMINI_WATERFALL_ORDER,
   isGemini3FamilyModelId,
@@ -17,8 +18,7 @@ function cloneRequestBodyWithoutThinkingConfig(body: unknown): unknown {
 }
 
 function geminiGenerateUrl(modelId: string, apiKey: string): string {
-  const m = normalizeGeminiModelId(modelId);
-  return `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  return geminiGenerateContentUrl(normalizeGeminiModelId(modelId), apiKey);
 }
 
 export function shouldRetryGeminiWithFlashFallback(httpStatus: number, bodyText: string): boolean {

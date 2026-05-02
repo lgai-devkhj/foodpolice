@@ -4,7 +4,6 @@ import {
   type BmiTier,
   type PersonalizationInput,
 } from '@/lib/gemini-prompts';
-import { DAILY_QUEST_ANALYZE_LABELS } from '@/lib/daily-quests';
 import { computeBmiServer } from '@/lib/nutrition-daily';
 import { buildAnalysisResultFromGeminiObject } from '@/lib/gemini-product-from-json';
 import { parseGeminiModelObject } from '@/lib/parse-gemini-model-json';
@@ -21,9 +20,10 @@ import { fetchGeminiGenerateContentWithFlashFallback } from '@/lib/gemini-fetch-
 import {
   COMPARE_GEMINI_MODEL,
   COMPARE_MAX_OUTPUT_TOKENS,
-  isGemini3FamilyModelId,
+  gemini3ThinkingLevelForStructured,
 } from '@/lib/gemini-models';
 import { extractCompareProductPair } from '@/lib/compare-response-shape';
+import { readGeminiApiKeyFromEnv } from '@/lib/gemini-api';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -45,7 +45,6 @@ interface CompareBody {
     birthDate?: string | null;
     gender?: string | null;
   };
-  dailyQuestTarget?: string;
 }
 
 function profileToPersonalization(
@@ -89,7 +88,6 @@ export async function POST(request: NextRequest) {
       bNutritionImageBase64,
       bNutritionMimeType = 'image/jpeg',
       profile,
-      dailyQuestTarget,
     } = body;
     const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : '';
     if (!clientId || clientId.length < 8) {
@@ -99,11 +97,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const questTargetValid = (DAILY_QUEST_ANALYZE_LABELS as readonly string[]).includes(
-      String(dailyQuestTarget || '').trim(),
-    );
-    const questTargetForPrompt = questTargetValid ? String(dailyQuestTarget).trim() : null;
-
     if (!aRawImageBase64 || !aNutritionImageBase64 || !bRawImageBase64 || !bNutritionImageBase64) {
       return NextResponse.json(
         apiErrorBody('제품 A·B 각각 원재료·영양표 이미지가 필요해요.', 'NO_IMAGES'),
@@ -111,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const key = process.env.GEMINI_API_KEY;
+    const key = readGeminiApiKeyFromEnv();
     if (!key || key.length === 0) {
       return NextResponse.json(
         apiErrorBody('AI 키가 서버에 설정돼 있지 않아요. 관리자에게 문의해요.', 'NO_API_KEY'),
@@ -119,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), questTargetForPrompt);
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile));
 
     const generationBody = {
       contents: [
@@ -136,7 +129,7 @@ export async function POST(request: NextRequest) {
       generationConfig: generationConfigJsonMode({
         maxOutputTokens: COMPARE_MAX_OUTPUT_TOKENS,
         temperature: 0,
-        ...(isGemini3FamilyModelId(COMPARE_GEMINI_MODEL) ? { thinkingLevel: 'minimal' as const } : {}),
+        thinkingLevel: gemini3ThinkingLevelForStructured(COMPARE_GEMINI_MODEL),
       }),
     };
 
@@ -246,12 +239,8 @@ export async function POST(request: NextRequest) {
     let productA: AnalysisResult;
     let productB: AnalysisResult;
     try {
-      productA = buildAnalysisResultFromGeminiObject(rawA, {
-        dailyQuestProductMatch: false,
-      });
-      productB = buildAnalysisResultFromGeminiObject(rawB, {
-        dailyQuestProductMatch: false,
-      });
+      productA = buildAnalysisResultFromGeminiObject(rawA);
+      productB = buildAnalysisResultFromGeminiObject(rawB);
     } catch (buildErr) {
       if (process.env.NODE_ENV === 'development') {
         console.error('[api/compare] buildAnalysisResultFromGeminiObject', buildErr);
@@ -265,16 +254,12 @@ export async function POST(request: NextRequest) {
     const betterChoice = normalizeBetterChoice(parsed.betterChoice);
     const comparisonSummary = (parsed.comparisonSummary != null ? String(parsed.comparisonSummary) : '').trim();
     const recommendationLine = (parsed.recommendationLine != null ? String(parsed.recommendationLine) : '').trim();
-    const dailyQuestProductMatch =
-      questTargetValid && parsed.dailyQuestProductMatch === true;
-
     return NextResponse.json({
       productA,
       productB,
       betterChoice,
       comparisonSummary,
       recommendationLine,
-      dailyQuestProductMatch,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : '잠깐 문제가 생겼어요. 다시 시도해요.';
