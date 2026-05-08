@@ -68,6 +68,12 @@ function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
         : Number.NaN;
   if (Number.isFinite(num) && num >= 1 && num <= 4) {
     rec.novaGroup = Math.trunc(num);
+    if (Math.trunc(num) === 4) {
+      const sub = String(rec.novaSubgroup ?? '').trim().toUpperCase();
+      if (sub !== '4A' && sub !== '4B' && sub !== '4C') {
+        rec.novaSubgroup = '4B';
+      }
+    }
     return;
   }
 
@@ -84,6 +90,7 @@ function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
 
   // 실사용 안정성 우선: 모델이 누락해도 기본 Group 4로 보정해 502를 막아요.
   rec.novaGroup = 4;
+  rec.novaSubgroup = '4B';
 }
 
 function normalizeAnalysisRecordInPlace(rec: Record<string, unknown>): void {
@@ -162,8 +169,9 @@ function shouldRunOcrRecovery(rec: Record<string, unknown>, hasTwoImages: boolea
   const rawMaterials = String(rec.rawMaterials ?? '').trim();
   const rawTooShort = rawMaterials.length > 0 && rawMaterials.length < 20;
   const rawMissing = rawMaterials.length === 0;
-  const nutritionMissing = hasTwoImages && !hasMeaningfulNutrition(rec);
-  return rawMissing || rawTooShort || nutritionMissing;
+  // 지연을 줄이기 위해 복구 호출은 "원재료 인식 실패/불충분"일 때만 실행해요.
+  // 영양표만 비는 경우는 추가 호출 대신 플레이스홀더를 채워 UI 빈칸을 막아요.
+  return rawMissing || rawTooShort;
 }
 
 function buildOcrRecoveryPrompt(hasTwoImages: boolean): string {
@@ -197,6 +205,26 @@ function buildRawMaterialsOnlyRecoveryPrompt(): string {
       rawMaterials: '',
     }),
   ].join('\n');
+}
+
+function ensureNutritionPlaceholderInPlace(rec: Record<string, unknown>, hasTwoImages: boolean): void {
+  if (!hasTwoImages) return;
+  if (hasMeaningfulNutrition(rec)) return;
+  rec.nutrition = {
+    caloriesKcal: null,
+    sodiumMg: null,
+    carbsG: null,
+    sugarG: null,
+    proteinG: null,
+    fatG: null,
+    saturatedFatG: null,
+    transFatG: null,
+    cholesterolMg: null,
+    dietaryFiberG: null,
+    servingSizeText: '영양표 판독이 불안정해요. 다시 촬영하면 더 정확해져요.',
+    basisIsPerServing: null,
+    tableRows: [{ name: '영양표', amount: '판독 불가' }],
+  };
 }
 
 type AnalyzeBlocker = { message: string; code: string };
@@ -519,9 +547,18 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+    ensureNutritionPlaceholderInPlace(rec, hasTwoImages);
     const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
     if (blocker) {
-      return NextResponse.json(apiErrorBody(blocker.message, blocker.code), { status: 422 });
+      // 실사용 우선: 분석을 막지 않고 결과는 반환해요.
+      // 인식이 약한 경우에는 최소 필드를 채워 UI가 비지 않게 유지합니다.
+      if (String(rec.productName ?? '').trim().length === 0) rec.productName = '제품명을 확인 중이에요';
+      if (String(rec.rawMaterials ?? '').trim().length === 0) {
+        rec.rawMaterials = '원재료 인식이 불안정해요. 라벨을 더 가까이 촬영하면 정확도가 올라가요.';
+      }
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[api/analyze] blocker detected but continue:', blocker.code);
+      }
     }
     const conditionChecks = evaluateAnalysisGeminiConditions(rec);
     const fatalConditions = conditionChecks.filter(
