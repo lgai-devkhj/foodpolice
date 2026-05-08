@@ -20,6 +20,7 @@ export const maxDuration = 60;
 /** 본문 전체 문자 수 상한 (메타데이터만 오므로 과도한 페이로드 차단). */
 const ALTERNATIVES_MAX_BODY_CHARS = 300_000;
 const MIN_CLIENT_ID_LEN = 8;
+const ENABLE_ENGINE_FALLBACK = process.env.ALTERNATIVES_ENGINE_FALLBACK === '1';
 
 export type AlternativeUnavailableReason = 'NO_SEARCH_KEY' | 'FETCH_FAILED' | 'NO_MATCH';
 
@@ -63,6 +64,7 @@ function bodyToInput(body: AlternativesBody): RecommendationEngineInput {
 }
 
 function engineFallbackResponse(input: RecommendationEngineInput) {
+  if (!ENABLE_ENGINE_FALLBACK) return null;
   const inferredFoodType = inferFoodType(input);
   const recs = runRecommendationPipeline(input);
   if (recs.length === 0) return null;
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     if (!payloadJson) {
       const recs = runRecommendationPipeline(input);
-      if (recs.length > 0) {
+      if (ENABLE_ENGINE_FALLBACK && recs.length > 0) {
         const root = engineRecommendationsToAlternativeJson(input, recs);
         payloadJson = JSON.stringify(root);
         engineFallback = true;
