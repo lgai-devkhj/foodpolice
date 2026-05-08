@@ -67,61 +67,6 @@ function normalizeBetterChoice(v: unknown): 'A' | 'B' | 'similar' {
   return 'similar';
 }
 
-function buildCompareShapeRepairPrompt(basePrompt: string): string {
-  return [
-    basePrompt,
-    '',
-    '[형식 복구 - 매우 중요]',
-    '- 반드시 JSON 객체 하나만 출력해요.',
-    '- 최상위 키는 productA, productB, betterChoice, comparisonSummary, recommendationLine만 사용해요.',
-    '- productA와 productB는 단일 분석 스키마 필드를 그대로 포함해요.',
-    '- A/B, items, products, data, result 같은 대체 키는 사용하지 않아요.',
-    '- 마크다운, 코드블록, 설명 문장은 금지예요.',
-  ].join('\n');
-}
-
-type CompareBlocker = { message: string; code: string };
-
-function detectCompareBlockers(pair: {
-  productA: Record<string, unknown>;
-  productB: Record<string, unknown>;
-}): CompareBlocker | null {
-  const checkOne = (label: 'A' | 'B', rec: Record<string, unknown>): CompareBlocker | null => {
-    const rawMaterials = String(rec.rawMaterials ?? '').trim();
-    const productName = String(rec.productName ?? '').trim();
-    const companyName = String(rec.companyName ?? '').trim();
-
-    if (!rawMaterials) {
-      return {
-        message: `제품 ${label}의 원재료명이 잘 보이게 다시 촬영해주세요. 원재료표 전체가 선명해야 해요.`,
-        code: `RAW_MATERIALS_UNREADABLE_${label}`,
-      };
-    }
-
-    if (!productName && !companyName && rawMaterials.length < 6) {
-      return {
-        message: `제품 ${label} 라벨 글자가 흐려요. 제품명과 원재료가 함께 보이게 다시 촬영해주세요.`,
-        code: `LABEL_TEXT_UNREADABLE_${label}`,
-      };
-    }
-
-    // 영양표 누락은 오탐 가능성이 커서 비교 자체는 계속 진행해요.
-    // (원재료/라벨 판독 불가만 차단)
-
-    return null;
-  };
-
-  return checkOne('A', pair.productA) ?? checkOne('B', pair.productB);
-}
-
-function safeBuildAnalysisResult(rec: Record<string, unknown>): AnalysisResult {
-  try {
-    return buildAnalysisResultFromGeminiObject(rec);
-  } catch {
-    return buildAnalysisResultFromGeminiObject({});
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     let body: CompareBody;
@@ -279,52 +224,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let pair = extractCompareProductPair(parsed as Record<string, unknown>);
-    let parsedForOutput = parsed as Record<string, unknown>;
-    if (!pair) {
-      const repairPrompt = buildCompareShapeRepairPrompt(prompt);
-      const repairBody = {
-        contents: [
-          {
-            parts: [
-              inlineDataPart(aRawMimeType, aRawImageBase64),
-              inlineDataPart(aNutritionMimeType, aNutritionImageBase64),
-              inlineDataPart(bRawMimeType, bRawImageBase64),
-              inlineDataPart(bNutritionMimeType, bNutritionImageBase64),
-              textPart(repairPrompt),
-            ],
-          },
-        ],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: COMPARE_MAX_OUTPUT_TOKENS,
-          temperature: 0,
-          thinkingLevel: gemini3ThinkingLevelForStructured(COMPARE_GEMINI_MODEL),
-        }),
-      };
-      const repairedUpstream = await fetchGeminiGenerateContentWithFlashFallback(
-        COMPARE_GEMINI_MODEL,
-        key,
-        repairBody,
-        'api/compare:shape-repair',
-      );
-      if (repairedUpstream.ok) {
-        try {
-          const repairedEnvelope = JSON.parse(repairedUpstream.text) as Record<string, unknown>;
-          if (hasGeminiCandidates(repairedEnvelope)) {
-            const repairedText = getGeminiCandidateText(repairedEnvelope);
-            if (repairedText && typeof repairedText === 'string') {
-              const repairedParsed = parseGeminiModelObject(repairedText);
-              if (repairedParsed) {
-                pair = extractCompareProductPair(repairedParsed as Record<string, unknown>);
-                parsedForOutput = repairedParsed as Record<string, unknown>;
-              }
-            }
-          }
-        } catch {
-          // 복구 재시도도 파싱 실패하면 기존 에러 흐름으로 내려가요.
-        }
-      }
-    }
+    const pair = extractCompareProductPair(parsed as Record<string, unknown>);
     if (!pair) {
       return NextResponse.json(
         apiErrorBody(
@@ -335,17 +235,24 @@ export async function POST(request: NextRequest) {
       );
     }
     const { productA: rawA, productB: rawB } = pair;
-    const blocker = detectCompareBlockers({ productA: rawA, productB: rawB });
-    if (blocker) {
-      return NextResponse.json(apiErrorBody(blocker.message, blocker.code), { status: 422 });
+    let productA: AnalysisResult;
+    let productB: AnalysisResult;
+    try {
+      productA = buildAnalysisResultFromGeminiObject(rawA);
+      productB = buildAnalysisResultFromGeminiObject(rawB);
+    } catch (buildErr) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[api/compare] buildAnalysisResultFromGeminiObject', buildErr);
+      }
+      return NextResponse.json(
+        apiErrorBody('비교 결과를 가공하는 데 실패했어요. 다시 시도해요.', 'BUILD_RESULT'),
+        { status: 500 }
+      );
     }
 
-    const productA = safeBuildAnalysisResult(rawA);
-    const productB = safeBuildAnalysisResult(rawB);
-
-    const betterChoice = normalizeBetterChoice(parsedForOutput.betterChoice);
-    const comparisonSummary = (parsedForOutput.comparisonSummary != null ? String(parsedForOutput.comparisonSummary) : '').trim();
-    const recommendationLine = (parsedForOutput.recommendationLine != null ? String(parsedForOutput.recommendationLine) : '').trim();
+    const betterChoice = normalizeBetterChoice(parsed.betterChoice);
+    const comparisonSummary = (parsed.comparisonSummary != null ? String(parsed.comparisonSummary) : '').trim();
+    const recommendationLine = (parsed.recommendationLine != null ? String(parsed.recommendationLine) : '').trim();
     return NextResponse.json({
       productA,
       productB,

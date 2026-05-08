@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getFoodPoliceSystemPolicyPrompt,
   getPackageAnalyzeUserTurn,
-  getSingleProductJsonSchemaExample,
   getTwoImageAnalyzeUserTurn,
   type BmiTier,
   type PersonalizationInput,
@@ -68,12 +67,6 @@ function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
         : Number.NaN;
   if (Number.isFinite(num) && num >= 1 && num <= 4) {
     rec.novaGroup = Math.trunc(num);
-    if (Math.trunc(num) === 4) {
-      const sub = String(rec.novaSubgroup ?? '').trim().toUpperCase();
-      if (sub !== '4A' && sub !== '4B' && sub !== '4C') {
-        rec.novaSubgroup = '4B';
-      }
-    }
     return;
   }
 
@@ -87,10 +80,6 @@ function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
     rec.novaSubgroup = subgroup;
     return;
   }
-
-  // 실사용 안정성 우선: 모델이 누락해도 기본 Group 4로 보정해 502를 막아요.
-  rec.novaGroup = 4;
-  rec.novaSubgroup = '4B';
 }
 
 function normalizeAnalysisRecordInPlace(rec: Record<string, unknown>): void {
@@ -125,106 +114,6 @@ function normalizeAnalysisRecordInPlace(rec: Record<string, unknown>): void {
       if (o.rawMaterials != null) rec.rawMaterials = o.rawMaterials;
     }
   }
-}
-
-function buildAnalyzeShapeRepairText(hasTwoImages: boolean): string {
-  const modeHint = hasTwoImages
-    ? '입력은 1) 원재료/제품표시 2) 영양표 이미지 순서예요.'
-    : '입력은 단일 라벨 이미지예요.';
-  return [
-    '[형식 복구 - 매우 중요]',
-    '- 반드시 JSON 객체 하나만 출력해요.',
-    '- 키는 스키마와 동일하게 사용해요.',
-    '- 마크다운, 코드블록, 설명 문장은 금지예요.',
-    modeHint,
-    '[JSON 스키마]',
-    getSingleProductJsonSchemaExample(),
-  ].join('\n');
-}
-
-function hasMeaningfulNutrition(rec: Record<string, unknown>): boolean {
-  const nutrition = rec.nutrition;
-  const o =
-    nutrition && typeof nutrition === 'object' && !Array.isArray(nutrition)
-      ? (nutrition as Record<string, unknown>)
-      : null;
-  if (!o) return false;
-  const hasNumbers = [
-    'caloriesKcal',
-    'sodiumMg',
-    'carbsG',
-    'sugarG',
-    'proteinG',
-    'fatG',
-    'saturatedFatG',
-    'transFatG',
-    'cholesterolMg',
-    'dietaryFiberG',
-  ].some((k) => o[k] != null && String(o[k]).trim() !== '');
-  const rows = Array.isArray(o.tableRows) ? o.tableRows : [];
-  return hasNumbers || rows.length > 0;
-}
-
-function shouldRunOcrRecovery(rec: Record<string, unknown>, hasTwoImages: boolean): boolean {
-  const rawMaterials = String(rec.rawMaterials ?? '').trim();
-  const rawTooShort = rawMaterials.length > 0 && rawMaterials.length < 20;
-  const rawMissing = rawMaterials.length === 0;
-  // 지연을 줄이기 위해 복구 호출은 "원재료 인식 실패/불충분"일 때만 실행해요.
-  // 영양표만 비는 경우는 추가 호출 대신 플레이스홀더를 채워 UI 빈칸을 막아요.
-  return rawMissing || rawTooShort;
-}
-
-function buildOcrRecoveryPrompt(hasTwoImages: boolean): string {
-  return [
-    '[OCR 복구 추출 - 매우 중요]',
-    hasTwoImages
-      ? '- 이미지 순서: 1) 원재료/제품표시 2) 영양정보 표'
-      : '- 이미지 1장에서 제품명/원재료/영양표를 최대한 정확히 읽어요.',
-    '- 반드시 JSON 객체 하나만 출력해요.',
-    '- 원재료명은 보이는 항목을 가능한 끝까지 이어서 추출해요. 앞 일부만 잘라 쓰지 않아요.',
-    '- 쉼표로 구분된 원재료는 중간에서 임의로 끊지 않아요.',
-    '- 영양표가 보이면 nutrition 숫자와 tableRows를 채워요.',
-    '- 안 보이는 항목만 null/빈값으로 두고, 보이는 항목은 최대한 채워요.',
-    '- 마크다운, 코드블록, 설명 문장은 금지예요.',
-    '[JSON 스키마]',
-    getSingleProductJsonSchemaExample(),
-  ].join('\n');
-}
-
-function buildRawMaterialsOnlyRecoveryPrompt(): string {
-  return [
-    '[원재료 OCR 복구 - 최우선]',
-    '- 입력 이미지는 원재료/제품표시 라벨이에요.',
-    '- rawMaterials를 가능한 끝까지 정확히 읽어 한 줄 문자열로 출력해요.',
-    '- productName, companyName도 보이면 같이 채워요.',
-    '- 다른 설명 문장 없이 JSON 하나만 출력해요.',
-    '[JSON 출력]',
-    JSON.stringify({
-      productName: '',
-      companyName: '',
-      rawMaterials: '',
-    }),
-  ].join('\n');
-}
-
-function ensureNutritionPlaceholderInPlace(rec: Record<string, unknown>, hasTwoImages: boolean): void {
-  if (!hasTwoImages) return;
-  if (hasMeaningfulNutrition(rec)) return;
-  rec.nutrition = {
-    caloriesKcal: null,
-    sodiumMg: null,
-    carbsG: null,
-    sugarG: null,
-    proteinG: null,
-    fatG: null,
-    saturatedFatG: null,
-    transFatG: null,
-    cholesterolMg: null,
-    dietaryFiberG: null,
-    servingSizeText: '영양표 판독이 불안정해요. 다시 촬영하면 더 정확해져요.',
-    basisIsPerServing: null,
-    tableRows: [{ name: '영양표', amount: '판독 불가' }],
-  };
 }
 
 type AnalyzeBlocker = { message: string; code: string };
@@ -396,166 +285,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let parsed = parseGeminiModelObject(partText);
+    const parsed = parseGeminiModelObject(partText);
     if (!parsed || typeof parsed !== 'object') {
-      const repairText = buildAnalyzeShapeRepairText(hasTwoImages);
-      const repairParts = hasTwoImages
-        ? [
-            inlineDataPart(rawMimeType, rawImageBase64 || ''),
-            inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
-            textPart(repairText),
-          ]
-        : [inlineDataPart(mimeType, imageBase64 || ''), textPart(repairText)];
-      const repairBody = {
-        systemInstruction: { parts: [textPart(systemPolicy)] },
-        contents: [{ parts: repairParts }],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-          temperature: 0,
-          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
-        }),
-      };
-      const repaired = await fetchGeminiGenerateContentWithFlashFallback(
-        ANALYSIS_GEMINI_MODEL,
-        key,
-        repairBody,
-        'api/analyze:shape-repair',
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[api/analyze] RESULT_JSON raw head:', partText.slice(0, 2500));
+      }
+      return NextResponse.json(
+        apiErrorBody('결과 형식을 정리하지 못했어요. 라벨이 선명한 사진으로 다시 시도해요.', 'RESULT_JSON'),
+        { status: 500 },
       );
-      if (repaired.ok) {
-        try {
-          const repairedEnvelope = JSON.parse(repaired.text) as Record<string, unknown>;
-          if (hasGeminiCandidates(repairedEnvelope)) {
-            const repairedText = getGeminiCandidateText(repairedEnvelope);
-            if (repairedText && typeof repairedText === 'string') {
-              parsed = parseGeminiModelObject(repairedText);
-            }
-          }
-        } catch {
-          // ignore and fallback to original failure
-        }
-      }
-      if (!parsed || typeof parsed !== 'object') {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[api/analyze] RESULT_JSON raw head:', partText.slice(0, 2500));
-        }
-        return NextResponse.json(
-          apiErrorBody('결과 형식을 정리하지 못했어요. 라벨이 선명한 사진으로 다시 시도해요.', 'RESULT_JSON'),
-          { status: 500 },
-        );
-      }
     }
 
     const rec = parsed as Record<string, unknown>;
     normalizeAnalysisRecordInPlace(rec);
     coerceNovaGroupInPlace(rec);
-    if (shouldRunOcrRecovery(rec, hasTwoImages)) {
-      const recoveryPrompt = buildOcrRecoveryPrompt(hasTwoImages);
-      const recoveryParts = hasTwoImages
-        ? [
-            inlineDataPart(rawMimeType, rawImageBase64 || ''),
-            inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
-            textPart(recoveryPrompt),
-          ]
-        : [inlineDataPart(mimeType, imageBase64 || ''), textPart(recoveryPrompt)];
-      const recoveryBody = {
-        systemInstruction: { parts: [textPart(systemPolicy)] },
-        contents: [{ parts: recoveryParts }],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
-          temperature: 0,
-          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
-        }),
-      };
-      const recoveredUpstream = await fetchGeminiGenerateContentWithFlashFallback(
-        ANALYSIS_GEMINI_MODEL,
-        key,
-        recoveryBody,
-        'api/analyze:ocr-recovery',
-      );
-      if (recoveredUpstream.ok) {
-        try {
-          const recoveredEnvelope = JSON.parse(recoveredUpstream.text) as Record<string, unknown>;
-          if (hasGeminiCandidates(recoveredEnvelope)) {
-            const recoveredText = getGeminiCandidateText(recoveredEnvelope);
-            if (recoveredText && typeof recoveredText === 'string') {
-              const recoveredObj = parseGeminiModelObject(recoveredText);
-              if (recoveredObj && typeof recoveredObj === 'object') {
-                const r = recoveredObj as Record<string, unknown>;
-                normalizeAnalysisRecordInPlace(r);
-                if (String(r.rawMaterials ?? '').trim().length >= String(rec.rawMaterials ?? '').trim().length) {
-                  rec.rawMaterials = r.rawMaterials;
-                }
-                if (String(r.productName ?? '').trim().length > String(rec.productName ?? '').trim().length) {
-                  rec.productName = r.productName;
-                }
-                if (!hasMeaningfulNutrition(rec) && hasMeaningfulNutrition(r)) {
-                  rec.nutrition = r.nutrition;
-                }
-              }
-            }
-          }
-        } catch {
-          // 복구 실패 시 기존 rec로 계속 진행해요.
-        }
-      }
-    }
-    const recRaw = String(rec.rawMaterials ?? '').trim();
-    if (recRaw.length > 0 && recRaw.length < 28) {
-      const rawOnlyPrompt = buildRawMaterialsOnlyRecoveryPrompt();
-      const rawOnlyBody = {
-        systemInstruction: { parts: [textPart(systemPolicy)] },
-        contents: [{ parts: [inlineDataPart(hasTwoImages ? rawMimeType : mimeType, hasTwoImages ? (rawImageBase64 || '') : (imageBase64 || '')), textPart(rawOnlyPrompt)] }],
-        generationConfig: generationConfigJsonMode({
-          maxOutputTokens: 800,
-          temperature: 0,
-          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
-        }),
-      };
-      const rawRecovered = await fetchGeminiGenerateContentWithFlashFallback(
-        ANALYSIS_GEMINI_MODEL,
-        key,
-        rawOnlyBody,
-        'api/analyze:raw-materials-recovery',
-      );
-      if (rawRecovered.ok) {
-        try {
-          const rawEnvelope = JSON.parse(rawRecovered.text) as Record<string, unknown>;
-          if (hasGeminiCandidates(rawEnvelope)) {
-            const rawText = getGeminiCandidateText(rawEnvelope);
-            if (rawText && typeof rawText === 'string') {
-              const rawObj = parseGeminiModelObject(rawText);
-              if (rawObj && typeof rawObj === 'object') {
-                const r = rawObj as Record<string, unknown>;
-                normalizeAnalysisRecordInPlace(r);
-                const newRaw = String(r.rawMaterials ?? '').trim();
-                if (newRaw.length > recRaw.length + 8) {
-                  rec.rawMaterials = newRaw;
-                }
-                const newName = String(r.productName ?? '').trim();
-                if (newName.length > String(rec.productName ?? '').trim().length) {
-                  rec.productName = newName;
-                }
-                const newCompany = String(r.companyName ?? '').trim();
-                if (newCompany.length > String(rec.companyName ?? '').trim().length) {
-                  rec.companyName = newCompany;
-                }
-              }
-            }
-          }
-        } catch {
-          // ignore recovery parsing failure
-        }
-      }
-    }
-    ensureNutritionPlaceholderInPlace(rec, hasTwoImages);
     const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
     if (blocker) {
-      // 실사용 우선: 분석을 막지 않고 결과는 반환해요.
-      // 인식이 약한 경우에는 최소 필드를 채워 UI가 비지 않게 유지합니다.
-      if (String(rec.productName ?? '').trim().length === 0) rec.productName = '제품명을 확인 중이에요';
-      if (String(rec.rawMaterials ?? '').trim().length === 0) {
-        rec.rawMaterials = '원재료 인식이 불안정해요. 라벨을 더 가까이 촬영하면 정확도가 올라가요.';
-      }
+      // 결과 데이터 필드(productName/rawMaterials)에 안내 문구를 주입하지 않아요.
+      // 사용자 안내는 에러/경고 채널에서만 처리합니다.
       if (process.env.NODE_ENV === 'development') {
         console.warn('[api/analyze] blocker detected but continue:', blocker.code);
       }
