@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getFoodPoliceSystemPolicyPrompt,
   getPackageAnalyzeUserTurn,
+  getSingleProductJsonSchemaExample,
   getTwoImageAnalyzeUserTurn,
   type BmiTier,
   type PersonalizationInput,
@@ -83,6 +84,55 @@ function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
 
   // 실사용 안정성 우선: 모델이 누락해도 기본 Group 4로 보정해 502를 막아요.
   rec.novaGroup = 4;
+}
+
+function normalizeAnalysisRecordInPlace(rec: Record<string, unknown>): void {
+  const aliasMap: Array<[string, string]> = [
+    ['product_name', 'productName'],
+    ['name', 'productName'],
+    ['company', 'companyName'],
+    ['brand', 'companyName'],
+    ['company_name', 'companyName'],
+    ['raw_materials', 'rawMaterials'],
+    ['ingredients', 'rawMaterials'],
+    ['ingredientList', 'rawMaterials'],
+    ['nova_group', 'novaGroup'],
+    ['group', 'novaGroup'],
+    ['nova_subgroup', 'novaSubgroup'],
+    ['subgroup', 'novaSubgroup'],
+    ['brief_description', 'briefDescription'],
+    ['consumption_advice', 'consumptionAdvice'],
+    ['food_category', 'foodCategory'],
+    ['nutritionInfo', 'nutrition'],
+  ];
+  for (const [from, to] of aliasMap) {
+    if (rec[to] == null && rec[from] != null) rec[to] = rec[from];
+  }
+
+  if (Array.isArray(rec.products) && rec.products.length > 0 && rec.productName == null) {
+    const p0 = rec.products[0];
+    if (p0 && typeof p0 === 'object' && !Array.isArray(p0)) {
+      const o = p0 as Record<string, unknown>;
+      if (o.productName != null) rec.productName = o.productName;
+      if (o.companyName != null) rec.companyName = o.companyName;
+      if (o.rawMaterials != null) rec.rawMaterials = o.rawMaterials;
+    }
+  }
+}
+
+function buildAnalyzeShapeRepairText(hasTwoImages: boolean): string {
+  const modeHint = hasTwoImages
+    ? '입력은 1) 원재료/제품표시 2) 영양표 이미지 순서예요.'
+    : '입력은 단일 라벨 이미지예요.';
+  return [
+    '[형식 복구 - 매우 중요]',
+    '- 반드시 JSON 객체 하나만 출력해요.',
+    '- 키는 스키마와 동일하게 사용해요.',
+    '- 마크다운, 코드블록, 설명 문장은 금지예요.',
+    modeHint,
+    '[JSON 스키마]',
+    getSingleProductJsonSchemaExample(),
+  ].join('\n');
 }
 
 type AnalyzeBlocker = { message: string; code: string };
@@ -281,18 +331,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parsed = parseGeminiModelObject(partText);
+    let parsed = parseGeminiModelObject(partText);
     if (!parsed || typeof parsed !== 'object') {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[api/analyze] RESULT_JSON raw head:', partText.slice(0, 2500));
-      }
-      return NextResponse.json(
-        apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러요.', 'RESULT_JSON'),
-        { status: 500 },
+      const repairText = buildAnalyzeShapeRepairText(hasTwoImages);
+      const repairParts = hasTwoImages
+        ? [
+            inlineDataPart(rawMimeType, rawImageBase64 || ''),
+            inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
+            textPart(repairText),
+          ]
+        : [inlineDataPart(mimeType, imageBase64 || ''), textPart(repairText)];
+      const repairBody = {
+        systemInstruction: { parts: [textPart(systemPolicy)] },
+        contents: [{ parts: repairParts }],
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
+        }),
+      };
+      const repaired = await fetchGeminiGenerateContentWithFlashFallback(
+        ANALYSIS_GEMINI_MODEL,
+        key,
+        repairBody,
+        'api/analyze:shape-repair',
       );
+      if (repaired.ok) {
+        try {
+          const repairedEnvelope = JSON.parse(repaired.text) as Record<string, unknown>;
+          if (hasGeminiCandidates(repairedEnvelope)) {
+            const repairedText = getGeminiCandidateText(repairedEnvelope);
+            if (repairedText && typeof repairedText === 'string') {
+              parsed = parseGeminiModelObject(repairedText);
+            }
+          }
+        } catch {
+          // ignore and fallback to original failure
+        }
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[api/analyze] RESULT_JSON raw head:', partText.slice(0, 2500));
+        }
+        return NextResponse.json(
+          apiErrorBody('결과 형식을 정리하지 못했어요. 라벨이 선명한 사진으로 다시 시도해요.', 'RESULT_JSON'),
+          { status: 500 },
+        );
+      }
     }
 
     const rec = parsed as Record<string, unknown>;
+    normalizeAnalysisRecordInPlace(rec);
     coerceNovaGroupInPlace(rec);
     const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
     if (blocker) {
