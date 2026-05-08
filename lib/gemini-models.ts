@@ -16,13 +16,13 @@ function modelFromEnv(envName: string, fallback: string): string {
 }
 
 export const GEMINI_WATERFALL_ORDER: readonly string[] = [
-  'gemini-2-flash',
-  'gemini-2.5-flash-lite',
+  'gemini-3.1-flash-lite',
   'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
 ];
 
-// 404(모델 미지원) 빈도를 줄이기 위해 기본 모델을 안정 버전으로 둡니다.
-export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-2-flash';
+// OCR 품질을 위해 기본 모델은 2.5-lite, 미지원 시 워터폴로 하향합니다.
+export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-3.1-flash-lite';
 
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',

@@ -135,6 +135,70 @@ function buildAnalyzeShapeRepairText(hasTwoImages: boolean): string {
   ].join('\n');
 }
 
+function hasMeaningfulNutrition(rec: Record<string, unknown>): boolean {
+  const nutrition = rec.nutrition;
+  const o =
+    nutrition && typeof nutrition === 'object' && !Array.isArray(nutrition)
+      ? (nutrition as Record<string, unknown>)
+      : null;
+  if (!o) return false;
+  const hasNumbers = [
+    'caloriesKcal',
+    'sodiumMg',
+    'carbsG',
+    'sugarG',
+    'proteinG',
+    'fatG',
+    'saturatedFatG',
+    'transFatG',
+    'cholesterolMg',
+    'dietaryFiberG',
+  ].some((k) => o[k] != null && String(o[k]).trim() !== '');
+  const rows = Array.isArray(o.tableRows) ? o.tableRows : [];
+  return hasNumbers || rows.length > 0;
+}
+
+function shouldRunOcrRecovery(rec: Record<string, unknown>, hasTwoImages: boolean): boolean {
+  const rawMaterials = String(rec.rawMaterials ?? '').trim();
+  const rawTooShort = rawMaterials.length > 0 && rawMaterials.length < 20;
+  const rawMissing = rawMaterials.length === 0;
+  const nutritionMissing = hasTwoImages && !hasMeaningfulNutrition(rec);
+  return rawMissing || rawTooShort || nutritionMissing;
+}
+
+function buildOcrRecoveryPrompt(hasTwoImages: boolean): string {
+  return [
+    '[OCR 복구 추출 - 매우 중요]',
+    hasTwoImages
+      ? '- 이미지 순서: 1) 원재료/제품표시 2) 영양정보 표'
+      : '- 이미지 1장에서 제품명/원재료/영양표를 최대한 정확히 읽어요.',
+    '- 반드시 JSON 객체 하나만 출력해요.',
+    '- 원재료명은 보이는 항목을 가능한 끝까지 이어서 추출해요. 앞 일부만 잘라 쓰지 않아요.',
+    '- 쉼표로 구분된 원재료는 중간에서 임의로 끊지 않아요.',
+    '- 영양표가 보이면 nutrition 숫자와 tableRows를 채워요.',
+    '- 안 보이는 항목만 null/빈값으로 두고, 보이는 항목은 최대한 채워요.',
+    '- 마크다운, 코드블록, 설명 문장은 금지예요.',
+    '[JSON 스키마]',
+    getSingleProductJsonSchemaExample(),
+  ].join('\n');
+}
+
+function buildRawMaterialsOnlyRecoveryPrompt(): string {
+  return [
+    '[원재료 OCR 복구 - 최우선]',
+    '- 입력 이미지는 원재료/제품표시 라벨이에요.',
+    '- rawMaterials를 가능한 끝까지 정확히 읽어 한 줄 문자열로 출력해요.',
+    '- productName, companyName도 보이면 같이 채워요.',
+    '- 다른 설명 문장 없이 JSON 하나만 출력해요.',
+    '[JSON 출력]',
+    JSON.stringify({
+      productName: '',
+      companyName: '',
+      rawMaterials: '',
+    }),
+  ].join('\n');
+}
+
 type AnalyzeBlocker = { message: string; code: string };
 
 function detectAnalyzeBlocker(rec: Record<string, unknown>, hasTwoImages: boolean): AnalyzeBlocker | null {
@@ -356,6 +420,105 @@ export async function POST(request: NextRequest) {
     const rec = parsed as Record<string, unknown>;
     normalizeAnalysisRecordInPlace(rec);
     coerceNovaGroupInPlace(rec);
+    if (shouldRunOcrRecovery(rec, hasTwoImages)) {
+      const recoveryPrompt = buildOcrRecoveryPrompt(hasTwoImages);
+      const recoveryParts = hasTwoImages
+        ? [
+            inlineDataPart(rawMimeType, rawImageBase64 || ''),
+            inlineDataPart(nutritionMimeType, nutritionImageBase64 || ''),
+            textPart(recoveryPrompt),
+          ]
+        : [inlineDataPart(mimeType, imageBase64 || ''), textPart(recoveryPrompt)];
+      const recoveryBody = {
+        systemInstruction: { parts: [textPart(systemPolicy)] },
+        contents: [{ parts: recoveryParts }],
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: ANALYSIS_MAX_OUTPUT_TOKENS,
+          temperature: 0,
+          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
+        }),
+      };
+      const recoveredUpstream = await fetchGeminiGenerateContentWithFlashFallback(
+        ANALYSIS_GEMINI_MODEL,
+        key,
+        recoveryBody,
+        'api/analyze:ocr-recovery',
+      );
+      if (recoveredUpstream.ok) {
+        try {
+          const recoveredEnvelope = JSON.parse(recoveredUpstream.text) as Record<string, unknown>;
+          if (hasGeminiCandidates(recoveredEnvelope)) {
+            const recoveredText = getGeminiCandidateText(recoveredEnvelope);
+            if (recoveredText && typeof recoveredText === 'string') {
+              const recoveredObj = parseGeminiModelObject(recoveredText);
+              if (recoveredObj && typeof recoveredObj === 'object') {
+                const r = recoveredObj as Record<string, unknown>;
+                normalizeAnalysisRecordInPlace(r);
+                if (String(r.rawMaterials ?? '').trim().length >= String(rec.rawMaterials ?? '').trim().length) {
+                  rec.rawMaterials = r.rawMaterials;
+                }
+                if (String(r.productName ?? '').trim().length > String(rec.productName ?? '').trim().length) {
+                  rec.productName = r.productName;
+                }
+                if (!hasMeaningfulNutrition(rec) && hasMeaningfulNutrition(r)) {
+                  rec.nutrition = r.nutrition;
+                }
+              }
+            }
+          }
+        } catch {
+          // 복구 실패 시 기존 rec로 계속 진행해요.
+        }
+      }
+    }
+    const recRaw = String(rec.rawMaterials ?? '').trim();
+    if (recRaw.length > 0 && recRaw.length < 28) {
+      const rawOnlyPrompt = buildRawMaterialsOnlyRecoveryPrompt();
+      const rawOnlyBody = {
+        systemInstruction: { parts: [textPart(systemPolicy)] },
+        contents: [{ parts: [inlineDataPart(hasTwoImages ? rawMimeType : mimeType, hasTwoImages ? (rawImageBase64 || '') : (imageBase64 || '')), textPart(rawOnlyPrompt)] }],
+        generationConfig: generationConfigJsonMode({
+          maxOutputTokens: 800,
+          temperature: 0,
+          thinkingLevel: gemini3ThinkingLevelForStructured(ANALYSIS_GEMINI_MODEL),
+        }),
+      };
+      const rawRecovered = await fetchGeminiGenerateContentWithFlashFallback(
+        ANALYSIS_GEMINI_MODEL,
+        key,
+        rawOnlyBody,
+        'api/analyze:raw-materials-recovery',
+      );
+      if (rawRecovered.ok) {
+        try {
+          const rawEnvelope = JSON.parse(rawRecovered.text) as Record<string, unknown>;
+          if (hasGeminiCandidates(rawEnvelope)) {
+            const rawText = getGeminiCandidateText(rawEnvelope);
+            if (rawText && typeof rawText === 'string') {
+              const rawObj = parseGeminiModelObject(rawText);
+              if (rawObj && typeof rawObj === 'object') {
+                const r = rawObj as Record<string, unknown>;
+                normalizeAnalysisRecordInPlace(r);
+                const newRaw = String(r.rawMaterials ?? '').trim();
+                if (newRaw.length > recRaw.length + 8) {
+                  rec.rawMaterials = newRaw;
+                }
+                const newName = String(r.productName ?? '').trim();
+                if (newName.length > String(rec.productName ?? '').trim().length) {
+                  rec.productName = newName;
+                }
+                const newCompany = String(r.companyName ?? '').trim();
+                if (newCompany.length > String(rec.companyName ?? '').trim().length) {
+                  rec.companyName = newCompany;
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore recovery parsing failure
+        }
+      }
+    }
     const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
     if (blocker) {
       return NextResponse.json(apiErrorBody(blocker.message, blocker.code), { status: 422 });
