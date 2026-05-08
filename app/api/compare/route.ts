@@ -67,6 +67,34 @@ function normalizeBetterChoice(v: unknown): 'A' | 'B' | 'similar' {
   return 'similar';
 }
 
+function compactName(v: string | null | undefined): string {
+  return String(v || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9가-힣]/gi, '')
+    .trim();
+}
+
+function looksDuplicatedCompareNameButDifferentProduct(a: AnalysisResult, b: AnalysisResult): boolean {
+  const an = compactName(a.product?.productName);
+  const bn = compactName(b.product?.productName);
+  if (!an || !bn || an !== bn) return false;
+
+  const rawA = compactName(a.product?.rawMaterials || '');
+  const rawB = compactName(b.product?.rawMaterials || '');
+  const rawClearlyDifferent = !!rawA && !!rawB && rawA !== rawB;
+
+  const na = a.nutrition;
+  const nb = b.nutrition;
+  const nutritionClearlyDifferent =
+    (na?.caloriesKcal ?? null) !== (nb?.caloriesKcal ?? null) ||
+    (na?.sugarG ?? null) !== (nb?.sugarG ?? null) ||
+    (na?.sodiumMg ?? null) !== (nb?.sodiumMg ?? null) ||
+    (na?.fatG ?? null) !== (nb?.fatG ?? null);
+
+  return rawClearlyDifferent || nutritionClearlyDifferent;
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: CompareBody;
@@ -249,6 +277,16 @@ export async function POST(request: NextRequest) {
         apiErrorBody('비교 결과를 가공하는 데 실패했어요. 다시 시도해요.', 'BUILD_RESULT'),
         { status: 500 }
       );
+    }
+
+    if (looksDuplicatedCompareNameButDifferentProduct(productA, productB)) {
+      productB = {
+        ...productB,
+        product: {
+          ...productB.product,
+          productName: '',
+        },
+      };
     }
 
     const betterChoice = normalizeBetterChoice(parsed.betterChoice);
