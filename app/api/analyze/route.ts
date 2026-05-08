@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     const personalization = profileToPersonalization(profile);
-    const systemPolicy = getFoodPoliceSystemPolicyPrompt('fast');
+    const systemPolicy = getFoodPoliceSystemPolicyPrompt('standard');
     const userTurnText = hasTwoImages
       ? getTwoImageAnalyzeUserTurn(personalization)
       : getPackageAnalyzeUserTurn(personalization);

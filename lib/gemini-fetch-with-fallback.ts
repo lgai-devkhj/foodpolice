@@ -91,9 +91,9 @@ const MAX_OVERLOAD_ROUNDS = (() => {
 
 const GEMINI_REQUEST_TIMEOUT_MS = (() => {
   const raw = process.env.GEMINI_REQUEST_TIMEOUT_MS;
-  if (raw == null || String(raw).trim() === '') return 8000;
+  if (raw == null || String(raw).trim() === '') return 10000;
   const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n)) return 8000;
+  if (!Number.isFinite(n)) return 10000;
   return Math.min(30_000, Math.max(3000, n));
 })();
 

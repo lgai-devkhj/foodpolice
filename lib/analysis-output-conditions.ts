@@ -23,11 +23,11 @@ export function evaluateAnalysisGeminiConditions(rec: Record<string, unknown>): 
   const out: AnalysisConditionViolation[] = [];
 
   const ng = novaGroupNum(rec.novaGroup);
-  if (rec.novaGroup != null && (ng == null || ng < 1 || ng > 4)) {
+  if (rec.novaGroup == null || ng == null || ng < 1 || ng > 4) {
     out.push({
       id: 'COND_NOVA_GROUP_RANGE',
-      severity: 'warn',
-      detail: 'novaGroup은 1~4 정수가 되도록 모델이 채워야 해요.',
+      severity: 'error',
+      detail: 'novaGroup은 1~4 정수로 반드시 채워야 해요.',
     });
   }
 
