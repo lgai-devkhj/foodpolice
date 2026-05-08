@@ -211,8 +211,26 @@ export function scannedLooksLikeSweetenerProduct(
 ): boolean {
   const cat = String(foodCategory || '').trim();
   if (cat === '음료') return false;
-  const text = `${scannedName || ''} ${rawMaterials || ''}`.trim();
-  return looksLikeSweetenerBase(text);
+  const name = String(scannedName || '').trim();
+  if (!name) return false;
+
+  // 원재료에 알룰로스가 "포함"된 일반 간식(예: 에너지바)을
+  // 감미료 단일 제품으로 오인하지 않도록 제품명 신호만 사용해요.
+  if (/(에너지\s*바|프로틴\s*바|바\b|초코|쿠키|그래놀라|시리얼|스낵|젤리|캔디|음료|요거트)/i.test(name)) {
+    return false;
+  }
+
+  const strongSweetenerProductCue =
+    /(알룰로스|allulose|에리스리톨|erythritol|스테비아|stevia|자일리톨|xylitol).{0,8}(분말|파우더|시럽|액상)/i.test(
+      name
+    ) ||
+    /(설탕\s*대체|대체당|감미료|sweetener)/i.test(name);
+  if (strongSweetenerProductCue) return true;
+
+  // 제품명이 애매할 때만 원재료를 약하게 참고해요.
+  const raw = String(rawMaterials || '').trim();
+  if (!raw) return false;
+  return /(설탕\s*대체|대체당|감미료|sweetener)/i.test(raw) && looksLikeSweetenerBase(name);
 }
 
 export function scannedLooksLikeHandheldPieceSnack(
