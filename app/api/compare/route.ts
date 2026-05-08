@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile));
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), 'fast');
 
     const generationBody = {
       contents: [

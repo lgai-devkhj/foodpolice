@@ -4,9 +4,24 @@ export function extractCompareProductPair(
   const isObj = (v: unknown): v is Record<string, unknown> =>
     v !== null && typeof v === 'object' && !Array.isArray(v);
 
+  const toObj = (v: unknown): Record<string, unknown> | null => {
+    if (isObj(v)) return v;
+    if (typeof v !== 'string') return null;
+    const s = v.trim();
+    if (!s) return null;
+    try {
+      const j = JSON.parse(s) as unknown;
+      return isObj(j) ? j : null;
+    } catch {
+      return null;
+    }
+  };
+
   const tryPair = (a: unknown, b: unknown) => {
-    if (!isObj(a) || !isObj(b)) return null;
-    return { productA: a, productB: b };
+    const ao = toObj(a);
+    const bo = toObj(b);
+    if (!ao || !bo) return null;
+    return { productA: ao, productB: bo };
   };
 
   const direct = tryPair(parsed.productA, parsed.productB);
@@ -27,6 +42,12 @@ export function extractCompareProductPair(
   const firstSecond = tryPair(parsed.first, parsed.second);
   if (firstSecond) return firstSecond;
 
+  const leftRight = tryPair(parsed.left, parsed.right);
+  if (leftRight) return leftRight;
+
+  const korean = tryPair(parsed['제품A'], parsed['제품B']) ?? tryPair(parsed['상품A'], parsed['상품B']);
+  if (korean) return korean;
+
   const items = parsed.items;
   if (Array.isArray(items) && items.length >= 2) {
     const p = tryPair(items[0], items[1]);
@@ -42,6 +63,28 @@ export function extractCompareProductPair(
   const results = parsed.results;
   if (Array.isArray(results) && results.length >= 2) {
     const p = tryPair(results[0], results[1]);
+    if (p) return p;
+  }
+
+  const entries = parsed.entries;
+  if (Array.isArray(entries) && entries.length >= 2) {
+    const p = tryPair(entries[0], entries[1]);
+    if (p) return p;
+  }
+
+  // flat 구조 복구: productNameA / rawMaterialsA / ... + productNameB / ... 형태를 쪼개기
+  const aFlat: Record<string, unknown> = {};
+  const bFlat: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    const m = /^(.*?)(?:_)?([AaBb])$/.exec(k);
+    if (!m) continue;
+    const base = m[1];
+    if (!base) continue;
+    if (m[2] === 'A' || m[2] === 'a') aFlat[base] = v;
+    else bFlat[base] = v;
+  }
+  if (Object.keys(aFlat).length > 0 && Object.keys(bFlat).length > 0) {
+    const p = tryPair(aFlat, bFlat);
     if (p) return p;
   }
 

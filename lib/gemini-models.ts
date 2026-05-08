@@ -35,9 +35,10 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 32768) : fallback;
 }
 
-export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
+// 응답 지연을 줄이기 위한 기본 상한 (필요 시 env로 상향 가능)
+export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 1000);
 
-export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 3072);
+export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 900);
 
 export const COMPARE_GEMINI_MODEL = (() => {
   const raw = process.env.GEMINI_COMPARE_MODEL;
