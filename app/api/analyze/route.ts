@@ -57,93 +57,6 @@ function profileToPersonalization(profile?: AnalyzeBody['profile']): Personaliza
   return { bmiValue: bmi, bmiTier };
 }
 
-function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
-  const current = rec.novaGroup;
-  const num =
-    typeof current === 'number'
-      ? current
-      : current != null
-        ? parseInt(String(current).trim(), 10)
-        : Number.NaN;
-  if (Number.isFinite(num) && num >= 1 && num <= 4) {
-    rec.novaGroup = Math.trunc(num);
-    return;
-  }
-
-  const subgroup = String(
-    rec.novaSubgroup ?? rec.nova_subgroup ?? rec.novaSubGroup ?? rec.group4Subgroup ?? ''
-  )
-    .trim()
-    .toUpperCase();
-  if (subgroup === '4A' || subgroup === '4B' || subgroup === '4C') {
-    rec.novaGroup = 4;
-    rec.novaSubgroup = subgroup;
-    return;
-  }
-}
-
-function normalizeAnalysisRecordInPlace(rec: Record<string, unknown>): void {
-  const aliasMap: Array<[string, string]> = [
-    ['product_name', 'productName'],
-    ['name', 'productName'],
-    ['company', 'companyName'],
-    ['brand', 'companyName'],
-    ['company_name', 'companyName'],
-    ['raw_materials', 'rawMaterials'],
-    ['ingredients', 'rawMaterials'],
-    ['ingredientList', 'rawMaterials'],
-    ['nova_group', 'novaGroup'],
-    ['group', 'novaGroup'],
-    ['nova_subgroup', 'novaSubgroup'],
-    ['subgroup', 'novaSubgroup'],
-    ['brief_description', 'briefDescription'],
-    ['consumption_advice', 'consumptionAdvice'],
-    ['food_category', 'foodCategory'],
-    ['nutritionInfo', 'nutrition'],
-  ];
-  for (const [from, to] of aliasMap) {
-    if (rec[to] == null && rec[from] != null) rec[to] = rec[from];
-  }
-
-  if (Array.isArray(rec.products) && rec.products.length > 0 && rec.productName == null) {
-    const p0 = rec.products[0];
-    if (p0 && typeof p0 === 'object' && !Array.isArray(p0)) {
-      const o = p0 as Record<string, unknown>;
-      if (o.productName != null) rec.productName = o.productName;
-      if (o.companyName != null) rec.companyName = o.companyName;
-      if (o.rawMaterials != null) rec.rawMaterials = o.rawMaterials;
-    }
-  }
-}
-
-type AnalyzeBlocker = { message: string; code: string };
-
-function detectAnalyzeBlocker(rec: Record<string, unknown>, hasTwoImages: boolean): AnalyzeBlocker | null {
-  const rawMaterials = String(rec.rawMaterials ?? '').trim();
-  const productName = String(rec.productName ?? '').trim();
-  const companyName = String(rec.companyName ?? '').trim();
-
-  if (!rawMaterials) {
-    return {
-      message:
-        '원재료명이 잘 보이게 다시 촬영해주세요. 원재료표 전체가 선명하게 나오도록 가까이 찍어주세요.',
-      code: 'RAW_MATERIALS_UNREADABLE',
-    };
-  }
-
-  if (!productName && !companyName && rawMaterials.length < 6) {
-    return {
-      message: '라벨 글자가 흐려요. 제품명과 원재료가 함께 보이도록 다시 촬영해주세요.',
-      code: 'LABEL_TEXT_UNREADABLE',
-    };
-  }
-
-  // 영양표 누락은 오탐이 잦아 분석 자체는 계속 진행해요.
-  // (원재료/라벨 판독 불가만 차단)
-
-  return null;
-}
-
 export async function POST(request: NextRequest) {
   try {
     let body: AnalyzeBody;
@@ -291,26 +204,14 @@ export async function POST(request: NextRequest) {
         console.error('[api/analyze] RESULT_JSON raw head:', partText.slice(0, 2500));
       }
       return NextResponse.json(
-        apiErrorBody('결과 형식을 정리하지 못했어요. 라벨이 선명한 사진으로 다시 시도해요.', 'RESULT_JSON'),
+        apiErrorBody('결과를 읽는 데 실패했어요. 다시 한번 눌러요.', 'RESULT_JSON'),
         { status: 500 },
       );
     }
 
     const rec = parsed as Record<string, unknown>;
-    normalizeAnalysisRecordInPlace(rec);
-    coerceNovaGroupInPlace(rec);
-    const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
-    if (blocker) {
-      // 결과 데이터 필드(productName/rawMaterials)에 안내 문구를 주입하지 않아요.
-      // 사용자 안내는 에러/경고 채널에서만 처리합니다.
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[api/analyze] blocker detected but continue:', blocker.code);
-      }
-    }
     const conditionChecks = evaluateAnalysisGeminiConditions(rec);
-    const fatalConditions = conditionChecks.filter(
-      (c) => c.severity === 'error' && c.id !== 'COND_NOVA_GROUP_RANGE'
-    );
+    const fatalConditions = conditionChecks.filter((c) => c.severity === 'error');
     if (fatalConditions.length > 0) {
       const first = fatalConditions[0]!;
       if (process.env.NODE_ENV === 'development') {

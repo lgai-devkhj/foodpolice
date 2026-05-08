@@ -81,21 +81,7 @@ function buildOverloadModelChain(primaryModel: string): string[] {
   return out;
 }
 
-const MAX_OVERLOAD_ROUNDS = (() => {
-  const raw = process.env.GEMINI_MAX_OVERLOAD_ROUNDS;
-  if (raw == null || String(raw).trim() === '') return 2;
-  const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n)) return 2;
-  return Math.min(3, Math.max(1, n));
-})();
-
-const GEMINI_REQUEST_TIMEOUT_MS = (() => {
-  const raw = process.env.GEMINI_REQUEST_TIMEOUT_MS;
-  if (raw == null || String(raw).trim() === '') return 10000;
-  const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n)) return 10000;
-  return Math.min(30_000, Math.max(3000, n));
-})();
+const MAX_OVERLOAD_ROUNDS = 3;
 
 export async function fetchGeminiGenerateContentWithFlashFallback(
   primaryModel: string,
@@ -123,26 +109,11 @@ export async function fetchGeminiGenerateContentWithFlashFallback(
     for (let i = 0; i < chain.length; i++) {
       const modelId = chain[i]!;
       const url = geminiGenerateUrl(modelId, apiKey);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
-      let res: Response;
-      try {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: jsonBodyForModel(modelId),
-          signal: controller.signal,
-        });
-      } catch (error) {
-        clearTimeout(timer);
-        const message = error instanceof Error ? error.message : String(error);
-        last = { ok: false, status: 0, text: message, usedModel: modelId };
-        if (i < chain.length - 1) {
-          continue;
-        }
-        return last;
-      }
-      clearTimeout(timer);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: jsonBodyForModel(modelId),
+      });
       const text = await res.text();
 
       if (res.ok) {

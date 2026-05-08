@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), 'standard');
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile));
 
     const generationBody = {
       contents: [
@@ -235,6 +235,7 @@ export async function POST(request: NextRequest) {
       );
     }
     const { productA: rawA, productB: rawB } = pair;
+
     let productA: AnalysisResult;
     let productB: AnalysisResult;
     try {

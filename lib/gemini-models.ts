@@ -16,13 +16,12 @@ function modelFromEnv(envName: string, fallback: string): string {
 }
 
 export const GEMINI_WATERFALL_ORDER: readonly string[] = [
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
 ];
 
-// OCR 품질을 위해 기본 모델은 2.5-lite, 미지원 시 워터폴로 하향합니다.
-export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-3.1-flash-lite';
+export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash-lite';
 
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',
@@ -36,10 +35,9 @@ function parsePositiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 32768) : fallback;
 }
 
-// 응답 지연을 줄이기 위한 기본 상한 (필요 시 env로 상향 가능)
-export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 1600);
+export const ANALYSIS_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS', 4096);
 
-export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 1400);
+export const COMPARE_MAX_OUTPUT_TOKENS = parsePositiveIntEnv('GEMINI_COMPARE_MAX_OUTPUT_TOKENS', 3072);
 
 export const COMPARE_GEMINI_MODEL = (() => {
   const raw = process.env.GEMINI_COMPARE_MODEL;
