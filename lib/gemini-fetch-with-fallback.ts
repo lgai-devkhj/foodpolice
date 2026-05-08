@@ -83,9 +83,9 @@ function buildOverloadModelChain(primaryModel: string): string[] {
 
 const MAX_OVERLOAD_ROUNDS = (() => {
   const raw = process.env.GEMINI_MAX_OVERLOAD_ROUNDS;
-  if (raw == null || String(raw).trim() === '') return 1;
+  if (raw == null || String(raw).trim() === '') return 2;
   const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isFinite(n)) return 1;
+  if (!Number.isFinite(n)) return 2;
   return Math.min(3, Math.max(1, n));
 })();
 

@@ -67,6 +67,65 @@ function normalizeBetterChoice(v: unknown): 'A' | 'B' | 'similar' {
   return 'similar';
 }
 
+type CompareBlocker = { message: string; code: string };
+
+function detectCompareBlockers(pair: {
+  productA: Record<string, unknown>;
+  productB: Record<string, unknown>;
+}): CompareBlocker | null {
+  const checkOne = (label: 'A' | 'B', rec: Record<string, unknown>): CompareBlocker | null => {
+    const rawMaterials = String(rec.rawMaterials ?? '').trim();
+    const productName = String(rec.productName ?? '').trim();
+    const companyName = String(rec.companyName ?? '').trim();
+
+    if (!rawMaterials) {
+      return {
+        message: `제품 ${label}의 원재료명이 잘 보이게 다시 촬영해주세요. 원재료표 전체가 선명해야 해요.`,
+        code: `RAW_MATERIALS_UNREADABLE_${label}`,
+      };
+    }
+
+    if (!productName && !companyName && rawMaterials.length < 6) {
+      return {
+        message: `제품 ${label} 라벨 글자가 흐려요. 제품명과 원재료가 함께 보이게 다시 촬영해주세요.`,
+        code: `LABEL_TEXT_UNREADABLE_${label}`,
+      };
+    }
+
+    const nutrition = rec.nutrition;
+    const nutritionObj =
+      nutrition && typeof nutrition === 'object' && !Array.isArray(nutrition)
+        ? (nutrition as Record<string, unknown>)
+        : null;
+    const tableRows = Array.isArray(nutritionObj?.tableRows) ? nutritionObj!.tableRows : [];
+    const hasNutritionNumbers =
+      nutritionObj != null &&
+      [
+        'caloriesKcal',
+        'sodiumMg',
+        'carbsG',
+        'sugarG',
+        'proteinG',
+        'fatG',
+        'saturatedFatG',
+        'transFatG',
+        'cholesterolMg',
+        'dietaryFiberG',
+      ].some((k) => nutritionObj[k] != null && String(nutritionObj[k]).trim() !== '');
+
+    if (!hasNutritionNumbers && tableRows.length === 0) {
+      return {
+        message: `제품 ${label}의 영양정보 표가 잘 보이게 다시 촬영해주세요. 표 전체가 잘리지 않게 맞춰주세요.`,
+        code: `NUTRITION_LABEL_UNREADABLE_${label}`,
+      };
+    }
+
+    return null;
+  };
+
+  return checkOne('A', pair.productA) ?? checkOne('B', pair.productB);
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: CompareBody;
@@ -112,7 +171,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), 'fast');
+    const prompt = getCompareFourImagesPrompt(profileToPersonalization(profile), 'standard');
 
     const generationBody = {
       contents: [
@@ -235,6 +294,10 @@ export async function POST(request: NextRequest) {
       );
     }
     const { productA: rawA, productB: rawB } = pair;
+    const blocker = detectCompareBlockers({ productA: rawA, productB: rawB });
+    if (blocker) {
+      return NextResponse.json(apiErrorBody(blocker.message, blocker.code), { status: 422 });
+    }
 
     let productA: AnalysisResult;
     let productB: AnalysisResult;

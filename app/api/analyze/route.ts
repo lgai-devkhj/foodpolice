@@ -57,6 +57,89 @@ function profileToPersonalization(profile?: AnalyzeBody['profile']): Personaliza
   return { bmiValue: bmi, bmiTier };
 }
 
+function coerceNovaGroupInPlace(rec: Record<string, unknown>): void {
+  const current = rec.novaGroup;
+  const num =
+    typeof current === 'number'
+      ? current
+      : current != null
+        ? parseInt(String(current).trim(), 10)
+        : Number.NaN;
+  if (Number.isFinite(num) && num >= 1 && num <= 4) {
+    rec.novaGroup = Math.trunc(num);
+    return;
+  }
+
+  const subgroup = String(
+    rec.novaSubgroup ?? rec.nova_subgroup ?? rec.novaSubGroup ?? rec.group4Subgroup ?? ''
+  )
+    .trim()
+    .toUpperCase();
+  if (subgroup === '4A' || subgroup === '4B' || subgroup === '4C') {
+    rec.novaGroup = 4;
+    rec.novaSubgroup = subgroup;
+    return;
+  }
+
+  // 실사용 안정성 우선: 모델이 누락해도 기본 Group 4로 보정해 502를 막아요.
+  rec.novaGroup = 4;
+}
+
+type AnalyzeBlocker = { message: string; code: string };
+
+function detectAnalyzeBlocker(rec: Record<string, unknown>, hasTwoImages: boolean): AnalyzeBlocker | null {
+  const rawMaterials = String(rec.rawMaterials ?? '').trim();
+  const productName = String(rec.productName ?? '').trim();
+  const companyName = String(rec.companyName ?? '').trim();
+
+  if (!rawMaterials) {
+    return {
+      message:
+        '원재료명이 잘 보이게 다시 촬영해주세요. 원재료표 전체가 선명하게 나오도록 가까이 찍어주세요.',
+      code: 'RAW_MATERIALS_UNREADABLE',
+    };
+  }
+
+  if (!productName && !companyName && rawMaterials.length < 6) {
+    return {
+      message: '라벨 글자가 흐려요. 제품명과 원재료가 함께 보이도록 다시 촬영해주세요.',
+      code: 'LABEL_TEXT_UNREADABLE',
+    };
+  }
+
+  if (hasTwoImages) {
+    const nutrition = rec.nutrition;
+    const nutritionObj =
+      nutrition && typeof nutrition === 'object' && !Array.isArray(nutrition)
+        ? (nutrition as Record<string, unknown>)
+        : null;
+    const tableRows = Array.isArray(nutritionObj?.tableRows) ? nutritionObj!.tableRows : [];
+    const hasNutritionNumbers =
+      nutritionObj != null &&
+      [
+        'caloriesKcal',
+        'sodiumMg',
+        'carbsG',
+        'sugarG',
+        'proteinG',
+        'fatG',
+        'saturatedFatG',
+        'transFatG',
+        'cholesterolMg',
+        'dietaryFiberG',
+      ].some((k) => nutritionObj[k] != null && String(nutritionObj[k]).trim() !== '');
+
+    if (!hasNutritionNumbers && tableRows.length === 0) {
+      return {
+        message: '영양정보 표가 잘 보이게 다시 촬영해주세요. 표 전체가 잘리지 않게 맞춰주세요.',
+        code: 'NUTRITION_LABEL_UNREADABLE',
+      };
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     let body: AnalyzeBody;
@@ -210,8 +293,15 @@ export async function POST(request: NextRequest) {
     }
 
     const rec = parsed as Record<string, unknown>;
+    coerceNovaGroupInPlace(rec);
+    const blocker = detectAnalyzeBlocker(rec, hasTwoImages);
+    if (blocker) {
+      return NextResponse.json(apiErrorBody(blocker.message, blocker.code), { status: 422 });
+    }
     const conditionChecks = evaluateAnalysisGeminiConditions(rec);
-    const fatalConditions = conditionChecks.filter((c) => c.severity === 'error');
+    const fatalConditions = conditionChecks.filter(
+      (c) => c.severity === 'error' && c.id !== 'COND_NOVA_GROUP_RANGE'
+    );
     if (fatalConditions.length > 0) {
       const first = fatalConditions[0]!;
       if (process.env.NODE_ENV === 'development') {
