@@ -50,6 +50,12 @@ export type GeminiFetchWithFallbackResult = {
   usedModel: string;
 };
 
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const MAX_SINGLE_MODEL_RETRIES = 1;
+
 export async function fetchGeminiGenerateContentWithFlashFallback(
   primaryModel: string,
   apiKey: string,
@@ -66,17 +72,29 @@ export async function fetchGeminiGenerateContentWithFlashFallback(
   })();
 
   const url = geminiGenerateUrl(modelId, apiKey);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: jsonBody,
-  });
-  const text = await res.text();
+  let lastStatus = 0;
+  let lastText = '';
 
-  if (res.ok) {
-    return { ok: true, status: res.status, text, usedModel: modelId };
+  for (let attempt = 0; attempt <= MAX_SINGLE_MODEL_RETRIES; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonBody,
+    });
+    const text = await res.text();
+    lastStatus = res.status;
+    lastText = text;
+
+    if (res.ok) {
+      return { ok: true, status: res.status, text, usedModel: modelId };
+    }
+
+    logGeminiHttpError(`${logContext} (${modelId})`, res.status, text);
+
+    const shouldRetry = (res.status === 503 || res.status === 429) && attempt < MAX_SINGLE_MODEL_RETRIES;
+    if (!shouldRetry) break;
+    await sleepMs(220 + Math.floor(Math.random() * 180));
   }
 
-  logGeminiHttpError(`${logContext} (${modelId})`, res.status, text);
-  return { ok: false, status: res.status, text, usedModel: modelId };
+  return { ok: false, status: lastStatus, text: lastText, usedModel: modelId };
 }
