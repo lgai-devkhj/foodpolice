@@ -105,33 +105,8 @@ function detectCompareBlockers(pair: {
       };
     }
 
-    const nutrition = rec.nutrition;
-    const nutritionObj =
-      nutrition && typeof nutrition === 'object' && !Array.isArray(nutrition)
-        ? (nutrition as Record<string, unknown>)
-        : null;
-    const tableRows = Array.isArray(nutritionObj?.tableRows) ? nutritionObj!.tableRows : [];
-    const hasNutritionNumbers =
-      nutritionObj != null &&
-      [
-        'caloriesKcal',
-        'sodiumMg',
-        'carbsG',
-        'sugarG',
-        'proteinG',
-        'fatG',
-        'saturatedFatG',
-        'transFatG',
-        'cholesterolMg',
-        'dietaryFiberG',
-      ].some((k) => nutritionObj[k] != null && String(nutritionObj[k]).trim() !== '');
-
-    if (!hasNutritionNumbers && tableRows.length === 0) {
-      return {
-        message: `제품 ${label}의 영양정보 표가 잘 보이게 다시 촬영해주세요. 표 전체가 잘리지 않게 맞춰주세요.`,
-        code: `NUTRITION_LABEL_UNREADABLE_${label}`,
-      };
-    }
+    // 영양표 누락은 오탐 가능성이 커서 비교 자체는 계속 진행해요.
+    // (원재료/라벨 판독 불가만 차단)
 
     return null;
   };
