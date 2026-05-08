@@ -1,6 +1,9 @@
 export function formatGeminiHttpError(status: number, bodyText: string): string {
   const trimmed = (bodyText || '').trim();
   if (!trimmed) {
+    if (status === 404) {
+      return '현재 설정한 AI 모델을 이 서버에서 찾지 못했어요. 모델 이름 또는 API 리전을 확인해요.';
+    }
     if (status === 429) {
       return (
         '잠시 요청이 많아 막혔을 수 있어요. 키가 잘못됐다기보다는 사용 한도나 속도 제한인 경우가 많아요. ' +
@@ -38,6 +41,9 @@ export function formatGeminiHttpError(status: number, bodyText: string): string 
       return '요청이 너무 커서 처리하지 못했어요. 더 작은 사진으로 시도해요.';
     }
   } catch {
+  }
+  if (status === 404) {
+    return '현재 설정한 AI 모델을 이 서버에서 찾지 못했어요. 모델 이름 또는 API 리전을 확인해요.';
   }
   return 'AI 서버와 통신에 실패했어요. 잠시 뒤 다시 시도해요.';
 }

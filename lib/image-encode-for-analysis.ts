@@ -1,8 +1,9 @@
 
-const MAX_EDGE_PX = 800;
-const MAX_EDGE_COMPARE_PX = 704;
-const JPEG_QUALITY = 0.68;
-const JPEG_QUALITY_COMPARE = 0.68;
+// OCR 안정성을 위해 기본 해상도/품질을 상향합니다.
+const MAX_EDGE_PX = 1400;
+const MAX_EDGE_COMPARE_PX = 1280;
+const JPEG_QUALITY = 0.86;
+const JPEG_QUALITY_COMPARE = 0.84;
 
 function dataUrlBase64Part(dataUrl: string): string {
   const i = dataUrl.indexOf(',');
