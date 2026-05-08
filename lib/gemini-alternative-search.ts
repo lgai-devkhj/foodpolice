@@ -3,8 +3,10 @@ import {
   type AlternativeFoodJsonRoot,
   alternativeLikelyFlavorMismatch,
   alternativeLikelyWrongFoodCategory,
+  alternativeLooksLikeStandaloneSweetener,
   alternativeLooksLikeSpreadJarOrPaste,
   isPurchaseableProductUrl,
+  scannedLooksLikeSweetenerProduct,
   isSameProductLineOrWeightOnlyVariant,
   productIdentityCore,
   scannedLooksLikeHandheldPieceSnack,
@@ -301,6 +303,18 @@ function normalizeAlternativesPayload(
         productName,
         scanContext.foodCategory,
         scanContext.rawMaterials
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      scanContext &&
+      alternativeLooksLikeStandaloneSweetener(productName) &&
+      !scannedLooksLikeSweetenerProduct(
+        scannedProductName,
+        scanContext.rawMaterials,
+        scanContext.foodCategory
       )
     ) {
       continue;

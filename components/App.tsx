@@ -15,7 +15,11 @@ import type { DailyOxQuizPayload, DailyOxQuizSolvedStored } from '@/lib/daily-qu
 import { normalizeQuestsSlice, toLocalYmd } from '@/lib/daily-quests';
 import { APP_DISPLAY_NAME } from '@/lib/app-config';
 import type { BmiTier } from '@/lib/gemini-prompts';
-import { encodeImageForAnalysis, encodeImageForCompare } from '@/lib/image-encode-for-analysis';
+import {
+  encodeImageForAnalysis,
+  encodeImageForCompare,
+  encodeImageForNutritionAnalysis,
+} from '@/lib/image-encode-for-analysis';
 import {
   readApiJson,
   tryParseJsonObject,
@@ -2079,7 +2083,7 @@ export default function App() {
         const startedAt = performance.now();
         const [rawEnc, nutEnc] = await Promise.all([
           encodeImageForAnalysis(rawBase64, rawMimeType),
-          encodeImageForAnalysis(nutritionBase64, nutritionMimeType),
+          encodeImageForNutritionAnalysis(nutritionBase64, nutritionMimeType),
         ]);
         const body = JSON.stringify({
           clientId,
@@ -2294,12 +2298,6 @@ export default function App() {
         Number.isFinite(historyItem.analysisSeconds)
       ) {
         displaySec = historyItem.analysisSeconds;
-      } else if (
-        currentHistoryId &&
-        lastAnalysisForId === currentHistoryId &&
-        lastAnalysisSeconds != null
-      ) {
-        displaySec = lastAnalysisSeconds;
       }
       setResultAnalysisSeconds(displaySec);
 

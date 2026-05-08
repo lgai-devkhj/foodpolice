@@ -192,6 +192,29 @@ export function alternativeLooksLikeSpreadJarOrPaste(alternativeName: string): b
   );
 }
 
+function looksLikeSweetenerBase(text: string): boolean {
+  const n = String(text || '').toLowerCase();
+  if (!n.trim()) return false;
+  return /알룰로스|allulose|에리스리톨|erythritol|스테비아|stevia|자일리톨|xylitol|감미료|대체당|설탕\s*대체|zero\s*sugar\s*sweetener|sweetener/i.test(
+    n
+  );
+}
+
+export function alternativeLooksLikeStandaloneSweetener(alternativeName: string): boolean {
+  return looksLikeSweetenerBase(alternativeName);
+}
+
+export function scannedLooksLikeSweetenerProduct(
+  scannedName: string,
+  rawMaterials?: string,
+  foodCategory?: string | null
+): boolean {
+  const cat = String(foodCategory || '').trim();
+  if (cat === '음료') return false;
+  const text = `${scannedName || ''} ${rawMaterials || ''}`.trim();
+  return looksLikeSweetenerBase(text);
+}
+
 export function scannedLooksLikeHandheldPieceSnack(
   productName: string,
   rawMaterials?: string,

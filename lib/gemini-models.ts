@@ -16,12 +16,14 @@ function modelFromEnv(envName: string, fallback: string): string {
 }
 
 export const GEMINI_WATERFALL_ORDER: readonly string[] = [
+  'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
 ];
 
-export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-2.5-flash-lite';
+export const DEFAULT_GEMINI_PRIMARY_MODEL = 'gemini-3.1-flash-lite';
+export const DEFAULT_COMPARE_PRIMARY_MODEL = 'gemini-2.5-flash-lite';
 
 export const ANALYSIS_GEMINI_MODEL = modelFromEnv(
   'GEMINI_ANALYSIS_MODEL',
@@ -44,7 +46,7 @@ export const COMPARE_GEMINI_MODEL = (() => {
   if (raw != null && String(raw).trim() !== '') {
     return normalizeGeminiModelId(String(raw).trim());
   }
-  return normalizeGeminiModelId(DEFAULT_GEMINI_PRIMARY_MODEL);
+  return normalizeGeminiModelId(DEFAULT_COMPARE_PRIMARY_MODEL);
 })();
 
 function parsePositiveMsEnv(name: string, fallback: number, maxMs: number): number {
