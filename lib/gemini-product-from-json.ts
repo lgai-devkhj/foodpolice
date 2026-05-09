@@ -683,6 +683,19 @@ function isNutritionLabelLike(name: string): boolean {
   );
 }
 
+/**
+ * 원재료 문자열로 이미 Group 2(조리용 가공)가 확정되면, 모델 ingredientSignals가
+ * 단일·무첨가로 Group 1을 줘도 덮어쓰지 않아요. (설탕만 있는데 1단계로 나오는 문제 방지)
+ */
+function mergeNovaGroupWithRawMaterialPriority(
+  aiDrivenNova: KoreanNovaClassification | null,
+  deterministicNova: KoreanNovaClassification | null,
+  modelNovaGroup: number,
+): number {
+  if (deterministicNova?.novaGroup === 2) return 2;
+  return aiDrivenNova?.novaGroup ?? deterministicNova?.novaGroup ?? modelNovaGroup;
+}
+
 export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unknown>): AnalysisResult {
   const product = {
     productName: (parsed.productName != null ? String(parsed.productName).trim() : '') as string,
@@ -693,7 +706,7 @@ export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unkno
   const modelSignals = parseIngredientSignals(parsed.ingredientSignals);
   const aiDrivenNova = modelSignals ? classifyByIngredientSignals(modelSignals) : null;
   const deterministicNova = classifyByKoreanNovaRules(product.rawMaterials);
-  let novaGroup = aiDrivenNova?.novaGroup ?? deterministicNova?.novaGroup ?? modelNovaGroup;
+  let novaGroup = mergeNovaGroupWithRawMaterialPriority(aiDrivenNova, deterministicNova, modelNovaGroup);
   const labelExplicitPercentages = parseLabelExplicitPercentages(parsed.labelExplicitPercentages);
 
   const concernIngredientsRaw = Array.isArray(parsed.concernIngredients)
@@ -741,7 +754,9 @@ export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unkno
 
   const modelNovaSubgroup = normalizeNovaSubgroup(modelNovaGroup, parsed.novaSubgroup);
   let novaSubgroup =
-    aiDrivenNova?.novaSubgroup ?? deterministicNova?.novaSubgroup ?? modelNovaSubgroup;
+    deterministicNova?.novaGroup === 2
+      ? null
+      : aiDrivenNova?.novaSubgroup ?? deterministicNova?.novaSubgroup ?? modelNovaSubgroup;
 
   if (shouldPreferDeterministicNova3ForNutBaseSnack(product.rawMaterials, deterministicNova, aiDrivenNova)) {
     novaGroup = 3;
