@@ -683,6 +683,61 @@ function isNutritionLabelLike(name: string): boolean {
   );
 }
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function pickFirstStringField(rec: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = rec[k];
+    if (v == null) continue;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (s) return s;
+      continue;
+    }
+    if (typeof v === 'number') {
+      const s = String(v).trim();
+      if (s) return s;
+    }
+  }
+  return '';
+}
+
+function extractProductCoreFields(parsed: Record<string, unknown>): {
+  productName: string;
+  companyName: string;
+  rawMaterials: string;
+} {
+  const nameKeys = ['productName', 'product_name', 'name', '제품명', '상품명', '식품명'];
+  const companyKeys = ['companyName', 'company_name', 'manufacturer', 'brand', '제조원', '제조사', '업체명'];
+  const rawKeys = [
+    'rawMaterials',
+    'raw_materials',
+    'ingredients',
+    'ingredientList',
+    '원재료',
+    '원재료명',
+    '원재료명및함량',
+  ];
+
+  let productName = pickFirstStringField(parsed, nameKeys);
+  let companyName = pickFirstStringField(parsed, companyKeys);
+  let rawMaterials = pickFirstStringField(parsed, rawKeys);
+
+  const containers = ['product', 'item', 'analysis', 'result', 'data', 'output', 'label'];
+  for (const c of containers) {
+    const inner = asRecord(parsed[c]);
+    if (!inner) continue;
+    if (!productName) productName = pickFirstStringField(inner, nameKeys);
+    if (!companyName) companyName = pickFirstStringField(inner, companyKeys);
+    if (!rawMaterials) rawMaterials = pickFirstStringField(inner, rawKeys);
+    if (productName && companyName && rawMaterials) break;
+  }
+
+  return { productName, companyName, rawMaterials };
+}
+
 /**
  * 원재료 문자열로 이미 Group 2(조리용 가공)가 확정되면, 모델 ingredientSignals가
  * 단일·무첨가로 Group 1을 줘도 덮어쓰지 않아요. (설탕만 있는데 1단계로 나오는 문제 방지)
@@ -697,10 +752,11 @@ function mergeNovaGroupWithRawMaterialPriority(
 }
 
 export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unknown>): AnalysisResult {
+  const core = extractProductCoreFields(parsed);
   const product = {
-    productName: (parsed.productName != null ? String(parsed.productName).trim() : '') as string,
-    companyName: (parsed.companyName != null ? String(parsed.companyName).trim() : '') as string,
-    rawMaterials: (parsed.rawMaterials != null ? String(parsed.rawMaterials).trim() : '') as string,
+    productName: core.productName,
+    companyName: core.companyName,
+    rawMaterials: core.rawMaterials,
   };
   const modelNovaGroup = Math.min(4, Math.max(1, parseInt(String(parsed.novaGroup), 10) || 4));
   const modelSignals = parseIngredientSignals(parsed.ingredientSignals);
