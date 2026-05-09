@@ -2841,6 +2841,18 @@ export default function App() {
     return true;
   }, []);
 
+  /** 앨범(업로드)일 때는 촬영 화면 대신 파일 선택만 열어요. 촬영 안내 오버레이는 별도 확인 후 엽니다. */
+  const openCaptureForNextStep = useCallback(() => {
+    if (uploadSource === 'gallery') {
+      return;
+    }
+    if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+      startCamera();
+    } else {
+      fileInputRef.current?.click();
+    }
+  }, [uploadSource, startCamera]);
+
   const triggerUpload = useCallback(() => {
     if (showTutorial && tutorialPhase === 'tutorial_mode_pick') {
       setError('먼저 분석할지 비교할지 골라요.');
@@ -3123,7 +3135,7 @@ export default function App() {
         setCaptureStep(2);
         captureStepRef.current = 2;
         setCaptureStepGuide(2);
-        startCamera();
+        openCaptureForNextStep();
         return;
       }
       if (!rawImageBase64) {
@@ -3146,7 +3158,7 @@ export default function App() {
         setCaptureStep(1);
         captureStepRef.current = 1;
         setCaptureStepGuide(1);
-        startCamera();
+        openCaptureForNextStep();
         return;
       }
       const pa = comparePairARef.current;
@@ -3173,7 +3185,7 @@ export default function App() {
       setCaptureStep(2);
       captureStepRef.current = 2;
       setCaptureStepGuide(2);
-      startCamera();
+      openCaptureForNextStep();
       return;
     }
     if (!rawImageBase64) {
@@ -3191,7 +3203,7 @@ export default function App() {
     rawImageBase64,
     rawImageMimeType,
     runAnalyzeTwoImages,
-    startCamera,
+    openCaptureForNextStep,
     showTutorial,
     tutorialPhase,
     finishTutorial,
@@ -3206,8 +3218,12 @@ export default function App() {
       if (captureStep === 1) setTutorialPhase('camera_ingredient');
       else if (captureStep === 2) setTutorialPhase('camera_nutrient');
     }
+    if (uploadSource === 'gallery') {
+      window.setTimeout(() => galleryInputRef.current?.click(), 0);
+      return;
+    }
     startCamera();
-  }, [startCamera, showTutorial, captureStep]);
+  }, [startCamera, showTutorial, captureStep, uploadSource]);
 
   const analyzeWithoutNutrition = useCallback(() => {
     if (!rawImageBase64Ref.current) {
@@ -3234,6 +3250,12 @@ export default function App() {
         const currentStep = captureStepRef.current;
         const isCompare = homeProductModeRef.current === 'compare';
 
+        if (uploadSource === 'gallery') {
+          setCapturedPreviewDataUrl(dataUrl);
+          setCapturedPreviewMimeType(normalizedMime);
+          return;
+        }
+
         if (isCompare) {
           if (currentStep === 1) {
             setRawImageBase64(base64 || '');
@@ -3242,10 +3264,7 @@ export default function App() {
             setCaptureStep(2);
             captureStepRef.current = 2;
             setCaptureStepGuide(2);
-            if (uploadSource === 'gallery') {
-              setCapturedPreviewDataUrl(null);
-              window.setTimeout(() => galleryInputRef.current?.click(), 0);
-            } else if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+            if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
               startCamera();
             } else {
               fileInputRef.current?.click();
@@ -3272,10 +3291,7 @@ export default function App() {
             setCaptureStep(1);
             captureStepRef.current = 1;
             setCaptureStepGuide(1);
-            if (uploadSource === 'gallery') {
-              setCapturedPreviewDataUrl(null);
-              window.setTimeout(() => galleryInputRef.current?.click(), 0);
-            } else if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+            if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
               startCamera();
             } else {
               fileInputRef.current?.click();
@@ -3306,17 +3322,10 @@ export default function App() {
           setCaptureStep(2);
           captureStepRef.current = 2;
           setCaptureStepGuide(2);
-          if (uploadSource === 'gallery') {
-            setCapturedPreviewDataUrl(null);
-            if (!showTutorialRef.current) {
-              window.setTimeout(() => galleryInputRef.current?.click(), 0);
-            }
+          if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
+            startCamera();
           } else {
-            if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
-              startCamera();
-            } else {
-              fileInputRef.current?.click();
-            }
+            fileInputRef.current?.click();
           }
         } else {
           if (!rawImageBase64Ref.current) {
@@ -3335,17 +3344,7 @@ export default function App() {
       reader.readAsDataURL(file);
       e.target.value = '';
     },
-    [
-      captureStep,
-      rawImageBase64,
-      rawImageMimeType,
-      runAnalyzeTwoImages,
-      runCompareProducts,
-      stopCamera,
-      startCamera,
-      finishTutorial,
-      uploadSource,
-    ]
+    [rawImageMimeType, runAnalyzeTwoImages, runCompareProducts, stopCamera, startCamera, finishTutorial, uploadSource]
   );
 
   const openSettings = useCallback(() => {
@@ -3733,7 +3732,7 @@ export default function App() {
                   if (g === 2) setTutorialPhase('camera_nutrient');
                 }
                 setCaptureStepGuide(null);
-                if (isLikelyDesktop && uploadSource === 'gallery' && (g === 1 || g === 2)) {
+                if (uploadSource === 'gallery' && (g === 1 || g === 2)) {
                   window.setTimeout(() => galleryInputRef.current?.click(), 0);
                 }
               }}

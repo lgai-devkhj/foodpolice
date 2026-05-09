@@ -183,6 +183,7 @@ const COOKING_INGREDIENT_KEYWORDS = ['설탕', '소금', '버터', '식용유', 
 const NUT_INGREDIENT_KEYWORDS = [
   '견과',
   '땅콩',
+  '피넛',
   '아몬드',
   '호두',
   '캐슈',
@@ -193,6 +194,17 @@ const NUT_INGREDIENT_KEYWORDS = [
   '피칸',
   '해바라기씨',
   '호박씨',
+  'peanut',
+  'almond',
+  'walnut',
+  'cashew',
+  'pistachio',
+  'pecan',
+  'hazelnut',
+  'macadamia',
+  'brazil nut',
+  'mixed nut',
+  'tree nut',
 ];
 
 const ULTRA_TOPPING_KEYWORDS = [
@@ -251,7 +263,8 @@ function splitRawMaterials(rawMaterials: string): string[] {
 }
 
 function includesAnyKeyword(text: string, keywords: string[]): boolean {
-  return keywords.some((k) => text.includes(k));
+  const t = text.toLowerCase();
+  return keywords.some((k) => t.includes(k.toLowerCase()));
 }
 
 function parseIngredientPercent(item: string): number | null {
@@ -319,6 +332,26 @@ function classifyByIngredientSignals(sig: IngredientSignals): KoreanNovaClassifi
     return { novaGroup: 4, novaSubgroup: '4C' };
   }
   return { novaGroup: 3, novaSubgroup: null };
+}
+
+/**
+ * 견과·씨앗 위주인데 원재료 규칙은 3, 모델 ingredientSignals만 4로 올린 경우 —
+ * 첨가·분해 개수를 과대 해석하면 4B가 나오기 쉬워요. 초콜릿·사탕 등 초가공 토핑이 섞인 믹스는 제외해요.
+ */
+function shouldPreferDeterministicNova3ForNutBaseSnack(
+  rawMaterials: string,
+  deterministicNova: KoreanNovaClassification | null,
+  aiDrivenNova: KoreanNovaClassification | null,
+): boolean {
+  if (!deterministicNova || deterministicNova.novaGroup !== 3) return false;
+  if (!aiDrivenNova || aiDrivenNova.novaGroup !== 4) return false;
+  const ingredients = splitRawMaterials(rawMaterials);
+  if (ingredients.length === 0) return false;
+  const nutItems = ingredients.filter((item) => includesAnyKeyword(item, NUT_INGREDIENT_KEYWORDS));
+  if (nutItems.length === 0 && !includesAnyKeyword(rawMaterials, NUT_INGREDIENT_KEYWORDS)) return false;
+  const ultraToppingItems = ingredients.filter((item) => includesAnyKeyword(item, ULTRA_TOPPING_KEYWORDS));
+  if (ultraToppingItems.length > 0) return false;
+  return true;
 }
 
 function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassification | null {
@@ -537,7 +570,7 @@ export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unkno
   const modelSignals = parseIngredientSignals(parsed.ingredientSignals);
   const aiDrivenNova = modelSignals ? classifyByIngredientSignals(modelSignals) : null;
   const deterministicNova = classifyByKoreanNovaRules(product.rawMaterials);
-  const novaGroup = aiDrivenNova?.novaGroup ?? deterministicNova?.novaGroup ?? modelNovaGroup;
+  let novaGroup = aiDrivenNova?.novaGroup ?? deterministicNova?.novaGroup ?? modelNovaGroup;
   const labelExplicitPercentages = parseLabelExplicitPercentages(parsed.labelExplicitPercentages);
 
   const concernIngredientsRaw = Array.isArray(parsed.concernIngredients)
@@ -584,8 +617,13 @@ export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unkno
   const personalizedIntakeFootnote = null;
 
   const modelNovaSubgroup = normalizeNovaSubgroup(modelNovaGroup, parsed.novaSubgroup);
-  const novaSubgroup =
+  let novaSubgroup =
     aiDrivenNova?.novaSubgroup ?? deterministicNova?.novaSubgroup ?? modelNovaSubgroup;
+
+  if (shouldPreferDeterministicNova3ForNutBaseSnack(product.rawMaterials, deterministicNova, aiDrivenNova)) {
+    novaGroup = 3;
+    novaSubgroup = null;
+  }
 
   return {
     product,

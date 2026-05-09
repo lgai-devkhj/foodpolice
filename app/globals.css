@@ -2313,6 +2313,43 @@
     }
     #homeView.hidden { display: none; }
     #resultView.visible { display: flex; }
+
+    /* 넓은 화면(PC·태블릿 가로): 본문이 좌우로 꽉 차게 */
+    @media (min-width: 900px) {
+      .home-scroll {
+        max-width: none;
+      }
+      #resultView {
+        max-width: none;
+      }
+      .home-product-mode-row,
+      .home-compare-callout {
+        max-width: none;
+      }
+      .compare-result-panel {
+        max-width: none;
+        width: calc(100vw - 48px);
+      }
+      .streak-toast {
+        max-width: min(960px, calc(100vw - 28px - var(--safe-left) - var(--safe-right)));
+      }
+      .fab-step-label {
+        max-width: min(calc(100vw - 48px), 720px);
+      }
+      .btn-full {
+        max-width: none;
+      }
+      .capture-step-overlay-card {
+        max-width: min(calc(100vw - 48px), 960px);
+      }
+      .daily-quiz-panel {
+        max-width: min(720px, calc(100vw - 32px));
+      }
+      .edit-row input {
+        max-width: none;
+      }
+    }
+
     .camera-view {
       position: fixed;
       inset: 0;
