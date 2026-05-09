@@ -644,10 +644,11 @@ export function getCompareFourImagesPrompt(
     ),
     joinLines(
       '[비교 결론]',
-      '- betterChoice는 "A" | "B" | "similar" 중 하나예요.',
+      '- betterChoice는 "A" | "B" | "similar" 중 하나예요. 키 이름은 반드시 betterChoice로 써요.',
       '- 기본적으로 novaGroup이 더 낮은 쪽을 더 나은 선택으로 골라요.',
       '- 둘 다 Group 4면 4A → 4B → 4C 순으로 더 덜 강한 가공을 선호해요.',
       '- novaGroup과 novaSubgroup이 같으면 당류, 나트륨, 포화지방이 더 유리한 쪽을 우선해요.',
+      '- 같은 줄의 음료라도 일반형과 제로·무가당·다이어트형처럼 당류가 한쪽이 확실히 더 낮으면 betterChoice는 similar가 아니라 당류가 더 낮은 쪽이에요. 인공감미료는 comparisonSummary에서만 짧게 짚어요.',
       '- comparisonSummary는 3~5문장으로 써요.',
       '- comparisonSummary와 recommendationLine도 위 [말투 · 앱인토스 UX 라이팅]을 따라요.',
       '- recommendationLine은 한 줄 요약이에요.',

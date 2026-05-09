@@ -23,6 +23,11 @@ import {
   gemini3ThinkingLevelForStructured,
 } from '@/lib/gemini-models';
 import { extractCompareProductPair } from '@/lib/compare-response-shape';
+import {
+  extractCompareBetterChoiceRaw,
+  inferBetterChoiceWhenSugarClearlyDiffers,
+  normalizeBetterChoice,
+} from '@/lib/compare-better-choice';
 import { readGeminiApiKeyFromEnv } from '@/lib/gemini-api';
 
 export const runtime = 'nodejs';
@@ -58,13 +63,6 @@ function profileToPersonalization(
   let bmiTier: BmiTier =
     bmi < 18.5 ? 'underweight' : bmi <= 22.9 ? 'normal' : bmi <= 24.9 ? 'overweight' : 'obese';
   return { bmiValue: bmi, bmiTier };
-}
-
-function normalizeBetterChoice(v: unknown): 'A' | 'B' | 'similar' {
-  const s = v != null ? String(v).trim().toUpperCase() : '';
-  if (s === 'A' || s === 'B') return s;
-  if (s === 'SIMILAR' || s === 'TIE' || s === '동일' || s === '같음') return 'similar';
-  return 'similar';
 }
 
 function compactName(v: string | null | undefined): string {
@@ -289,7 +287,11 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    const betterChoice = normalizeBetterChoice(parsed.betterChoice);
+    let betterChoice = normalizeBetterChoice(extractCompareBetterChoiceRaw(parsed as Record<string, unknown>));
+    if (betterChoice === 'similar') {
+      const inferred = inferBetterChoiceWhenSugarClearlyDiffers(productA, productB);
+      if (inferred) betterChoice = inferred;
+    }
     const comparisonSummary = (parsed.comparisonSummary != null ? String(parsed.comparisonSummary) : '').trim();
     const recommendationLine = (parsed.recommendationLine != null ? String(parsed.recommendationLine) : '').trim();
     return NextResponse.json({
