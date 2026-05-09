@@ -319,7 +319,8 @@ function getFoodCategoryBlock(): string {
 function getOcrCorrectionBlock(): string {
   return joinLines(
     '[OCR 보정]',
-    '- productName, rawMaterials, concernIngredients.name에서 OCR 깨짐이 있으면 의미가 바뀌지 않는 범위에서만 자연스럽게 고쳐요.',
+    '- rawMaterials, concernIngredients.name에서 OCR 깨짐이 있으면 의미가 바뀌지 않는 범위에서만 자연스럽게 고쳐요.',
+    '- productName은 OCR 보정/의역/치환을 하지 말고 라벨에 보이는 문자열을 그대로 사용해요.',
     '- 없는 원재료를 새로 추정하지 않아요.',
     '- 뜻이 달라지는 보정은 하지 않아요.'
   );
@@ -402,7 +403,9 @@ function getSingleImageAnalyzeTaskBlock(): string {
     '- 텍스트를 읽고 productName, companyName, rawMaterials, nutrition, foodCategory를 판단해요.',
     '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
     '- novaGroup이 4이면 4A → 4B → 4C 순서로 novaSubgroup을 판단해요.',
-    '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+    '- productName은 라벨의 "제품명" 항목(또는 전면의 공식 제품명)에서 읽은 문자열을 그대로 써요.',
+    '- 브랜드/다른 상품명으로 치환하거나 유사 상품명을 추정하지 않아요.',
+    '- productName이 100% 확실하지 않으면 ""로 둬요.',
     '- 제품명이 사진에 없거나 라벨에서 읽을 수 없으면 추측하지 말고 productName은 ""로 둬요.',
     '- companyName이 정확히 보이지 않으면 ""로 둬요.',
     '- rawMaterials가 없으면 ""로 둬요.',
@@ -420,7 +423,8 @@ function getTwoImageAnalyzeTaskBlock(): string {
       '- rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
       '- novaGroup이 4이면 4A → 4B → 4C 순서로 novaSubgroup을 판단해요.',
       '- 2번 이미지에서 nutrition을 추출해요. 없거나 판독 불가면 null이에요.',
-      '- productName이 완전히 정확하지 않으면 ""로 둬요.',
+      '- productName은 1번 이미지의 "제품명" 표기(또는 전면 공식명)를 그대로 써요.',
+      '- 브랜드/다른 상품명으로 바꿔 쓰지 말고, 확실하지 않으면 ""로 둬요.',
       '- 제품명이 사진에 없거나 라벨에서 읽을 수 없으면 추측하지 말고 productName은 ""로 둬요.',
       '- companyName이 정확히 보이지 않으면 ""로 둬요.',
       '- rawMaterials가 없으면 ""로 둬요.',
@@ -636,7 +640,8 @@ export function getCompareFourImagesPrompt(
       '- 최상위 키 이름은 반드시 "productA", "productB"만 사용해요.',
       '- productA와 productB는 단일 제품 분석과 같은 필드 구조를 따라요.',
       '- productA는 1·2번 이미지에서만, productB는 3·4번 이미지에서만 추출해요.',
-      '- productName은 서로 복사하지 않아요. 불확실하면 ""로 둬요.',
+      '- productName은 각 제품 라벨의 "제품명" 표기 문자열을 그대로 써요.',
+      '- productName은 서로 복사하지 않고, 유사 상품명으로 추정/치환하지 않아요. 불확실하면 ""로 둬요.',
       '- 각 제품의 rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
       '- novaGroup이 4이면 4A → 4B → 4C 순서로 novaSubgroup을 판단해요.',
       '- nutrition 표가 보이면 숫자 필드와 tableRows를 채우고, 없으면 null로 둬요.',
