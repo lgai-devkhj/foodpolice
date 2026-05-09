@@ -354,6 +354,67 @@ function shouldPreferDeterministicNova3ForNutBaseSnack(
   return true;
 }
 
+/** 원재료 표에서 베리·건과로 보이는 첫 줄 — 판정 문장에 그대로 인용해요(다른 이름을 임의로 넣지 않음). */
+const TRAIL_MIX_FRUIT_LINE_RE =
+  /블루베리|크랜베리|건포도|건조포도|무화과|건망고|건사과|베리류?|cranberr|blueberr|raisin|건조\s*과일|건과류?/i;
+
+function firstTrailMixFruitRawLine(rawMaterials: string): string | null {
+  for (const line of splitRawMaterials(rawMaterials)) {
+    if (TRAIL_MIX_FRUIT_LINE_RE.test(line)) {
+      const t = line.replace(/\s+/g, ' ').trim();
+      if (!t) continue;
+      return t.length > 96 ? `${t.slice(0, 93)}…` : t;
+    }
+  }
+  return null;
+}
+
+function buildTrailMixCappedJudgment(productName: string, rawMaterials: string): string {
+  const pn = productName.trim();
+  const fruitLine = firstTrailMixFruitRawLine(rawMaterials);
+  const tail =
+    ' 견과류 본연의 맛을 즐기기 위해 가급적 첨가물이 적은 제품을 선택하는 것도 좋은 방법이에요.';
+
+  if (pn) {
+    if (fruitLine) {
+      return `「${pn}」 원재료 표에 적힌 「${fruitLine}」에는 설탕·향료 등이 함께 들어갈 수 있어요.${tail}`;
+    }
+    return `「${pn}」은(는) 견과와 건과·베리류가 함께 들어 있는 믹스예요. 원재료 표에 설탕·향료 등이 함께 적힌 항목이 있을 수 있어요.${tail}`;
+  }
+  if (fruitLine) {
+    return `원재료 표에 적힌 「${fruitLine}」에는 설탕·향료 등이 함께 들어갈 수 있어요.${tail}`;
+  }
+  return `견과 믹스에 건과·베리류가 함께 들어 있을 수 있어요. 원재료 표에 설탕·향료 등이 함께 적힌 항목이 있을 수 있어요.${tail}`;
+}
+
+function shouldCapNova3ForTrailMixNutProduct(rawMaterials: string, productName: string): boolean {
+  const blob = `${rawMaterials}\n${productName}`.trim();
+  if (!blob) return false;
+  if (includesAnyKeyword(blob, ULTRA_TOPPING_KEYWORDS)) return false;
+  if (!includesAnyKeyword(blob, NUT_INGREDIENT_KEYWORDS)) return false;
+
+  const ingredients = splitRawMaterials(rawMaterials);
+  if (ingredients.some((item) => includesAnyKeyword(item, DECOMPOSED_INGREDIENT_KEYWORDS))) {
+    return false;
+  }
+
+  const nutLineCount = ingredients.filter((item) =>
+    includesAnyKeyword(item, NUT_INGREDIENT_KEYWORDS),
+  ).length;
+  if (nutLineCount < 1) return false;
+
+  const trailFruitOrBerry =
+    /블루베리|크랜베리|건포도|건조포도|무화과|건망고|건사과|베리|cranberr|blueberr|raisin|건조\s*과일|건과(?:류)?/i.test(
+      blob,
+    );
+  const nameLikeNutHandful =
+    /너트한줌|한\s*줌|투데이\s*넛|today\s*nut|trail\s*mix|견과.*혼합|혼합\s*견과|너트\s*믹스/i.test(blob);
+
+  if (trailFruitOrBerry) return true;
+  if (nameLikeNutHandful && nutLineCount >= 2) return true;
+  return false;
+}
+
 function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassification | null {
   const ingredients = splitRawMaterials(rawMaterials);
   if (ingredients.length === 0) return null;
@@ -625,14 +686,25 @@ export function buildAnalysisResultFromGeminiObject(parsed: Record<string, unkno
     novaSubgroup = null;
   }
 
+  let judgmentReason =
+    parsed.judgmentReason != null && String(parsed.judgmentReason).trim().length > 0
+      ? String(parsed.judgmentReason).trim()
+      : null;
+
+  if (
+    novaGroup === 4 &&
+    shouldCapNova3ForTrailMixNutProduct(product.rawMaterials, product.productName)
+  ) {
+    novaGroup = 3;
+    novaSubgroup = null;
+    judgmentReason = buildTrailMixCappedJudgment(product.productName, product.rawMaterials);
+  }
+
   return {
     product,
     novaGroup,
     novaSubgroup,
-    judgmentReason:
-      parsed.judgmentReason != null && String(parsed.judgmentReason).trim().length > 0
-        ? String(parsed.judgmentReason).trim()
-        : null,
+    judgmentReason,
     concernIngredients,
     keyInsights,
     analysisConfidence,
