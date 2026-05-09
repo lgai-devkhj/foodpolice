@@ -641,6 +641,8 @@ export function getCompareFourImagesPrompt(
       '- productA와 productB는 단일 제품 분석과 같은 필드 구조를 따라요.',
       '- productA는 1·2번 이미지에서만, productB는 3·4번 이미지에서만 추출해요.',
       '- productName은 각 제품 라벨의 "제품명" 표기 문자열을 그대로 써요.',
+      '- productName은 띄어쓰기·기호를 임의 정규화하지 말고 보이는 순서 그대로 복사해요.',
+      '- 제품명 라벨이 안 보이는데 브랜드/제품을 추정해 쓰는 행동은 금지예요.',
       '- productName은 서로 복사하지 않고, 유사 상품명으로 추정/치환하지 않아요. 불확실하면 ""로 둬요.',
       '- 각 제품의 rawMaterials를 기준으로 사전 계산을 하고, 판정 순서대로 novaGroup을 판단해요.',
       '- novaGroup이 4이면 4A → 4B → 4C 순서로 novaSubgroup을 판단해요.',

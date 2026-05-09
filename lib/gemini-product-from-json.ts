@@ -709,7 +709,8 @@ function extractProductCoreFields(parsed: Record<string, unknown>): {
   companyName: string;
   rawMaterials: string;
 } {
-  const nameKeys = ['productName', 'product_name', 'name', '제품명', '상품명', '식품명'];
+  const topLevelNameKeys = ['productName', 'product_name', '제품명', '상품명', '식품명'];
+  const nestedNameKeys = [...topLevelNameKeys, 'name'];
   const companyKeys = ['companyName', 'company_name', 'manufacturer', 'brand', '제조원', '제조사', '업체명'];
   const rawKeys = [
     'rawMaterials',
@@ -721,7 +722,7 @@ function extractProductCoreFields(parsed: Record<string, unknown>): {
     '원재료명및함량',
   ];
 
-  let productName = pickFirstStringField(parsed, nameKeys);
+  let productName = pickFirstStringField(parsed, topLevelNameKeys);
   let companyName = pickFirstStringField(parsed, companyKeys);
   let rawMaterials = pickFirstStringField(parsed, rawKeys);
 
@@ -729,7 +730,7 @@ function extractProductCoreFields(parsed: Record<string, unknown>): {
   for (const c of containers) {
     const inner = asRecord(parsed[c]);
     if (!inner) continue;
-    if (!productName) productName = pickFirstStringField(inner, nameKeys);
+    if (!productName) productName = pickFirstStringField(inner, nestedNameKeys);
     if (!companyName) companyName = pickFirstStringField(inner, companyKeys);
     if (!rawMaterials) rawMaterials = pickFirstStringField(inner, rawKeys);
     if (productName && companyName && rawMaterials) break;
