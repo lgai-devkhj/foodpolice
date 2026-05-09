@@ -178,7 +178,37 @@ const DECOMPOSED_INGREDIENT_KEYWORDS = [
 
 const ADDITIVE_KEYWORDS = ['감미료', '향료', '색소', '착색', '유화제', '보존료', '안정제', '산도조절제'];
 
-const COOKING_INGREDIENT_KEYWORDS = ['설탕', '소금', '버터', '식용유', '꿀', '전분'];
+/** NOVA 2 (조리용 가공) 후보 — 원재료 표 줄마다 이 계열만 있으면 2단계 후보로 봐요. */
+const GROUP2_KEYWORDS = [
+  '설탕',
+  '소금',
+  '올리고당',
+  '물엿',
+  '시럽',
+  '꿀',
+  '버터',
+  '마가린',
+  '식용유',
+  '올리브유',
+  '참기름',
+  '들기름',
+  '전분',
+];
+
+/** 시럽은 2단계 후보에 넣되, 초콜릿·사탕류와 붙은 줄은 2단계 전용으로 보지 않아요. */
+const GROUP2_LINE_BLOCKERS = [
+  '초코볼',
+  '초콜릿',
+  '초코',
+  '사탕',
+  '캔디',
+  '젤리',
+  '코팅',
+  '쿠키',
+  '비스킷',
+  '크래커',
+  '마시멜로',
+];
 
 const NUT_INGREDIENT_KEYWORDS = [
   '견과',
@@ -265,6 +295,33 @@ function splitRawMaterials(rawMaterials: string): string[] {
 function includesAnyKeyword(text: string, keywords: string[]): boolean {
   const t = text.toLowerCase();
   return keywords.some((k) => t.includes(k.toLowerCase()));
+}
+
+function ingredientLineMatchesGroup2Candidate(line: string): boolean {
+  return includesAnyKeyword(line, GROUP2_KEYWORDS);
+}
+
+/** 2단계 전용(조리용 재료만)으로 보기 어려운 줄 — 초콜릿·사탕 스낵, 분해원료, 첨가물 표기 등 */
+function ingredientLineBlocksExclusiveGroup2(line: string): boolean {
+  return (
+    includesAnyKeyword(line, GROUP2_LINE_BLOCKERS) ||
+    includesAnyKeyword(line, DECOMPOSED_INGREDIENT_KEYWORDS) ||
+    includesAnyKeyword(line, ADDITIVE_KEYWORDS)
+  );
+}
+
+/** 원재료가 전부 Group 2 계열이면 Group 2로 확정 (분해·첨가·스낵 혼합 신호 없음). */
+function isExclusiveGroup2Product(
+  ingredients: string[],
+  decomposedCount: number,
+  additiveCount: number,
+  hasCoreAdditive: boolean,
+): boolean {
+  if (ingredients.length === 0) return false;
+  if (decomposedCount > 0 || additiveCount > 0 || hasCoreAdditive) return false;
+  return ingredients.every(
+    (item) => ingredientLineMatchesGroup2Candidate(item) && !ingredientLineBlocksExclusiveGroup2(item),
+  );
 }
 
 function parseIngredientPercent(item: string): number | null {
@@ -420,15 +477,14 @@ function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassificati
   if (ingredients.length === 0) return null;
 
   const decomposedCount = ingredients.filter((item) =>
-    includesAnyKeyword(item, DECOMPOSED_INGREDIENT_KEYWORDS)
+    includesAnyKeyword(item, DECOMPOSED_INGREDIENT_KEYWORDS),
   ).length;
   const additiveCount = ingredients.filter((item) => includesAnyKeyword(item, ADDITIVE_KEYWORDS)).length;
   const hasCoreAdditive = ingredients.some((item) => item.includes('감미료') || item.includes('향료'));
-  const isSingleCookingIngredient =
-    ingredients.length === 1 && includesAnyKeyword(ingredients[0], COOKING_INGREDIENT_KEYWORDS);
+
   const nutItems = ingredients.filter((item) => includesAnyKeyword(item, NUT_INGREDIENT_KEYWORDS));
   const wholeBaseItems = ingredients.filter((item) =>
-    includesAnyKeyword(item, WHOLE_BASE_INGREDIENT_KEYWORDS)
+    includesAnyKeyword(item, WHOLE_BASE_INGREDIENT_KEYWORDS),
   );
   const ultraToppingItems = ingredients.filter((item) => includesAnyKeyword(item, ULTRA_TOPPING_KEYWORDS));
   const mixedNutSnack = nutItems.length > 0 && ultraToppingItems.length > 0;
@@ -437,7 +493,7 @@ function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassificati
   const wholeBasePercent = wholeBaseItems.reduce((acc, item) => acc + (parseIngredientPercent(item) ?? 0), 0);
   const toppingPercent = ultraToppingItems.reduce(
     (acc, item) => acc + (parseIngredientPercent(item) ?? 0),
-    0
+    0,
   );
   const hasPercentSignal = nutPercent > 0 || wholeBasePercent > 0 || toppingPercent > 0;
   const nutDominantByMixRule = hasPercentSignal
@@ -452,12 +508,17 @@ function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassificati
       : wholeBaseItems.length > ultraToppingItems.length
     : false;
 
-  if (isSingleCookingIngredient) {
+  // --- 1) Group 2: 조리용 가공 재료만 구성 (설탕·유지·시럽 등, 분해·첨가·스낵 혼합 없음) ---
+  if (isExclusiveGroup2Product(ingredients, decomposedCount, additiveCount, hasCoreAdditive)) {
     return { novaGroup: 2, novaSubgroup: null };
   }
-  if (ingredients.length === 1 && decomposedCount === 0 && additiveCount === 0) {
+
+  // --- 2) Group 1: 미가공 또는 최소 가공 단일 식품 ---
+  if (ingredients.length === 1 && decomposedCount === 0 && additiveCount === 0 && !hasCoreAdditive) {
     return { novaGroup: 1, novaSubgroup: null };
   }
+
+  // --- 3) Group 3: 가공식품 (혼합·우세 구조·완만한 첨가) ---
   // 혼합 구성 우세 법칙: 견과류+사탕/토핑 혼합에서는 "무엇이 우세한지"를 먼저 봐요.
   if (mixedNutSnack) {
     if (nutDominantByMixRule && decomposedCount === 0 && additiveCount <= 2 && !hasCoreAdditive) {
@@ -479,6 +540,7 @@ function classifyByKoreanNovaRules(rawMaterials: string): KoreanNovaClassificati
     return { novaGroup: 3, novaSubgroup: null };
   }
 
+  // --- 4) Group 4: 초가공 (4A → 4B → 4C) ---
   const s = decomposedCount + additiveCount;
   if (decomposedCount <= 1 && additiveCount <= 2) {
     return { novaGroup: 4, novaSubgroup: '4A' };
